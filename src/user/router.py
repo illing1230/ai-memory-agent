@@ -56,6 +56,84 @@ async def get_department(
         raise HTTPException(status_code=404, detail=e.message)
 
 
+# ==================== Project (User보다 먼저!) ====================
+
+@router.post("/projects", response_model=ProjectResponse)
+async def create_project(
+    data: ProjectCreate,
+    owner_id: str | None = None,
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 생성"""
+    return await service.create_project(
+        data.name,
+        data.description,
+        data.department_id,
+        owner_id,
+    )
+
+
+@router.get("/projects", response_model=list[ProjectResponse])
+async def list_projects(
+    department_id: str | None = None,
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 목록"""
+    return await service.list_projects(department_id)
+
+
+@router.get("/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: str,
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 조회"""
+    try:
+        return await service.get_project(project_id)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+
+
+# ==================== Project Member ====================
+
+@router.post("/projects/{project_id}/members", response_model=ProjectMemberResponse)
+async def add_project_member(
+    project_id: str,
+    data: ProjectMemberCreate,
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 멤버 추가"""
+    try:
+        return await service.add_project_member(project_id, data.user_id, data.role)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=e.message)
+
+
+@router.get("/projects/{project_id}/members", response_model=list[ProjectMemberResponse])
+async def list_project_members(
+    project_id: str,
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 멤버 목록"""
+    try:
+        return await service.list_project_members(project_id)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+
+
+@router.delete("/projects/{project_id}/members/{user_id}")
+async def remove_project_member(
+    project_id: str,
+    user_id: str,
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 멤버 제거"""
+    await service.remove_project_member(project_id, user_id)
+    return {"message": "프로젝트 멤버가 제거되었습니다"}
+
+
 # ==================== User ====================
 
 @router.post("", response_model=UserResponse)
@@ -126,44 +204,6 @@ async def delete_user(
         raise HTTPException(status_code=404, detail=e.message)
 
 
-# ==================== Project ====================
-
-@router.post("/projects", response_model=ProjectResponse)
-async def create_project(
-    data: ProjectCreate,
-    owner_id: str | None = None,
-    service: UserService = Depends(get_user_service),
-):
-    """프로젝트 생성"""
-    return await service.create_project(
-        data.name,
-        data.description,
-        data.department_id,
-        owner_id,
-    )
-
-
-@router.get("/projects", response_model=list[ProjectResponse])
-async def list_projects(
-    department_id: str | None = None,
-    service: UserService = Depends(get_user_service),
-):
-    """프로젝트 목록"""
-    return await service.list_projects(department_id)
-
-
-@router.get("/projects/{project_id}", response_model=ProjectResponse)
-async def get_project(
-    project_id: str,
-    service: UserService = Depends(get_user_service),
-):
-    """프로젝트 조회"""
-    try:
-        return await service.get_project(project_id)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=e.message)
-
-
 @router.get("/{user_id}/projects", response_model=list[ProjectResponse])
 async def get_user_projects(
     user_id: str,
@@ -171,43 +211,3 @@ async def get_user_projects(
 ):
     """사용자가 참여한 프로젝트 목록"""
     return await service.get_user_projects(user_id)
-
-
-# ==================== Project Member ====================
-
-@router.post("/projects/{project_id}/members", response_model=ProjectMemberResponse)
-async def add_project_member(
-    project_id: str,
-    data: ProjectMemberCreate,
-    service: UserService = Depends(get_user_service),
-):
-    """프로젝트 멤버 추가"""
-    try:
-        return await service.add_project_member(project_id, data.user_id, data.role)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=e.message)
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=e.message)
-
-
-@router.get("/projects/{project_id}/members", response_model=list[ProjectMemberResponse])
-async def list_project_members(
-    project_id: str,
-    service: UserService = Depends(get_user_service),
-):
-    """프로젝트 멤버 목록"""
-    try:
-        return await service.list_project_members(project_id)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=e.message)
-
-
-@router.delete("/projects/{project_id}/members/{user_id}")
-async def remove_project_member(
-    project_id: str,
-    user_id: str,
-    service: UserService = Depends(get_user_service),
-):
-    """프로젝트 멤버 제거"""
-    await service.remove_project_member(project_id, user_id)
-    return {"message": "프로젝트 멤버가 제거되었습니다"}
