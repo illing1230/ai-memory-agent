@@ -174,23 +174,24 @@ class MchatClient:
     
     # ==================== WebSocket ====================
     
-    def on(self, event_type: str, handler: Callable):
+    def on(self, event_type: str):
         """
-        이벤트 핸들러 등록
+        이벤트 핸들러 등록 (데코레이터)
         
         Args:
             event_type: 이벤트 타입 (posted, typing, channel_viewed 등)
-            handler: 비동기 핸들러 함수
         
         Example:
             @client.on("posted")
             async def handle_message(data):
                 print(f"New message: {data}")
         """
-        if event_type not in self._event_handlers:
-            self._event_handlers[event_type] = []
-        self._event_handlers[event_type].append(handler)
-        return handler  # 데코레이터로 사용 가능
+        def decorator(handler: Callable):
+            if event_type not in self._event_handlers:
+                self._event_handlers[event_type] = []
+            self._event_handlers[event_type].append(handler)
+            return handler
+        return decorator
     
     async def _emit(self, event_type: str, data: dict):
         """이벤트 핸들러 호출"""
