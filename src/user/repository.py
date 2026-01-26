@@ -66,6 +66,18 @@ class UserRepository:
         row = await cursor.fetchone()
         return dict(row) if row else None
 
+    async def get_user_with_department(self, user_id: str) -> dict[str, Any] | None:
+        """사용자 조회 (부서 정보 포함)"""
+        cursor = await self.db.execute(
+            """SELECT u.*, d.name as department_name, d.description as department_description
+               FROM users u
+               LEFT JOIN departments d ON u.department_id = d.id
+               WHERE u.id = ?""",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
     async def get_user_by_email(self, email: str) -> dict[str, Any] | None:
         """이메일로 사용자 조회"""
         cursor = await self.db.execute(

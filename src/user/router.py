@@ -211,3 +211,15 @@ async def get_user_projects(
 ):
     """사용자가 참여한 프로젝트 목록"""
     return await service.get_user_projects(user_id)
+
+
+@router.get("/{user_id}/department", response_model=DepartmentResponse | None)
+async def get_user_department(
+    user_id: str,
+    service: UserService = Depends(get_user_service),
+):
+    """사용자의 부서 조회"""
+    dept = await service.get_user_department(user_id)
+    if not dept:
+        return None
+    return dept

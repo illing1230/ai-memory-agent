@@ -126,6 +126,17 @@ class UserService:
         """사용자가 참여한 프로젝트 목록"""
         return await self.repo.get_user_projects(user_id)
 
+    async def get_user_department(self, user_id: str) -> dict[str, Any] | None:
+        """사용자의 부서 조회"""
+        user = await self.repo.get_user_with_department(user_id)
+        if not user or not user.get("department_id"):
+            return None
+        return {
+            "id": user["department_id"],
+            "name": user.get("department_name"),
+            "description": user.get("department_description"),
+        }
+
     # ==================== Project Member ====================
 
     async def add_project_member(

@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     vector_id TEXT,
-    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department')),
+    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom')),
     owner_id TEXT NOT NULL,
     project_id TEXT,
     department_id TEXT,

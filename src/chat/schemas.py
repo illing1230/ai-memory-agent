@@ -5,13 +5,18 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class MemorySources(BaseModel):
+    """메모리 소스 설정"""
+    include_this_room: bool = True  # 이 채팅방 메모리 (기본 true)
+    other_chat_rooms: list[str] = []  # 다른 채팅방 ID 목록
+    include_personal: bool = False  # 내 개인 메모리 전체 (주의 필요)
+    projects: list[str] = []  # 프로젝트 ID 목록
+    departments: list[str] = []  # 부서 ID 목록
+
+
 class ContextSources(BaseModel):
     """컨텍스트 소스 설정"""
-    memory: dict = {
-        "personal": True,
-        "projects": [],
-        "departments": []
-    }
+    memory: MemorySources = MemorySources()
     rag: dict = {
         "collections": [],
         "filters": {}
@@ -35,6 +40,7 @@ class ChatRoomResponse(ChatRoomBase):
     project_id: str | None = None
     department_id: str | None = None
     context_sources: ContextSources | None = None
+    member_role: str | None = None  # 내 역할 (owner/admin/member)
     created_at: datetime
 
     class Config:
