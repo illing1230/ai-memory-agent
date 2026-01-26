@@ -226,9 +226,11 @@ def load_messages(room_id: str):
     return api_request("GET", f"/chat-rooms/{room_id}/messages", user_id=st.session_state.user_id) or []
 
 
-def escape_html(text: str) -> str:
+def escape_html(text: str | None) -> str:
     """HTML 특수문자 이스케이프 후 줄바꿈 처리"""
-    escaped = html.escape(text)
+    if text is None:
+        return ""
+    escaped = html.escape(str(text))
     return escaped.replace("\n", "<br>")
 
 
