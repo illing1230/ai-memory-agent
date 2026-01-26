@@ -5,7 +5,8 @@ import httpx
 import json
 
 # API 설정
-API_BASE_URL = "http://localhost:8000/api/v1"
+import os
+API_BASE_URL = os.getenv("API_BASE_URL", "http://10.244.14.73:8000/api/v1")
 
 # 페이지 설정
 st.set_page_config(
