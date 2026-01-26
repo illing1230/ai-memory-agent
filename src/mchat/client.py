@@ -240,6 +240,11 @@ class MchatClient:
                             event = json.loads(message)
                             event_type = event.get("event", "unknown")
                             
+                            # 디버그: 모든 이벤트 출력
+                            print(f"[Mchat] Event: {event_type}")
+                            if event_type != "hello":
+                                print(f"        Data: {json.dumps(event, ensure_ascii=False)[:200]}")
+                            
                             # posted 이벤트의 경우 post 데이터 파싱
                             if event_type == "posted" and "data" in event:
                                 if "post" in event["data"]:
