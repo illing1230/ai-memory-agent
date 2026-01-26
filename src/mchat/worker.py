@@ -14,7 +14,7 @@ from src.chat.repository import ChatRepository
 from src.memory.repository import MemoryRepository
 from src.user.repository import UserRepository
 from src.config import get_settings
-from src.shared.database import init_db
+from src.shared.database import init_database, SCHEMA_SQL
 
 
 # Mchat 채널 → Agent 채팅방 매핑 (임시 - 추후 DB로 관리)
@@ -149,7 +149,7 @@ async def main():
         return
     
     # DB 초기화
-    await init_db()
+    await init_database()
     db = await aiosqlite.connect(settings.sqlite_db_path)
     db.row_factory = aiosqlite.Row
     
