@@ -66,6 +66,10 @@ async def main():
         user_id = post.get("user_id", "")
         post_id = post.get("id", "")
         
+        # AI 응답 메시지는 무시 (무한루프 방지)
+        if message.startswith("🤖"):
+            return
+        
         print(f"\n[새 메시지] user={user_id}, msg={message[:50]}...")
         
         # 1. 모든 메시지 저장 (내 메시지 포함)
@@ -79,7 +83,7 @@ async def main():
             await client.create_post(
                 channel_id=channel_id,
                 message=response,
-                root_id=post_id,  # Thread 응답
+                # root_id 제거 - DM에서는 Thread 지원 안 될 수 있음
             )
             print(f"  [응답 전송] {response}")
     
