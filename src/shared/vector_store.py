@@ -1,7 +1,7 @@
 """Qdrant 벡터 저장소 관리"""
 
 from typing import Any
-from qdrant_client import QdrantClient, AsyncQdrantClient
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
 
@@ -138,9 +138,10 @@ async def search_vectors(
         if must_conditions:
             query_filter = models.Filter(must=must_conditions)
 
-    results = await client.search(
+    # query_points 사용 (최신 qdrant-client API)
+    results = await client.query_points(
         collection_name=settings.qdrant_collection,
-        query_vector=query_vector,
+        query=query_vector,
         limit=limit,
         score_threshold=score_threshold,
         query_filter=query_filter,
@@ -148,11 +149,11 @@ async def search_vectors(
 
     return [
         {
-            "id": str(result.id),
-            "score": result.score,
-            "payload": result.payload,
+            "id": str(point.id),
+            "score": point.score,
+            "payload": point.payload,
         }
-        for result in results
+        for point in results.points
     ]
 
 
