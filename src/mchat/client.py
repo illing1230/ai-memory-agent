@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import ssl
 from typing import Any, Callable, Optional
 
 import httpx
@@ -9,6 +10,11 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from src.config import get_settings
+
+# SSL 검증 비활성화 (삼성 내부망 자체 서명 인증서)
+SSL_CONTEXT = ssl.create_default_context()
+SSL_CONTEXT.check_hostname = False
+SSL_CONTEXT.verify_mode = ssl.CERT_NONE
 
 
 class MchatClient:
@@ -52,7 +58,7 @@ class MchatClient:
         """REST API 요청"""
         url = f"{self.base_url}{endpoint}"
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
             response = await client.request(
                 method=method,
                 url=url,
@@ -211,9 +217,10 @@ class MchatClient:
                 
                 async with websockets.connect(
                     ws_url,
-                    extra_headers={"Authorization": f"Bearer {self.token}"},
+                    additional_headers={"Authorization": f"Bearer {self.token}"},
                     ping_interval=30,
                     ping_timeout=10,
+                    ssl=SSL_CONTEXT,  # SSL 검증 비활성화
                 ) as ws:
                     self._ws = ws
                     print("[Mchat] WebSocket connected!")
