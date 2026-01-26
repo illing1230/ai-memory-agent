@@ -72,14 +72,7 @@ async def main():
         # TODO: DB에 메시지 저장
         print(f"  [저장] channel={channel_id}, user={user_id}")
         
-        # 2. AI 응답은 내 메시지에는 하지 않음
-        is_my_message = (user_id == me["id"])
-        
-        if is_my_message:
-            print("  (내 메시지 - 저장만, AI 응답 안 함)")
-            return
-        
-        # 3. @ai 멘션 또는 /remember 커맨드 처리
+        # 2. @ai 멘션 또는 /remember 커맨드 처리 (내 메시지도 포함 - 테스트용)
         if "@ai" in message.lower() or message.startswith("/remember"):
             response = f"🤖 메시지를 받았습니다: {message[:30]}..."
             
