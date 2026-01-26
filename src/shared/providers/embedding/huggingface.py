@@ -45,7 +45,8 @@ class HuggingFaceEmbeddingProvider(BaseEmbeddingProvider):
         payload = {"inputs": texts}
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # SSL 검증 비활성화 (내부망 자체 서명 인증서 대응)
+            async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
                 response = await client.post(
                     self.model_url,
                     headers=headers,
