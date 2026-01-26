@@ -570,12 +570,13 @@ class ChatService:
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=5,
-                    filter_conditions={"chat_room_id": current_room_id, "scope": "chatroom"},
+                    filter_conditions={"chat_room_id": current_room_id},
                 )
                 for r in results:
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
                         all_memories.append({"memory": memory, "score": r["score"]})
+                print(f"이 채팅방 메모리 검색: {len(results)}개 발견")
             except Exception as e:
                 print(f"이 채팅방 메모리 검색 실패: {e}")
         
@@ -585,12 +586,13 @@ class ChatService:
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=3,
-                    filter_conditions={"chat_room_id": room_id, "scope": "chatroom"},
+                    filter_conditions={"chat_room_id": room_id},
                 )
                 for r in results:
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
                         all_memories.append({"memory": memory, "score": r["score"]})
+                print(f"다른 채팅방({room_id}) 메모리 검색: {len(results)}개 발견")
             except Exception as e:
                 print(f"다른 채팅방 메모리 검색 실패: {e}")
         
@@ -647,6 +649,7 @@ class ChatService:
                 seen.add(m["memory"]["id"])
                 unique_memories.append(m)
         
+        print(f"총 메모리 검색 결과: {len(unique_memories)}개")
         return unique_memories[:10]
 
     def _build_system_prompt(self, memories: list[dict[str, Any]]) -> str:

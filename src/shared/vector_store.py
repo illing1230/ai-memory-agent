@@ -63,6 +63,11 @@ async def init_vector_store() -> None:
             field_name="department_id",
             field_schema=models.PayloadSchemaType.KEYWORD,
         )
+        await _qdrant_client.create_payload_index(
+            collection_name=settings.qdrant_collection,
+            field_name="chat_room_id",
+            field_schema=models.PayloadSchemaType.KEYWORD,
+        )
 
         print(f"✅ Qdrant Collection 생성됨: {settings.qdrant_collection} (dimension: {settings.embedding_dimension})")
 

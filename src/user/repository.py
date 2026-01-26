@@ -168,6 +168,45 @@ class UserRepository:
         row = await cursor.fetchone()
         return dict(row) if row else None
 
+    async def update_project(
+        self,
+        project_id: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any] | None:
+        """프로젝트 수정"""
+        updates = []
+        params = []
+
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+
+        if not updates:
+            return await self.get_project(project_id)
+
+        updates.append("updated_at = ?")
+        params.append(datetime.utcnow().isoformat())
+        params.append(project_id)
+
+        await self.db.execute(
+            f"UPDATE projects SET {', '.join(updates)} WHERE id = ?",
+            params,
+        )
+        await self.db.commit()
+        return await self.get_project(project_id)
+
+    async def delete_project(self, project_id: str) -> bool:
+        """프로젝트 삭제"""
+        cursor = await self.db.execute(
+            "DELETE FROM projects WHERE id = ?", (project_id,)
+        )
+        await self.db.commit()
+        return cursor.rowcount > 0
+
     async def list_projects(self, department_id: str | None = None) -> list[dict[str, Any]]:
         """프로젝트 목록 조회"""
         if department_id:
@@ -196,12 +235,32 @@ class UserRepository:
             (member_id, project_id, user_id, role),
         )
         await self.db.commit()
-        return await self.get_project_member(member_id)
+        return await self.get_project_member_by_user(project_id, user_id)
 
     async def get_project_member(self, member_id: str) -> dict[str, Any] | None:
-        """프로젝트 멤버 조회"""
+        """프로젝트 멤버 조회 (ID로)"""
         cursor = await self.db.execute(
-            "SELECT * FROM project_members WHERE id = ?", (member_id,)
+            """SELECT pm.*, u.name as user_name, u.email as user_email
+               FROM project_members pm
+               LEFT JOIN users u ON pm.user_id = u.id
+               WHERE pm.id = ?""",
+            (member_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def get_project_member_by_user(
+        self,
+        project_id: str,
+        user_id: str,
+    ) -> dict[str, Any] | None:
+        """프로젝트 멤버 조회 (project_id, user_id로)"""
+        cursor = await self.db.execute(
+            """SELECT pm.*, u.name as user_name, u.email as user_email
+               FROM project_members pm
+               LEFT JOIN users u ON pm.user_id = u.id
+               WHERE pm.project_id = ? AND pm.user_id = ?""",
+            (project_id, user_id)
         )
         row = await cursor.fetchone()
         return dict(row) if row else None
@@ -209,15 +268,36 @@ class UserRepository:
     async def list_project_members(self, project_id: str) -> list[dict[str, Any]]:
         """프로젝트 멤버 목록 조회"""
         cursor = await self.db.execute(
-            "SELECT * FROM project_members WHERE project_id = ?", (project_id,)
+            """SELECT pm.*, u.name as user_name, u.email as user_email
+               FROM project_members pm
+               LEFT JOIN users u ON pm.user_id = u.id
+               WHERE pm.project_id = ?
+               ORDER BY pm.role, pm.joined_at""",
+            (project_id,)
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
+    async def update_project_member_role(
+        self,
+        project_id: str,
+        user_id: str,
+        role: str,
+    ) -> dict[str, Any] | None:
+        """프로젝트 멤버 역할 변경"""
+        await self.db.execute(
+            """UPDATE project_members SET role = ?
+               WHERE project_id = ? AND user_id = ?""",
+            (role, project_id, user_id),
+        )
+        await self.db.commit()
+        return await self.get_project_member_by_user(project_id, user_id)
+
     async def get_user_projects(self, user_id: str) -> list[dict[str, Any]]:
-        """사용자가 참여한 프로젝트 목록"""
+        """사용자가 참여한 프로젝트 목록 (역할 포함)"""
         cursor = await self.db.execute(
-            """SELECT p.* FROM projects p
+            """SELECT p.*, pm.role as member_role
+               FROM projects p
                JOIN project_members pm ON p.id = pm.project_id
                WHERE pm.user_id = ?
                ORDER BY p.name""",

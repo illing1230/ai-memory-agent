@@ -2,7 +2,6 @@
 
 import streamlit as st
 import httpx
-import json
 
 # API 설정
 import os
@@ -189,10 +188,13 @@ with st.sidebar:
     if st.button("💬 채팅", use_container_width=True, type="primary" if st.session_state.page == "chat" else "secondary"):
         st.session_state.page = "chat"
         st.rerun()
+    if st.button("📋 프로젝트", use_container_width=True, type="primary" if st.session_state.page == "project" else "secondary"):
+        st.session_state.page = "project"
+        st.rerun()
     if st.button("🔍 메모리 검색", use_container_width=True, type="primary" if st.session_state.page == "search" else "secondary"):
         st.session_state.page = "search"
         st.rerun()
-    if st.button("📋 메모리 목록", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
+    if st.button("📝 메모리 목록", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
         st.session_state.page = "list"
         st.rerun()
     
@@ -311,7 +313,7 @@ if not st.session_state.user_id:
     st.stop()
 
 
-# 채팅 페이지
+# ==================== 채팅 페이지 ====================
 if st.session_state.page == "chat":
     if st.session_state.current_room:
         room = st.session_state.current_room
@@ -374,7 +376,113 @@ if st.session_state.page == "chat":
         st.info("👈 사이드바에서 채팅방을 선택하거나 새로 만드세요.")
 
 
-# 메모리 검색 페이지
+# ==================== 프로젝트 페이지 ====================
+elif st.session_state.page == "project":
+    st.header("📋 프로젝트 관리")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    # 왼쪽: 프로젝트 목록
+    with col1:
+        st.subheader("내 프로젝트")
+        
+        # 새 프로젝트 생성
+        with st.expander("➕ 새 프로젝트"):
+            proj_name = st.text_input("프로젝트 이름", key="new_proj_name")
+            proj_desc = st.text_area("설명", key="new_proj_desc", height=100)
+            
+            if st.button("프로젝트 생성", type="primary", key="create_proj"):
+                if proj_name:
+                    result = api_request("POST", "/users/projects", {
+                        "name": proj_name,
+                        "description": proj_desc,
+                    }, st.session_state.user_id)
+                    if result:
+                        st.success("프로젝트 생성됨!")
+                        st.rerun()
+        
+        st.markdown("---")
+        
+        # 내 프로젝트 목록
+        my_projects = load_my_projects()
+        if my_projects:
+            for proj in my_projects:
+                role = proj.get("member_role", "member")
+                role_emoji = {"owner": "👑", "admin": "⭐", "member": "👤"}.get(role, "")
+                
+                if st.button(f"📋 {proj['name']} {role_emoji}", key=f"proj_select_{proj['id']}", use_container_width=True):
+                    st.session_state.selected_project = proj
+                    st.rerun()
+        else:
+            st.info("프로젝트가 없습니다")
+    
+    # 오른쪽: 프로젝트 상세
+    with col2:
+        if "selected_project" in st.session_state and st.session_state.selected_project:
+            proj = st.session_state.selected_project
+            my_role = proj.get("member_role", "member")
+            
+            st.subheader(f"📋 {proj['name']}")
+            st.caption(f"내 역할: {my_role}")
+            
+            if proj.get("description"):
+                st.markdown(f"**설명:** {proj['description']}")
+            
+            st.markdown("---")
+            
+            # 멤버 목록
+            st.markdown("### 👥 멤버")
+            members = api_request("GET", f"/users/projects/{proj['id']}/members")
+            
+            if members:
+                for m in members:
+                    role_emoji = {"owner": "👑", "admin": "⭐", "member": "👤"}.get(m["role"], "")
+                    st.markdown(f"{role_emoji} **{m.get('user_name', 'Unknown')}** - {m.get('user_email', '')}")
+            
+            # 멤버 추가 (owner/admin만)
+            if my_role in ["owner", "admin"]:
+                st.markdown("---")
+                st.markdown("### ➕ 멤버 초대")
+                
+                # 전체 사용자 목록에서 선택
+                all_users = load_users()
+                member_ids = [m["user_id"] for m in members] if members else []
+                available_users = [u for u in all_users if u["id"] not in member_ids]
+                
+                if available_users:
+                    user_options = {f"{u['name']} ({u['email']})": u['id'] for u in available_users}
+                    selected_user_to_add = st.selectbox("사용자 선택", options=list(user_options.keys()), key="add_member_select")
+                    member_role = st.selectbox("역할", ["member", "admin"], key="add_member_role")
+                    
+                    if st.button("멤버 추가", type="primary", key="add_member_btn"):
+                        if selected_user_to_add:
+                            target_user_id = user_options[selected_user_to_add]
+                            result = api_request("POST", f"/users/projects/{proj['id']}/members", {
+                                "user_id": target_user_id,
+                                "role": member_role,
+                            }, st.session_state.user_id)
+                            if result:
+                                st.success("멤버 추가됨!")
+                                st.rerun()
+                else:
+                    st.info("추가할 수 있는 사용자가 없습니다")
+            
+            # 프로젝트 삭제 (owner만)
+            if my_role == "owner":
+                st.markdown("---")
+                with st.expander("⚠️ 위험 영역"):
+                    st.warning("프로젝트를 삭제하면 복구할 수 없습니다.")
+                    if st.button("🗑️ 프로젝트 삭제", type="primary", key="delete_proj"):
+                        result = api_request("DELETE", f"/users/projects/{proj['id']}", user_id=st.session_state.user_id)
+                        if result:
+                            st.success("프로젝트 삭제됨!")
+                            st.session_state.selected_project = None
+                            st.rerun()
+        else:
+            st.info("👈 왼쪽에서 프로젝트를 선택하세요.")
+
+
+# ==================== 메모리 검색 페이지 ====================
 elif st.session_state.page == "search":
     st.header("🔍 메모리 시맨틱 검색")
     
@@ -412,9 +520,9 @@ elif st.session_state.page == "search":
             st.warning("검색어를 입력하세요.")
 
 
-# 메모리 목록 페이지
+# ==================== 메모리 목록 페이지 ====================
 elif st.session_state.page == "list":
-    st.header("📋 내 메모리 목록")
+    st.header("📝 내 메모리 목록")
     
     if st.button("🔄 새로고침"):
         st.rerun()
@@ -441,4 +549,4 @@ elif st.session_state.page == "list":
 
 # 푸터
 st.markdown("---")
-st.caption("AI Memory Agent v0.2.0 | 채팅방 기반 메모리 관리")
+st.caption("AI Memory Agent v0.2.0 | 채팅방 + 프로젝트 기반 메모리 관리")

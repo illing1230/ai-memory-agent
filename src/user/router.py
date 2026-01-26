@@ -1,10 +1,10 @@
 """User API Router"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 import aiosqlite
 
 from src.shared.database import get_db
-from src.shared.exceptions import NotFoundException, ValidationException
+from src.shared.exceptions import NotFoundException, ValidationException, ForbiddenException
 from src.user.service import UserService
 from src.user.schemas import (
     DepartmentCreate,
@@ -13,8 +13,10 @@ from src.user.schemas import (
     UserUpdate,
     UserResponse,
     ProjectCreate,
+    ProjectUpdate,
     ProjectResponse,
     ProjectMemberCreate,
+    ProjectMemberUpdate,
     ProjectMemberResponse,
 )
 
@@ -23,6 +25,10 @@ router = APIRouter()
 
 def get_user_service(db: aiosqlite.Connection = Depends(get_db)) -> UserService:
     return UserService(db)
+
+
+def get_current_user_id(x_user_id: str = Header(..., description="현재 사용자 ID")) -> str:
+    return x_user_id
 
 
 # ==================== Department ====================
@@ -56,20 +62,20 @@ async def get_department(
         raise HTTPException(status_code=404, detail=e.message)
 
 
-# ==================== Project (User보다 먼저!) ====================
+# ==================== Project ====================
 
 @router.post("/projects", response_model=ProjectResponse)
 async def create_project(
     data: ProjectCreate,
-    owner_id: str | None = None,
+    user_id: str = Depends(get_current_user_id),
     service: UserService = Depends(get_user_service),
 ):
-    """프로젝트 생성"""
+    """프로젝트 생성 (생성자가 owner)"""
     return await service.create_project(
-        data.name,
-        data.description,
-        data.department_id,
-        owner_id,
+        name=data.name,
+        owner_id=user_id,
+        description=data.description,
+        department_id=data.department_id,
     )
 
 
@@ -78,7 +84,7 @@ async def list_projects(
     department_id: str | None = None,
     service: UserService = Depends(get_user_service),
 ):
-    """프로젝트 목록"""
+    """전체 프로젝트 목록"""
     return await service.list_projects(department_id)
 
 
@@ -94,21 +100,56 @@ async def get_project(
         raise HTTPException(status_code=404, detail=e.message)
 
 
+@router.put("/projects/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: str,
+    data: ProjectUpdate,
+    user_id: str = Depends(get_current_user_id),
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 수정 (owner/admin만)"""
+    try:
+        return await service.update_project(project_id, user_id, data.name, data.description)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ForbiddenException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 삭제 (owner만)"""
+    try:
+        await service.delete_project(project_id, user_id)
+        return {"message": "프로젝트가 삭제되었습니다"}
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ForbiddenException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
 # ==================== Project Member ====================
 
 @router.post("/projects/{project_id}/members", response_model=ProjectMemberResponse)
 async def add_project_member(
     project_id: str,
     data: ProjectMemberCreate,
+    user_id: str = Depends(get_current_user_id),
     service: UserService = Depends(get_user_service),
 ):
-    """프로젝트 멤버 추가"""
+    """프로젝트 멤버 추가 (owner/admin만)"""
     try:
-        return await service.add_project_member(project_id, data.user_id, data.role)
+        return await service.add_project_member(project_id, user_id, data.user_id, data.role)
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=e.message)
     except ValidationException as e:
         raise HTTPException(status_code=400, detail=e.message)
+    except ForbiddenException as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
 
 @router.get("/projects/{project_id}/members", response_model=list[ProjectMemberResponse])
@@ -123,15 +164,38 @@ async def list_project_members(
         raise HTTPException(status_code=404, detail=e.message)
 
 
-@router.delete("/projects/{project_id}/members/{user_id}")
-async def remove_project_member(
+@router.put("/projects/{project_id}/members/{target_user_id}")
+async def update_project_member_role(
     project_id: str,
-    user_id: str,
+    target_user_id: str,
+    data: ProjectMemberUpdate,
+    user_id: str = Depends(get_current_user_id),
     service: UserService = Depends(get_user_service),
 ):
-    """프로젝트 멤버 제거"""
-    await service.remove_project_member(project_id, user_id)
-    return {"message": "프로젝트 멤버가 제거되었습니다"}
+    """프로젝트 멤버 역할 변경 (owner만)"""
+    try:
+        return await service.update_project_member_role(project_id, user_id, target_user_id, data.role)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ForbiddenException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+@router.delete("/projects/{project_id}/members/{target_user_id}")
+async def remove_project_member(
+    project_id: str,
+    target_user_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: UserService = Depends(get_user_service),
+):
+    """프로젝트 멤버 제거 (owner/admin 또는 본인)"""
+    try:
+        await service.remove_project_member(project_id, user_id, target_user_id)
+        return {"message": "프로젝트 멤버가 제거되었습니다"}
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except ForbiddenException as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
 
 # ==================== User ====================
@@ -213,13 +277,10 @@ async def get_user_projects(
     return await service.get_user_projects(user_id)
 
 
-@router.get("/{user_id}/department", response_model=DepartmentResponse | None)
+@router.get("/{user_id}/department")
 async def get_user_department(
     user_id: str,
     service: UserService = Depends(get_user_service),
 ):
     """사용자의 부서 조회"""
-    dept = await service.get_user_department(user_id)
-    if not dept:
-        return None
-    return dept
+    return await service.get_user_department(user_id)
