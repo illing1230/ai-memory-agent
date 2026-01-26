@@ -20,6 +20,10 @@ if "user_id" not in st.session_state:
     st.session_state.user_id = ""
 if "users" not in st.session_state:
     st.session_state.users = []
+if "current_room" not in st.session_state:
+    st.session_state.current_room = None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 
 def api_request(method: str, endpoint: str, data: dict = None, user_id: str = None):
@@ -30,11 +34,13 @@ def api_request(method: str, endpoint: str, data: dict = None, user_id: str = No
         headers["X-User-ID"] = user_id
     
     try:
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             if method == "GET":
                 response = client.get(url, headers=headers)
             elif method == "POST":
                 response = client.post(url, headers=headers, json=data)
+            elif method == "PUT":
+                response = client.put(url, headers=headers, json=data)
             elif method == "DELETE":
                 response = client.delete(url, headers=headers)
             else:
@@ -58,6 +64,26 @@ def load_users():
     return st.session_state.users
 
 
+def load_projects():
+    """프로젝트 목록 로드"""
+    return api_request("GET", "/users/projects") or []
+
+
+def load_departments():
+    """부서 목록 로드"""
+    return api_request("GET", "/users/departments") or []
+
+
+def load_chat_rooms():
+    """채팅방 목록 로드"""
+    return api_request("GET", "/chat-rooms", user_id=st.session_state.user_id) or []
+
+
+def load_messages(room_id: str):
+    """채팅방 메시지 로드"""
+    return api_request("GET", f"/chat-rooms/{room_id}/messages", user_id=st.session_state.user_id) or []
+
+
 # 사이드바 - 사용자 선택
 with st.sidebar:
     st.title("🧠 AI Memory Agent")
@@ -75,9 +101,8 @@ with st.sidebar:
         )
         if selected_user:
             st.session_state.user_id = user_options[selected_user]
-            st.success(f"선택됨: {selected_user}")
     else:
-        st.warning("사용자가 없습니다. 먼저 사용자를 생성하세요.")
+        st.warning("사용자가 없습니다.")
         
         with st.expander("➕ 새 사용자 생성"):
             new_name = st.text_input("이름")
@@ -103,7 +128,8 @@ if not st.session_state.user_id:
 
 
 # 탭 구성
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "💬 채팅",
     "🔍 메모리 검색", 
     "💾 메모리 저장", 
     "📋 메모리 목록",
@@ -111,8 +137,134 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 
-# 탭 1: 메모리 검색
+# 탭 1: 채팅
 with tab1:
+    st.header("💬 채팅")
+    
+    col1, col2 = st.columns([1, 3])
+    
+    # 왼쪽: 채팅방 목록
+    with col1:
+        st.subheader("채팅방")
+        
+        # 새 채팅방 생성
+        with st.expander("➕ 새 채팅방"):
+            room_name = st.text_input("채팅방 이름", key="new_room_name")
+            room_type = st.selectbox("타입", ["personal", "project", "department"], key="new_room_type")
+            
+            # 메모리 소스 선택
+            st.markdown("**📦 메모리 소스**")
+            use_personal = st.checkbox("내 개인 메모리", value=True, key="use_personal")
+            
+            # 프로젝트 선택
+            projects = load_projects()
+            selected_projects = []
+            if projects:
+                st.markdown("프로젝트:")
+                for proj in projects:
+                    if st.checkbox(proj["name"], key=f"proj_{proj['id']}"):
+                        selected_projects.append(proj["id"])
+            
+            # 부서 선택
+            departments = load_departments()
+            selected_depts = []
+            if departments:
+                st.markdown("부서:")
+                for dept in departments:
+                    if st.checkbox(dept["name"], key=f"dept_{dept['id']}"):
+                        selected_depts.append(dept["id"])
+            
+            if st.button("채팅방 생성", type="primary"):
+                if room_name:
+                    context_sources = {
+                        "memory": {
+                            "personal": use_personal,
+                            "projects": selected_projects,
+                            "departments": selected_depts,
+                        },
+                        "rag": {"collections": [], "filters": {}}
+                    }
+                    result = api_request("POST", "/chat-rooms", {
+                        "name": room_name,
+                        "room_type": room_type,
+                        "context_sources": context_sources,
+                    }, st.session_state.user_id)
+                    if result:
+                        st.success("채팅방 생성됨!")
+                        st.rerun()
+        
+        st.markdown("---")
+        
+        # 채팅방 목록
+        rooms = load_chat_rooms()
+        for room in rooms:
+            room_label = f"{'🏠' if room['room_type']=='personal' else '📋' if room['room_type']=='project' else '🏢'} {room['name']}"
+            if st.button(room_label, key=f"room_{room['id']}", use_container_width=True):
+                st.session_state.current_room = room
+                st.session_state.messages = load_messages(room["id"])
+                st.rerun()
+    
+    # 오른쪽: 채팅 화면
+    with col2:
+        if st.session_state.current_room:
+            room = st.session_state.current_room
+            st.subheader(f"{room['name']}")
+            
+            # 메모리 소스 표시
+            context = room.get("context_sources", {})
+            memory_config = context.get("memory", {})
+            sources = []
+            if memory_config.get("personal"):
+                sources.append("개인")
+            if memory_config.get("projects"):
+                sources.append(f"프로젝트({len(memory_config['projects'])})")
+            if memory_config.get("departments"):
+                sources.append(f"부서({len(memory_config['departments'])})")
+            st.caption(f"📦 메모리 소스: {', '.join(sources) if sources else '없음'}")
+            
+            st.markdown("---")
+            
+            # 메시지 표시
+            chat_container = st.container(height=400)
+            with chat_container:
+                for msg in st.session_state.messages:
+                    if msg["role"] == "assistant":
+                        with st.chat_message("assistant"):
+                            st.markdown(msg["content"])
+                    else:
+                        with st.chat_message("user"):
+                            user_name = msg.get("user_name", "Unknown")
+                            st.markdown(f"**{user_name}**: {msg['content']}")
+            
+            # 메시지 입력
+            st.markdown("---")
+            st.caption("💡 @ai를 포함하면 AI가 응답합니다")
+            
+            user_input = st.chat_input("메시지를 입력하세요... (@ai로 AI 호출)")
+            
+            if user_input:
+                with st.spinner("전송 중..."):
+                    result = api_request("POST", f"/chat-rooms/{room['id']}/messages", {
+                        "content": user_input,
+                    }, st.session_state.user_id)
+                
+                if result:
+                    # 메시지 목록 새로고침
+                    st.session_state.messages = load_messages(room["id"])
+                    
+                    # 추출된 메모리 표시
+                    if result.get("extracted_memories"):
+                        st.success(f"🧠 {len(result['extracted_memories'])}개 메모리 자동 저장됨!")
+                        for mem in result["extracted_memories"]:
+                            st.info(f"📝 {mem['content']}")
+                    
+                    st.rerun()
+        else:
+            st.info("👈 왼쪽에서 채팅방을 선택하거나 새로 만드세요.")
+
+
+# 탭 2: 메모리 검색
+with tab2:
     st.header("🔍 메모리 시맨틱 검색")
     st.markdown("자연어로 검색하면 의미적으로 유사한 메모리를 찾습니다.")
     
@@ -125,7 +277,7 @@ with tab1:
     with col2:
         search_limit = st.number_input("결과 수", min_value=1, max_value=20, value=5)
     
-    if st.button("🔍 검색", type="primary"):
+    if st.button("🔍 검색", type="primary", key="search_btn"):
         if search_query:
             with st.spinner("검색 중..."):
                 result = api_request(
@@ -160,8 +312,8 @@ with tab1:
             st.warning("검색어를 입력하세요.")
 
 
-# 탭 2: 메모리 저장
-with tab2:
+# 탭 3: 메모리 저장
+with tab3:
     st.header("💾 새 메모리 저장")
     
     with st.form("memory_form"):
@@ -206,8 +358,8 @@ with tab2:
                 st.warning("내용을 입력하세요.")
 
 
-# 탭 3: 메모리 목록
-with tab3:
+# 탭 4: 메모리 목록
+with tab4:
     st.header("📋 내 메모리 목록")
     
     col1, col2 = st.columns([1, 4])
@@ -237,8 +389,8 @@ with tab3:
         st.info("저장된 메모리가 없습니다.")
 
 
-# 탭 4: 자동 추출
-with tab4:
+# 탭 5: 자동 추출
+with tab5:
     st.header("🤖 대화에서 메모리 자동 추출")
     st.markdown("대화 내용을 입력하면 LLM이 중요한 정보를 자동으로 추출합니다.")
     
