@@ -1,0 +1,87 @@
+"""FastAPI 애플리케이션 엔트리포인트"""
+
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from src.config import get_settings
+from src.shared.database import init_database, close_database
+from src.shared.vector_store import init_vector_store, close_vector_store
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """애플리케이션 생명주기 관리"""
+    settings = get_settings()
+    
+    # 시작 시 초기화
+    await init_database()
+    await init_vector_store()
+    
+    print(f"🚀 AI Memory Agent 시작 (환경: {settings.app_env})")
+    
+    yield
+    
+    # 종료 시 정리
+    await close_database()
+    await close_vector_store()
+    
+    print("👋 AI Memory Agent 종료")
+
+
+def create_app() -> FastAPI:
+    """FastAPI 앱 생성"""
+    settings = get_settings()
+
+    app = FastAPI(
+        title="AI Memory Agent",
+        description="멀티채팅 환경에서 권한 기반 메모리 관리를 제공하는 시스템",
+        version="0.1.0",
+        docs_url="/docs" if settings.is_development else None,
+        redoc_url="/redoc" if settings.is_development else None,
+        lifespan=lifespan,
+    )
+
+    # CORS 설정
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"] if settings.is_development else [],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # 라우터 등록
+    from src.user.router import router as user_router
+    from src.memory.router import router as memory_router
+    from src.chat.router import router as chat_router
+    from src.permission.router import router as permission_router
+
+    app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
+    app.include_router(memory_router, prefix="/api/v1/memories", tags=["memories"])
+    app.include_router(chat_router, prefix="/api/v1/chat-rooms", tags=["chat-rooms"])
+    app.include_router(permission_router, prefix="/api/v1/permissions", tags=["permissions"])
+
+    @app.get("/health")
+    async def health_check():
+        """헬스 체크"""
+        return {"status": "healthy", "version": "0.1.0"}
+
+    return app
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    settings = get_settings()
+    uvicorn.run(
+        "src.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.is_development,
+    )
