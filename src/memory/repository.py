@@ -18,7 +18,7 @@ class MemoryRepository:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "project", "department"] = "personal",
+        scope: Literal["personal", "project", "department", "chatroom"] = "personal",
         vector_id: str | None = None,
         project_id: str | None = None,
         department_id: str | None = None,

@@ -25,7 +25,7 @@ class MemoryService:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "project", "department"] = "personal",
+        scope: Literal["personal", "project", "department", "chatroom"] = "personal",
         project_id: str | None = None,
         department_id: str | None = None,
         chat_room_id: str | None = None,
@@ -94,6 +94,7 @@ class MemoryService:
         scope: str | None = None,
         project_id: str | None = None,
         department_id: str | None = None,
+        chat_room_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
@@ -105,7 +106,7 @@ class MemoryService:
 
         all_memories = []
 
-        # 1. 개인 메모리
+        # 1. 개인 메모리 (scope=personal이고 owner가 나인 것)
         if scope is None or scope == "personal":
             personal = await self.repo.list_memories(
                 owner_id=user_id,
@@ -114,7 +115,16 @@ class MemoryService:
             )
             all_memories.extend(personal)
 
-        # 2. 프로젝트 메모리 (멤버인 프로젝트)
+        # 2. 채팅방 메모리 (scope=chatroom 또는 chat_room_id가 있는 것 중 owner가 나인 것)
+        if scope is None or scope == "chatroom":
+            chatroom_memories = await self.repo.list_memories(
+                owner_id=user_id,
+                scope="chatroom",
+                limit=limit,
+            )
+            all_memories.extend(chatroom_memories)
+
+        # 3. 프로젝트 메모리 (멤버인 프로젝트)
         if scope is None or scope == "project":
             user_projects = await self.user_repo.get_user_projects(user_id)
             for project in user_projects:
@@ -127,7 +137,7 @@ class MemoryService:
                 )
                 all_memories.extend(project_memories)
 
-        # 3. 부서 메모리
+        # 4. 부서 메모리
         if scope is None or scope == "department":
             user_dept_id = user.get("department_id")
             if user_dept_id:
@@ -314,6 +324,12 @@ class MemoryService:
 
         # 개인 메모리: 소유자만
         if scope == "personal":
+            if memory["owner_id"] != user_id:
+                raise PermissionDeniedException()
+            return True
+
+        # 채팅방 메모리: 소유자만
+        if scope == "chatroom":
             if memory["owner_id"] != user_id:
                 raise PermissionDeniedException()
             return True
