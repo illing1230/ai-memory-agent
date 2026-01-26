@@ -218,7 +218,7 @@ class MchatClient:
                 
                 async with websockets.connect(
                     ws_url,
-                    additional_headers={"Authorization": f"Bearer {self.token}"},
+                    extra_headers={"Authorization": f"Bearer {self.token}"},
                     ping_interval=30,
                     ping_timeout=10,
                     ssl=SSL_CONTEXT,  # SSL 검증 비활성화
