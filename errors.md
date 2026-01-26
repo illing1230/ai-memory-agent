@@ -1,75 +1,151 @@
-(base) hy.joo@nautilus:~/2026/gitprojects/ai-memory-agent$ pip install -e .
-Obtaining file:///home/hy.joo/2026/gitprojects/ai-memory-agent
-  Installing build dependencies ... done
-  Checking if build backend supports build_editable ... done
-  Getting requirements to build editable ... done
-  Installing backend dependencies ... done
-  Preparing editable metadata (pyproject.toml) ... error
-  error: subprocess-exited-with-error
-  
-  × Preparing editable metadata (pyproject.toml) did not run successfully.
-  │ exit code: 1
-  ╰─> [53 lines of output]
-      Traceback (most recent call last):
-        File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 195, in prepare_metadata_for_build_editable
-          hook = backend.prepare_metadata_for_build_editable
-                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-      AttributeError: module 'hatchling.build' has no attribute 'prepare_metadata_for_build_editable'
-      
-      During handling of the above exception, another exception occurred:
-      
-      Traceback (most recent call last):
-        File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 389, in <module>
-          main()
-          ~~~~^^
-        File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 373, in main
-          json_out["return_val"] = hook(**hook_input["kwargs"])
-                                   ~~~~^^^^^^^^^^^^^^^^^^^^^^^^
-        File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 204, in prepare_metadata_for_build_editable
-          whl_basename = build_hook(metadata_directory, config_settings)
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/build.py", line 83, in build_editable
-          return os.path.basename(next(builder.build(directory=wheel_directory, versions=["editable"])))
-                                  ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/plugin/interface.py", line 157, in build
-          artifact = version_api[version](directory, **build_data)
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 522, in build_editable
-          return self.build_editable_detection(directory, **build_data)
-                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 534, in build_editable_detection
-          for included_file in self.recurse_selected_project_files():
-                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/plugin/interface.py", line 182, in recurse_selected_project_files
-          if self.config.only_include:
-             ^^^^^^^^^^^^^^^^^^^^^^^^
-        File "/home/hy.joo/miniconda3/lib/python3.13/functools.py", line 1026, in __get__
-          val = self.func(instance)
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/config.py", line 715, in only_include
-          only_include = only_include_config.get("only-include", self.default_only_include()) or self.packages
-                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~^^
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 268, in default_only_include
-          return self.default_file_selection_options.only_include
-                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        File "/home/hy.joo/miniconda3/lib/python3.13/functools.py", line 1026, in __get__
-          val = self.func(instance)
-        File "/tmp/pip-build-env-gdtrpf3o/overlay/lib/python3.13/site-packages/hatchling/builders/wheel.py", line 256, in default_file_selection_options
-          raise ValueError(message)
-      ValueError: Unable to determine which files to ship inside the wheel using the following heuristics: https://hatch.pypa.io/latest/plugins/builder/wheel/#default-file-selection
-      
-      The most likely cause of this is that there is no directory that matches the name of your project (ai_memory_agent).
-      
-      At least one file selection option must be defined in the `tool.hatch.build.targets.wheel` table, see: https://hatch.pypa.io/latest/config/build/
-      
-      As an example, if you intend to ship a directory named `foo` that resides within a `src` directory located at the root of your project, you can define the following:
-      
-      [tool.hatch.build.targets.wheel]
-      packages = ["src/foo"]
-      [end of output]
-  
-  note: This error originates from a subprocess, and is likely not a problem with pip.
-error: metadata-generation-failed
+INFO:     127.0.0.1:42334 - "POST /api/v1/memories HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        pool_request.request
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpcore/_async/http_proxy.py", line 316, in handle_async_request
+    stream = await stream.start_tls(**kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpcore/_async/http11.py", line 376, in start_tls
+    return await self._stream.start_tls(ssl_context, server_hostname, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpcore/_backends/anyio.py", line 67, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Basic Constraints of CA cert not marked critical (_ssl.c:1028)
 
-× Encountered error while generating package metadata.
-╰─> from file:///home/hy.joo/2026/gitprojects/ai-memory-agent
+The above exception was the direct cause of the following exception:
 
-note: This is an issue with the package mentioned above, not pip.
-hint: See above for details.
+Traceback (most recent call last):
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/shared/providers/embedding/huggingface.py", line 49, in embed_batch
+    response = await client.post(
+               ^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_client.py", line 1859, in post
+    return await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_client.py", line 1540, in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 393, in handle_async_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Basic Constraints of CA cert not marked critical (_ssl.c:1028)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/applications.py", line 1135, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/cors.py", line 93, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+    await self.app(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 115, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 101, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 355, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 243, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/memory/router.py", line 38, in create_memory
+    return await service.create_memory(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<10 lines>...
+    )
+    ^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/memory/service.py", line 40, in create_memory
+    vector = await embedding_provider.embed(content)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/shared/providers/embedding/huggingface.py", line 31, in embed
+    results = await self.embed_batch([text])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/shared/providers/embedding/huggingface.py", line 77, in embed_batch
+    raise ProviderException("HuggingFace Embedding", str(e))
+src.shared.exceptions.ProviderException: HuggingFace Embedding Provider 오류: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Basic Constraints of CA cert not marked critical (_ssl.c:1028)
