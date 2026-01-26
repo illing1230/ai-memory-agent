@@ -13,6 +13,11 @@ from src.config import get_settings
 async def main():
     settings = get_settings()
     
+    # 디버그 출력
+    print(f"MCHAT_URL: {settings.mchat_url}")
+    print(f"MCHAT_TOKEN: {settings.mchat_token[:10] if settings.mchat_token else 'None'}...")
+    print(f"MCHAT_ENABLED: {settings.mchat_enabled}")
+    
     if not settings.mchat_enabled:
         print("Mchat is disabled. Set MCHAT_ENABLED=true in .env")
         return
