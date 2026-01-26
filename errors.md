@@ -18,48 +18,42 @@ Username: hy.joo
 [Mchat] Event: channel_viewed
         Data: {"event": "channel_viewed", "data": {"channel_id": "f1qcwq7m77di3pa3xu7ygzn54r"}, "broadcast": {"omit_users": null, "user_id": "wazzwxjmwidfurkjsdwyrycyyr", "channel_id": "", "team_id": "", "connectio
 [Mchat] Event: posted
-        Data: {"event": "posted", "data": {"channel_display_name": "@hy.joo", "channel_name": "wazzwxjmwidfurkjsdwyrycyyr__wazzwxjmwidfurkjsdwyrycyyr", "channel_type": "D", "post": "{\"id\":\"ufof5ng4n7bsighjnge6cd
+        Data: {"event": "posted", "data": {"channel_display_name": "@hy.joo", "channel_name": "wazzwxjmwidfurkjsdwyrycyyr__wazzwxjmwidfurkjsdwyrycyyr", "channel_type": "D", "post": "{\"id\":\"1kfbj7cmpbntxm88m49msa
 
 [새 메시지] @@hy.joo: 오늘 불량 5건 발생했어...
-  [오류] UserRepository.create_user() got an unexpected keyword argument 'user_id'
+  [오류] 채팅방 멤버가 아닙니다
 Traceback (most recent call last):
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/worker.py", line 191, in handle_message
-    agent_user_id = await get_or_create_agent_user(db, user_id, sender_name)
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/worker.py", line 90, in get_or_create_agent_user
-    user = await user_repo.create_user(
-                 ~~~~~~~~~~~~~~~~~~~~~^
-        user_id=mchat_user_id,
-        ^^^^^^^^^^^^^^^^^^^^^^
-        email=f"{mchat_username}@mchat.local",
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        name=mchat_username,
-        ^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/worker.py", line 198, in handle_message
+    result = await chat_service.send_message(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
     )
     ^
-TypeError: UserRepository.create_user() got an unexpected keyword argument 'user_id'
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/chat/service.py", line 216, in send_message
+    await self._check_member_permission(chat_room_id, user_id)
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/chat/service.py", line 189, in _check_member_permission
+    raise ForbiddenException("채팅방 멤버가 아닙니다")
+src.shared.exceptions.PermissionDeniedException: 채팅방 멤버가 아닙니다
+[Mchat] Event: channel_viewed
+        Data: {"event": "channel_viewed", "data": {"channel_id": "f1qcwq7m77di3pa3xu7ygzn54r"}, "broadcast": {"omit_users": null, "user_id": "wazzwxjmwidfurkjsdwyrycyyr", "channel_id": "", "team_id": "", "connectio
 [Mchat] Event: channel_viewed
         Data: {"event": "channel_viewed", "data": {"channel_id": "f1qcwq7m77di3pa3xu7ygzn54r"}, "broadcast": {"omit_users": null, "user_id": "wazzwxjmwidfurkjsdwyrycyyr", "channel_id": "", "team_id": "", "connectio
 [Mchat] Event: posted
-        Data: {"event": "posted", "data": {"channel_display_name": "@hy.joo", "channel_name": "wazzwxjmwidfurkjsdwyrycyyr__wazzwxjmwidfurkjsdwyrycyyr", "channel_type": "D", "post": "{\"id\":\"1as5esfp9jyrtji3wz66pw
+        Data: {"event": "posted", "data": {"channel_display_name": "@hy.joo", "channel_name": "wazzwxjmwidfurkjsdwyrycyyr__wazzwxjmwidfurkjsdwyrycyyr", "channel_type": "D", "post": "{\"id\":\"1n9a4pzad3naijxxzhzkto
 
 [새 메시지] @@hy.joo: @ai 오늘 불량 몇건이야?...
-  [오류] UserRepository.create_user() got an unexpected keyword argument 'user_id'
+  [오류] 채팅방 멤버가 아닙니다
 Traceback (most recent call last):
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/worker.py", line 191, in handle_message
-    agent_user_id = await get_or_create_agent_user(db, user_id, sender_name)
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/worker.py", line 90, in get_or_create_agent_user
-    user = await user_repo.create_user(
-                 ~~~~~~~~~~~~~~~~~~~~~^
-        user_id=mchat_user_id,
-        ^^^^^^^^^^^^^^^^^^^^^^
-        email=f"{mchat_username}@mchat.local",
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        name=mchat_username,
-        ^^^^^^^^^^^^^^^^^^^^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/worker.py", line 198, in handle_message
+    result = await chat_service.send_message(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
     )
     ^
-TypeError: UserRepository.create_user() got an unexpected keyword argument 'user_id'
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/chat/service.py", line 216, in send_message
+    await self._check_member_permission(chat_room_id, user_id)
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/chat/service.py", line 189, in _check_member_permission
+    raise ForbiddenException("채팅방 멤버가 아닙니다")
+src.shared.exceptions.PermissionDeniedException: 채팅방 멤버가 아닙니다
 [Mchat] Event: channel_viewed
         Data: {"event": "channel_viewed", "data": {"channel_id": "f1qcwq7m77di3pa3xu7ygzn54r"}, "broadcast": {"omit_users": null, "user_id": "wazzwxjmwidfurkjsdwyrycyyr", "channel_id": "", "team_id": "", "connectio
