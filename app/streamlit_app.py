@@ -15,13 +15,12 @@ st.set_page_config(
     layout="wide",
 )
 
-# 내 메시지 우측 정렬 + 노란색 배경 CSS
+# 내 메시지 우측 정렬 CSS
 st.markdown("""
 <style>
 /* 내 메시지 컨테이너를 오른쪽 정렬 */
 div[data-testid="stChatMessage"]:has(.my-msg-marker) {
     flex-direction: row-reverse;
-    background-color: #FEF9E7;
 }
 div[data-testid="stChatMessage"]:has(.my-msg-marker) [data-testid="stMarkdownContainer"] {
     text-align: right;
