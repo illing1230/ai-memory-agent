@@ -341,7 +341,7 @@ class ChatService:
             }
             await upsert_vector(vector_id, vector, payload)
             
-            return f"✅ 메모리가 저장되었습니다!\n\n📝 **{content}**\n\n범위: 이 채팅방", [memory]
+            return f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: 이 채팅방", [memory]
             
         except Exception as e:
             print(f"메모리 저장 실패: {e}")
@@ -378,7 +378,7 @@ class ChatService:
                 memory = await self.memory_repo.get_memory(memory_id)
                 if memory:
                     await self.memory_repo.delete_memory(memory_id)
-                    return f"🗑️ 메모리가 삭제되었습니다.\n\n삭제됨: **{memory['content']}**"
+                    return f"🗑️ 메모리가 삭제되었습니다.\n\n삭제됨: {memory['content']}"
             
             return "❌ 메모리 삭제에 실패했습니다."
             
@@ -402,7 +402,7 @@ class ChatService:
             if not memories:
                 return f"🔍 '{query}'와 관련된 메모리를 찾을 수 없습니다."
             
-            response = f"🔍 **'{query}' 검색 결과** ({len(memories)}개)\n\n"
+            response = f"🔍 '{query}' 검색 결과 ({len(memories)}개)\n\n"
             for i, m in enumerate(memories, 1):
                 mem = m["memory"]
                 score = m["score"]
@@ -426,13 +426,13 @@ class ChatService:
             if not members:
                 return "👥 채팅방 멤버가 없습니다."
             
-            response = f"👥 **채팅방 멤버** ({len(members)}명)\n\n"
+            response = f"👥 채팅방 멤버 ({len(members)}명)\n\n"
             role_emoji = {"owner": "👑", "admin": "⭐", "member": "👤"}
             
             for m in members:
                 emoji = role_emoji.get(m["role"], "👤")
                 name = m.get("user_name", "Unknown")
-                response += f"{emoji} **{name}** ({m['role']})\n"
+                response += f"{emoji} {name} ({m['role']})\n"
             
             return response
             
@@ -465,7 +465,7 @@ class ChatService:
             
             await self.repo.add_member(room["id"], target_user["id"], "member")
             
-            return f"✅ **{target_user['name']}**님을 채팅방에 초대했습니다!"
+            return f"✅ {target_user['name']}님을 채팅방에 초대했습니다!"
             
         except Exception as e:
             return f"❌ 멤버 초대 실패: {str(e)}"
