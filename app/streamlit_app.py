@@ -18,18 +18,20 @@ st.set_page_config(
 # 내 메시지 우측 정렬 CSS
 st.markdown("""
 <style>
-.my-message {
-    display: flex;
-    flex-direction: row-reverse;
+.my-message-bubble {
+    background-color: #FEE500;
+    color: #000;
+    padding: 10px 14px;
+    border-radius: 16px 16px 4px 16px;
+    max-width: 70%;
+    word-wrap: break-word;
+    font-size: 14px;
+    line-height: 1.5;
 }
-.my-message .stChatMessage {
-    flex-direction: row-reverse;
-}
-.my-message .stChatMessage [data-testid="chatAvatarIcon-user"] {
-    order: 2;
-}
-.my-message .stChatMessage [data-testid="stChatMessageContent"] {
-    text-align: right;
+.my-message-time {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -126,12 +128,15 @@ def render_chat_messages(messages: list, current_user_id: str):
                 st.markdown(f"**AI Assistant** · {created_at}")
                 st.markdown(content)
         elif user_id == current_user_id:
-            # 내 메시지 (오른쪽)
-            st.markdown('<div class="my-message">', unsafe_allow_html=True)
-            with st.chat_message("user", avatar="🧑"):
-                st.markdown(f"**나** · {created_at}")
-                st.markdown(content)
-            st.markdown('</div>', unsafe_allow_html=True)
+            # 내 메시지 (오른쪽) - columns 사용
+            col1, col2 = st.columns([1, 2])
+            with col2:
+                st.markdown(f"""
+                <div style="text-align: right;">
+                    <div class="my-message-bubble">{content}</div>
+                    <div class="my-message-time">나 · {created_at}</div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             # 다른 사람 메시지 (왼쪽)
             with st.chat_message("user", avatar="👤"):
