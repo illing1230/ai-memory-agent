@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     min_message_length_for_extraction: int = 10
     duplicate_threshold: float = 0.85
 
+    # Mchat (Mattermost) Integration
+    mchat_url: str = "https://mchat.samsung.com"
+    mchat_token: str | None = None
+    mchat_enabled: bool = False
+
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"

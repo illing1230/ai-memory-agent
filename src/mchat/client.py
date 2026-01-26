@@ -1,0 +1,287 @@
+"""Mchat (Mattermost) API Client - WebSocket + REST API"""
+
+import asyncio
+import json
+from typing import Any, Callable, Optional
+
+import httpx
+import websockets
+from websockets.exceptions import ConnectionClosed
+
+from src.config import get_settings
+
+
+class MchatClient:
+    """
+    Mchat (Mattermost) 클라이언트
+    
+    WebSocket으로 실시간 메시지 수신, REST API로 메시지 전송
+    """
+    
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        token: Optional[str] = None,
+    ):
+        settings = get_settings()
+        self.base_url = (base_url or settings.mchat_url).rstrip("/")
+        self.token = token or settings.mchat_token
+        
+        # REST API 헤더
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+        }
+        
+        # WebSocket 상태
+        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._ws_task: Optional[asyncio.Task] = None
+        self._event_handlers: dict[str, list[Callable]] = {}
+        self._reconnect_delay = 5  # 재연결 대기 시간 (초)
+        self._running = False
+    
+    # ==================== REST API ====================
+    
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        data: Optional[dict] = None,
+        params: Optional[dict] = None,
+    ) -> dict[str, Any]:
+        """REST API 요청"""
+        url = f"{self.base_url}{endpoint}"
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.request(
+                method=method,
+                url=url,
+                headers=self.headers,
+                json=data,
+                params=params,
+            )
+            
+            if response.status_code >= 400:
+                raise MchatAPIError(
+                    status_code=response.status_code,
+                    message=response.text,
+                )
+            
+            return response.json() if response.text else {}
+    
+    async def get_me(self) -> dict[str, Any]:
+        """현재 로그인한 사용자 (Bot) 정보 조회"""
+        return await self._request("GET", "/api/v4/users/me")
+    
+    async def get_user(self, user_id: str) -> dict[str, Any]:
+        """사용자 정보 조회"""
+        return await self._request("GET", f"/api/v4/users/{user_id}")
+    
+    async def get_user_by_username(self, username: str) -> dict[str, Any]:
+        """사용자명으로 사용자 조회"""
+        return await self._request("GET", f"/api/v4/users/username/{username}")
+    
+    async def get_channel(self, channel_id: str) -> dict[str, Any]:
+        """채널 정보 조회"""
+        return await self._request("GET", f"/api/v4/channels/{channel_id}")
+    
+    async def get_channel_members(self, channel_id: str) -> list[dict[str, Any]]:
+        """채널 멤버 목록"""
+        return await self._request("GET", f"/api/v4/channels/{channel_id}/members")
+    
+    async def get_teams(self) -> list[dict[str, Any]]:
+        """내가 속한 팀 목록"""
+        return await self._request("GET", "/api/v4/users/me/teams")
+    
+    async def get_channels_for_team(self, team_id: str) -> list[dict[str, Any]]:
+        """팀의 채널 목록"""
+        return await self._request("GET", f"/api/v4/users/me/teams/{team_id}/channels")
+    
+    async def create_post(
+        self,
+        channel_id: str,
+        message: str,
+        root_id: Optional[str] = None,
+        file_ids: Optional[list[str]] = None,
+        props: Optional[dict] = None,
+    ) -> dict[str, Any]:
+        """
+        메시지 전송
+        
+        Args:
+            channel_id: 채널 ID
+            message: 메시지 내용
+            root_id: Thread 응답 시 부모 메시지 ID
+            file_ids: 첨부 파일 ID 목록
+            props: 추가 속성 (카드, 버튼 등)
+        """
+        data = {
+            "channel_id": channel_id,
+            "message": message,
+        }
+        
+        if root_id:
+            data["root_id"] = root_id
+        if file_ids:
+            data["file_ids"] = file_ids
+        if props:
+            data["props"] = props
+        
+        return await self._request("POST", "/api/v4/posts", data=data)
+    
+    async def update_post(self, post_id: str, message: str) -> dict[str, Any]:
+        """메시지 수정"""
+        return await self._request("PUT", f"/api/v4/posts/{post_id}", data={
+            "id": post_id,
+            "message": message,
+        })
+    
+    async def delete_post(self, post_id: str) -> dict[str, Any]:
+        """메시지 삭제"""
+        return await self._request("DELETE", f"/api/v4/posts/{post_id}")
+    
+    async def get_posts_for_channel(
+        self,
+        channel_id: str,
+        page: int = 0,
+        per_page: int = 60,
+    ) -> dict[str, Any]:
+        """채널의 메시지 목록 조회"""
+        return await self._request(
+            "GET",
+            f"/api/v4/channels/{channel_id}/posts",
+            params={"page": page, "per_page": per_page},
+        )
+    
+    async def add_reaction(self, post_id: str, emoji_name: str) -> dict[str, Any]:
+        """메시지에 리액션 추가"""
+        user = await self.get_me()
+        return await self._request("POST", "/api/v4/reactions", data={
+            "user_id": user["id"],
+            "post_id": post_id,
+            "emoji_name": emoji_name,
+        })
+    
+    async def create_direct_channel(self, user_ids: list[str]) -> dict[str, Any]:
+        """DM 채널 생성 (1:1 또는 그룹)"""
+        return await self._request("POST", "/api/v4/channels/direct", data=user_ids)
+    
+    # ==================== WebSocket ====================
+    
+    def on(self, event_type: str, handler: Callable):
+        """
+        이벤트 핸들러 등록
+        
+        Args:
+            event_type: 이벤트 타입 (posted, typing, channel_viewed 등)
+            handler: 비동기 핸들러 함수
+        
+        Example:
+            @client.on("posted")
+            async def handle_message(data):
+                print(f"New message: {data}")
+        """
+        if event_type not in self._event_handlers:
+            self._event_handlers[event_type] = []
+        self._event_handlers[event_type].append(handler)
+        return handler  # 데코레이터로 사용 가능
+    
+    async def _emit(self, event_type: str, data: dict):
+        """이벤트 핸들러 호출"""
+        handlers = self._event_handlers.get(event_type, [])
+        handlers.extend(self._event_handlers.get("*", []))  # 와일드카드
+        
+        for handler in handlers:
+            try:
+                await handler(data)
+            except Exception as e:
+                print(f"[Mchat] Event handler error ({event_type}): {e}")
+    
+    async def connect_websocket(self):
+        """WebSocket 연결 시작"""
+        self._running = True
+        
+        # WebSocket URL 구성
+        ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
+        ws_url = f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v4/websocket"
+        
+        while self._running:
+            try:
+                print(f"[Mchat] Connecting to WebSocket: {ws_url}")
+                
+                async with websockets.connect(
+                    ws_url,
+                    extra_headers={"Authorization": f"Bearer {self.token}"},
+                    ping_interval=30,
+                    ping_timeout=10,
+                ) as ws:
+                    self._ws = ws
+                    print("[Mchat] WebSocket connected!")
+                    
+                    # 인증 (Challenge-Response 방식)
+                    auth_challenge = {
+                        "seq": 1,
+                        "action": "authentication_challenge",
+                        "data": {"token": self.token},
+                    }
+                    await ws.send(json.dumps(auth_challenge))
+                    
+                    # 이벤트 수신 루프
+                    async for message in ws:
+                        try:
+                            event = json.loads(message)
+                            event_type = event.get("event", "unknown")
+                            
+                            # posted 이벤트의 경우 post 데이터 파싱
+                            if event_type == "posted" and "data" in event:
+                                if "post" in event["data"]:
+                                    event["data"]["post"] = json.loads(event["data"]["post"])
+                            
+                            await self._emit(event_type, event)
+                            
+                        except json.JSONDecodeError:
+                            print(f"[Mchat] Invalid JSON: {message[:100]}")
+                        except Exception as e:
+                            print(f"[Mchat] Event processing error: {e}")
+                
+            except ConnectionClosed as e:
+                print(f"[Mchat] WebSocket closed: {e}")
+            except Exception as e:
+                print(f"[Mchat] WebSocket error: {e}")
+            
+            if self._running:
+                print(f"[Mchat] Reconnecting in {self._reconnect_delay}s...")
+                await asyncio.sleep(self._reconnect_delay)
+        
+        print("[Mchat] WebSocket stopped")
+    
+    async def disconnect_websocket(self):
+        """WebSocket 연결 종료"""
+        self._running = False
+        if self._ws:
+            await self._ws.close()
+            self._ws = None
+    
+    def start(self) -> asyncio.Task:
+        """WebSocket 연결을 백그라운드 태스크로 시작"""
+        self._ws_task = asyncio.create_task(self.connect_websocket())
+        return self._ws_task
+    
+    async def stop(self):
+        """WebSocket 연결 종료"""
+        await self.disconnect_websocket()
+        if self._ws_task:
+            self._ws_task.cancel()
+            try:
+                await self._ws_task
+            except asyncio.CancelledError:
+                pass
+
+
+class MchatAPIError(Exception):
+    """Mchat API 오류"""
+    
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        self.message = message
+        super().__init__(f"Mchat API Error ({status_code}): {message}")
