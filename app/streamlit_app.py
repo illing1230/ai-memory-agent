@@ -15,6 +15,25 @@ st.set_page_config(
     layout="wide",
 )
 
+# 내 메시지 우측 정렬 CSS
+st.markdown("""
+<style>
+.my-message {
+    display: flex;
+    flex-direction: row-reverse;
+}
+.my-message .stChatMessage {
+    flex-direction: row-reverse;
+}
+.my-message .stChatMessage [data-testid="chatAvatarIcon-user"] {
+    order: 2;
+}
+.my-message .stChatMessage [data-testid="stChatMessageContent"] {
+    text-align: right;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # 세션 상태 초기화
 if "user_id" not in st.session_state:
     st.session_state.user_id = ""
@@ -102,17 +121,19 @@ def render_chat_messages(messages: list, current_user_id: str):
         created_at = msg.get("created_at", "")[:16].replace("T", " ")
         
         if role == "assistant":
-            # AI 메시지
+            # AI 메시지 (왼쪽)
             with st.chat_message("assistant", avatar="🤖"):
                 st.markdown(f"**AI Assistant** · {created_at}")
                 st.markdown(content)
         elif user_id == current_user_id:
-            # 내 메시지
+            # 내 메시지 (오른쪽)
+            st.markdown('<div class="my-message">', unsafe_allow_html=True)
             with st.chat_message("user", avatar="🧑"):
                 st.markdown(f"**나** · {created_at}")
                 st.markdown(content)
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # 다른 사람 메시지
+            # 다른 사람 메시지 (왼쪽)
             with st.chat_message("user", avatar="👤"):
                 st.markdown(f"**{user_name}** · {created_at}")
                 st.markdown(content)
