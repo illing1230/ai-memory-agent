@@ -64,25 +64,31 @@ async def main():
         message = post.get("message", "")
         channel_id = post.get("channel_id", "")
         user_id = post.get("user_id", "")
+        post_id = post.get("id", "")
         
-        # 자기 자신의 메시지는 무시
-        if user_id == me["id"]:
+        print(f"\n[새 메시지] user={user_id}, msg={message[:50]}...")
+        
+        # 1. 모든 메시지 저장 (내 메시지 포함)
+        # TODO: DB에 메시지 저장
+        print(f"  [저장] channel={channel_id}, user={user_id}")
+        
+        # 2. AI 응답은 내 메시지에는 하지 않음
+        is_my_message = (user_id == me["id"])
+        
+        if is_my_message:
+            print("  (내 메시지 - 저장만, AI 응답 안 함)")
             return
         
-        print(f"\n[새 메시지] {message[:50]}...")
-        
-        # @ai 멘션 또는 /remember 커맨드 처리
+        # 3. @ai 멘션 또는 /remember 커맨드 처리
         if "@ai" in message.lower() or message.startswith("/remember"):
-            # AI Memory Agent 연동 로직
             response = f"🤖 메시지를 받았습니다: {message[:30]}..."
             
-            # 같은 채널에 응답
             await client.create_post(
                 channel_id=channel_id,
                 message=response,
-                root_id=post.get("id"),  # Thread 응답
+                root_id=post_id,  # Thread 응답
             )
-            print(f"[응답 전송] {response}")
+            print(f"  [응답 전송] {response}")
     
     @client.on("typing")
     async def handle_typing(event):
