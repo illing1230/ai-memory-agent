@@ -559,6 +559,13 @@ class ChatService:
         """컨텍스트 소스 기반 메모리 검색 (새 구조)"""
         memory_config = context_sources.get("memory", {})
         
+        # 디버깅: context_sources 확인
+        print(f"\n========== 메모리 검색 시작 ==========")
+        print(f"현재 채팅방 ID: {current_room_id}")
+        print(f"context_sources: {context_sources}")
+        print(f"memory_config: {memory_config}")
+        print(f"other_chat_rooms: {memory_config.get('other_chat_rooms', [])}")
+        
         embedding_provider = get_embedding_provider()
         query_vector = await embedding_provider.embed(query)
         
@@ -567,49 +574,57 @@ class ChatService:
         # 1. 이 채팅방 메모리 (기본)
         if memory_config.get("include_this_room", True):
             try:
+                print(f"\n[1] 이 채팅방({current_room_id}) 메모리 검색 중...")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=5,
                     filter_conditions={"chat_room_id": current_room_id},
                 )
+                print(f"    검색 결과: {len(results)}개")
                 for r in results:
+                    print(f"    - score: {r['score']:.3f}, payload: {r['payload']}")
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
                         all_memories.append({"memory": memory, "score": r["score"]})
-                print(f"이 채팅방 메모리 검색: {len(results)}개 발견")
             except Exception as e:
-                print(f"이 채팅방 메모리 검색 실패: {e}")
+                print(f"    실패: {e}")
         
         # 2. 다른 채팅방 메모리
-        for room_id in memory_config.get("other_chat_rooms", []):
+        other_rooms = memory_config.get("other_chat_rooms", [])
+        print(f"\n[2] 다른 채팅방 검색 대상: {other_rooms}")
+        for room_id in other_rooms:
             try:
+                print(f"    채팅방({room_id}) 검색 중...")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=3,
                     filter_conditions={"chat_room_id": room_id},
                 )
+                print(f"    검색 결과: {len(results)}개")
                 for r in results:
+                    print(f"    - score: {r['score']:.3f}, payload: {r['payload']}")
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
                         all_memories.append({"memory": memory, "score": r["score"]})
-                print(f"다른 채팅방({room_id}) 메모리 검색: {len(results)}개 발견")
             except Exception as e:
-                print(f"다른 채팅방 메모리 검색 실패: {e}")
+                print(f"    실패: {e}")
         
         # 3. 내 개인 메모리 전체
         if memory_config.get("include_personal", False):
             try:
+                print(f"\n[3] 개인 메모리 검색 중...")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=5,
                     filter_conditions={"owner_id": user_id, "scope": "personal"},
                 )
+                print(f"    검색 결과: {len(results)}개")
                 for r in results:
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
                         all_memories.append({"memory": memory, "score": r["score"]})
             except Exception as e:
-                print(f"개인 메모리 검색 실패: {e}")
+                print(f"    실패: {e}")
         
         # 4. 프로젝트 메모리
         for project_id in memory_config.get("projects", []):
@@ -649,7 +664,11 @@ class ChatService:
                 seen.add(m["memory"]["id"])
                 unique_memories.append(m)
         
-        print(f"총 메모리 검색 결과: {len(unique_memories)}개")
+        print(f"\n========== 총 메모리 검색 결과: {len(unique_memories)}개 ==========")
+        for m in unique_memories:
+            print(f"  - {m['memory']['content'][:50]}... (score: {m['score']:.3f})")
+        print("")
+        
         return unique_memories[:10]
 
     def _build_system_prompt(self, memories: list[dict[str, Any]]) -> str:
