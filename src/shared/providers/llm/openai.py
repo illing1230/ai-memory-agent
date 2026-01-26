@@ -1,6 +1,7 @@
 """OpenAI LLM Provider (OpenAI 호환 API 포함 - Qwen3 등)"""
 
 import json
+import re
 from typing import Any
 
 import httpx
@@ -17,7 +18,7 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
 - 프로젝트/업무 관련 정보
 - 관계 정보 (사람, 조직 등)
 
-응답 형식 (JSON만 출력):
+응답 형식 (JSON만 출력, 다른 텍스트 없이):
 [
   {
     "content": "추출된 메모리 내용",
@@ -26,7 +27,8 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
   }
 ]
 
-추출할 메모리가 없으면 빈 배열 []을 반환하세요.
+추출할 메모리가 없으면 빈 배열 []만 반환하세요.
+반드시 유효한 JSON 배열만 출력하세요.
 
 대화:
 {conversation}"""
@@ -73,7 +75,8 @@ class OpenAILLMProvider(BaseLLMProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            # SSL 검증 비활성화 (내부망 대응)
+            async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=headers,
@@ -101,27 +104,55 @@ class OpenAILLMProvider(BaseLLMProvider):
 
         prompt = MEMORY_EXTRACTION_PROMPT.format(conversation=conv_text)
 
-        response = await self.generate(
-            prompt=prompt,
-            system_prompt="당신은 대화에서 중요한 정보를 추출하는 AI입니다. JSON 형식으로만 응답하세요.",
-            temperature=0.3,
-            max_tokens=2000,
-        )
+        try:
+            response = await self.generate(
+                prompt=prompt,
+                system_prompt="당신은 대화에서 중요한 정보를 추출하는 AI입니다. 반드시 유효한 JSON 배열만 응답하세요. 다른 텍스트는 포함하지 마세요.",
+                temperature=0.3,
+                max_tokens=2000,
+            )
+        except Exception as e:
+            # LLM 호출 실패 시 빈 리스트 반환
+            print(f"메모리 추출 LLM 호출 실패: {e}")
+            return []
 
         # JSON 파싱
-        try:
-            # 코드 블록 제거
-            response = response.strip()
-            if response.startswith("```"):
-                response = response.split("```")[1]
-                if response.startswith("json"):
-                    response = response[4:]
-            response = response.strip()
+        return self._parse_json_response(response)
 
+    def _parse_json_response(self, response: str) -> list[dict[str, Any]]:
+        """LLM 응답에서 JSON 파싱"""
+        if not response:
+            return []
+        
+        response = response.strip()
+        
+        # 코드 블록 제거
+        if "```" in response:
+            # ```json ... ``` 또는 ``` ... ``` 형식 처리
+            match = re.search(r"```(?:json)?\s*([\s\S]*?)```", response)
+            if match:
+                response = match.group(1).strip()
+        
+        # JSON 배열 찾기
+        # [ 로 시작하고 ] 로 끝나는 부분 추출
+        match = re.search(r"\[[\s\S]*\]", response)
+        if match:
+            response = match.group(0)
+        
+        try:
             memories = json.loads(response)
             if isinstance(memories, list):
-                return memories
+                # 유효한 메모리만 필터링
+                valid_memories = []
+                for mem in memories:
+                    if isinstance(mem, dict) and mem.get("content"):
+                        valid_memories.append({
+                            "content": str(mem.get("content", "")),
+                            "category": str(mem.get("category", "fact")),
+                            "importance": str(mem.get("importance", "medium")),
+                        })
+                return valid_memories
             return []
-        except json.JSONDecodeError:
-            # JSON 파싱 실패 시 빈 리스트 반환
+        except json.JSONDecodeError as e:
+            print(f"JSON 파싱 실패: {e}, 응답: {response[:200]}")
             return []

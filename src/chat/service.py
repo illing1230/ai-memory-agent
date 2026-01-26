@@ -305,16 +305,20 @@ class ChatService:
         user_id: str,
     ) -> list[dict[str, Any]]:
         """대화에서 메모리 추출 및 저장"""
-        llm_provider = get_llm_provider()
-        
-        # 대화 형식 맞추기
-        conv_for_extraction = [
-            {"role": msg.get("role", "user"), "content": msg.get("content", "")}
-            for msg in conversation
-        ]
-        
-        # 메모리 추출
-        extracted = await llm_provider.extract_memories(conv_for_extraction)
+        try:
+            llm_provider = get_llm_provider()
+            
+            # 대화 형식 맞추기
+            conv_for_extraction = [
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                for msg in conversation
+            ]
+            
+            # 메모리 추출
+            extracted = await llm_provider.extract_memories(conv_for_extraction)
+        except Exception as e:
+            print(f"메모리 추출 실패: {e}")
+            return []
         
         saved_memories = []
         for item in extracted:
