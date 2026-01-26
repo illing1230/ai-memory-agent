@@ -477,7 +477,7 @@ elif st.session_state.page == "project":
                             st.session_state.selected_project = None
                             st.rerun()
         else:
-            st.info("👈 왼쪽에서 프로젝트를 선택하세요.")
+            pass
 
 
 # ==================== 메모리 검색 페이지 ====================

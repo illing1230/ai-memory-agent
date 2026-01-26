@@ -5,7 +5,7 @@ import httpx
 import ssl
 
 # 설정
-MCHAT_URL = "https://mchat.samsung.com"  # 실제 URL 확인 필요
+MCHAT_URL = "https://mchat.mosaic.sec.samsung.net"  # 실제 URL 확인 필요
 MCHAT_TOKEN = "sig14w8mj7naxnmdzghk4qa88w"
 
 # SSL 검증 비활성화

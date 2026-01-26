@@ -1,73 +1,46 @@
-INFO:     127.0.0.1:53986 - "POST /api/v1/memories/search HTTP/1.1" 500 Internal Server Error
-ERROR:    Exception in ASGI application
+(base) hy.joo@nautilus:~/2026/gitprojects/ai-memory-agent$ python -m src.mchat.example
+MCHAT_URL: https://mchat.mosaic.sec.samsung.net
+MCHAT_TOKEN: s....
+MCHAT_ENABLED: True
+
+=== 1. Bot 정보 조회 ===
+Bot ID: wazzwxjmwidfurkjsdwyrycyyr
+Username: hy.joo
+Nickname: 
+
+=== 2. 팀 목록 ===
+  - 모자이크 빅 팀​ (37937-38734)
+  - 자동화혁신그룹​ (mchat-0000001949)
+  - M Chat 챗봇 개발자 Workspace​ (2891998-2892004)
+  - AIG Insight​ (mchat-0000003287)
+
+=== 3. '모자이크 빅 팀​' 팀 채널 ===
+  - [DM] 3zcrmx5ueb8w3d67qdchip7mqy__wazzwxjmwidfurkjsdwyrycyyr
+  - [DM] ednfrtpgx7b15px4rf769ig7ue__wazzwxjmwidfurkjsdwyrycyyr
+  - [DM] 9xxrtg7odinkzpb7ogdmj6g31r__wazzwxjmwidfurkjsdwyrycyyr
+  - [DM] wazzwxjmwidfurkjsdwyrycyyr__yjx8ekwtrtyo3eejweyuhyixje
+  - [DM] t6igk9z4q7b7i8rdxq8x4cxc5h__wazzwxjmwidfurkjsdwyrycyyr
+  - [DM] 6mf6yjor6ins3pjtqfjgpfdr5a__wazzwxjmwidfurkjsdwyrycyyr
+  - [DM] wazzwxjmwidfurkjsdwyrycyyr__z5j9scgw17dwpef6k9k3pixk1c
+  - [DM] wazzwxjmwidfurkjsdwyrycyyr__yp9dbiowgbbafeu3yibb36rt8c
+  - [DM] 7hrnapjtgtfczdyjepfggsi8ta__wazzwxjmwidfurkjsdwyrycyyr
+  - [DM] 6m5szzkdpiro9pdpngknwp3yuh__wazzwxjmwidfurkjsdwyrycyyr
 Traceback (most recent call last):
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        self.scope, self.receive, self.send
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/applications.py", line 1135, in __call__
-    await super().__call__(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/applications.py", line 107, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
-    raise exc
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/cors.py", line 93, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/cors.py", line 144, in simple_response
-    await self.app(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-    await self.app(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 716, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 736, in app
-    await route.handle(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 290, in handle
-    await self.app(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 115, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 101, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 355, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ...<3 lines>...
-    )
-    ^
-  File "/home/hy.joo/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 243, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/memory/router.py", line 137, in search_memories
-    results = await service.search_memories(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ...<7 lines>...
-    )
-    ^
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/memory/service.py", line 176, in search_memories
-    results = await search_vectors(
-              ^^^^^^^^^^^^^^^^^^^^^
-    ...<4 lines>...
-    )
-    ^
-  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/shared/vector_store.py", line 141, in search_vectors
-    results = await client.search(
-                    ^^^^^^^^^^^^^
-AttributeError: 'AsyncQdrantClient' object has no attribute 'search'
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/example.py", line 107, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/home/hy.joo/miniconda3/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/home/hy.joo/2026/gitprojects/ai-memory-agent/src/mchat/example.py", line 58, in main
+    @client.on("posted")
+     ~~~~~~~~~^^^^^^^^^^
+TypeError: MchatClient.on() missing 1 required positional argument: 'handler'
