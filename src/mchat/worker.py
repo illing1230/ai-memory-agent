@@ -81,16 +81,16 @@ async def get_or_create_agent_user(
     if row:
         return row[0]
     
-    # Agent 사용자 존재 확인
+    # Agent 사용자 존재 확인 (이메일로)
     user_repo = UserRepository(db)
-    user = await user_repo.get_user(mchat_user_id)
+    email = f"{mchat_username}@mchat.local"
+    user = await user_repo.get_user_by_email(email)
     
     if not user:
         # 새 사용자 생성
         user = await user_repo.create_user(
-            user_id=mchat_user_id,
-            email=f"{mchat_username}@mchat.local",
             name=mchat_username,
+            email=email,
         )
     
     # 매핑 저장
