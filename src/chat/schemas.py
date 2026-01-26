@@ -70,3 +70,23 @@ class ChatResponse(BaseModel):
     user_message: MessageResponse
     assistant_message: MessageResponse | None = None
     extracted_memories: list[dict] = []
+
+
+class ChatRoomMemberCreate(BaseModel):
+    """채팅방 멤버 추가"""
+    user_id: str
+    role: Literal["admin", "member"] = "member"
+
+
+class ChatRoomMemberResponse(BaseModel):
+    """채팅방 멤버 응답"""
+    id: str
+    chat_room_id: str
+    user_id: str
+    user_name: str | None = None
+    user_email: str | None = None
+    role: Literal["owner", "admin", "member"]
+    joined_at: datetime
+
+    class Config:
+        from_attributes = True

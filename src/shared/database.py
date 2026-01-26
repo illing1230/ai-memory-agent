@@ -69,6 +69,18 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
     FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 
+-- 채팅방 멤버 테이블
+CREATE TABLE IF NOT EXISTS chat_room_members (
+    id TEXT PRIMARY KEY,
+    chat_room_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE (chat_room_id, user_id)
+);
+
 -- 채팅 메시지 테이블
 CREATE TABLE IF NOT EXISTS chat_messages (
     id TEXT PRIMARY KEY,
@@ -131,6 +143,8 @@ CREATE INDEX IF NOT EXISTS idx_memory_access_log_memory ON memory_access_log(mem
 CREATE INDEX IF NOT EXISTS idx_memory_access_log_user ON memory_access_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages(chat_room_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_room_members_room ON chat_room_members(chat_room_id);
+CREATE INDEX IF NOT EXISTS idx_chat_room_members_user ON chat_room_members(user_id);
 """
 
 

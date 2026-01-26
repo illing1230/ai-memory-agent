@@ -84,7 +84,13 @@ class OpenAILLMProvider(BaseLLMProvider):
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                
+                # <think>...</think> 태그 제거 (Qwen3 등)
+                content = re.sub(r"<think>[\s\S]*?</think>", "", content)
+                content = content.strip()
+                
+                return content
 
         except httpx.HTTPStatusError as e:
             raise ProviderException("OpenAI LLM", f"HTTP 오류: {e.response.status_code}")

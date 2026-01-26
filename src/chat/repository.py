@@ -210,3 +210,113 @@ class ChatRepository:
             results.append(data)
         # 시간순 정렬 (오래된 것부터)
         return list(reversed(results))
+
+    # ==================== Chat Room Members ====================
+
+    async def add_member(
+        self,
+        chat_room_id: str,
+        user_id: str,
+        role: str = "member",
+    ) -> dict[str, Any]:
+        """채팅방 멤버 추가"""
+        member_id = str(uuid.uuid4())
+        await self.db.execute(
+            """INSERT INTO chat_room_members (id, chat_room_id, user_id, role)
+               VALUES (?, ?, ?, ?)""",
+            (member_id, chat_room_id, user_id, role),
+        )
+        await self.db.commit()
+        return await self.get_member(chat_room_id, user_id)
+
+    async def get_member(
+        self,
+        chat_room_id: str,
+        user_id: str,
+    ) -> dict[str, Any] | None:
+        """채팅방 멤버 조회"""
+        cursor = await self.db.execute(
+            """SELECT m.*, u.name as user_name, u.email as user_email
+               FROM chat_room_members m
+               LEFT JOIN users u ON m.user_id = u.id
+               WHERE m.chat_room_id = ? AND m.user_id = ?""",
+            (chat_room_id, user_id),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def list_members(
+        self,
+        chat_room_id: str,
+    ) -> list[dict[str, Any]]:
+        """채팅방 멤버 목록"""
+        cursor = await self.db.execute(
+            """SELECT m.*, u.name as user_name, u.email as user_email
+               FROM chat_room_members m
+               LEFT JOIN users u ON m.user_id = u.id
+               WHERE m.chat_room_id = ?
+               ORDER BY m.role, m.joined_at""",
+            (chat_room_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    async def update_member_role(
+        self,
+        chat_room_id: str,
+        user_id: str,
+        role: str,
+    ) -> dict[str, Any] | None:
+        """채팅방 멤버 역할 변경"""
+        await self.db.execute(
+            """UPDATE chat_room_members SET role = ?
+               WHERE chat_room_id = ? AND user_id = ?""",
+            (role, chat_room_id, user_id),
+        )
+        await self.db.commit()
+        return await self.get_member(chat_room_id, user_id)
+
+    async def remove_member(
+        self,
+        chat_room_id: str,
+        user_id: str,
+    ) -> bool:
+        """채팅방 멤버 제거"""
+        cursor = await self.db.execute(
+            """DELETE FROM chat_room_members
+               WHERE chat_room_id = ? AND user_id = ?""",
+            (chat_room_id, user_id),
+        )
+        await self.db.commit()
+        return cursor.rowcount > 0
+
+    async def is_member(
+        self,
+        chat_room_id: str,
+        user_id: str,
+    ) -> bool:
+        """멤버 여부 확인"""
+        member = await self.get_member(chat_room_id, user_id)
+        return member is not None
+
+    async def get_user_rooms(
+        self,
+        user_id: str,
+    ) -> list[dict[str, Any]]:
+        """사용자가 속한 채팅방 목록"""
+        cursor = await self.db.execute(
+            """SELECT r.*, m.role as member_role
+               FROM chat_rooms r
+               INNER JOIN chat_room_members m ON r.id = m.chat_room_id
+               WHERE m.user_id = ?
+               ORDER BY r.created_at DESC""",
+            (user_id,),
+        )
+        rows = await cursor.fetchall()
+        results = []
+        for row in rows:
+            data = dict(row)
+            if data.get("context_sources"):
+                data["context_sources"] = json.loads(data["context_sources"])
+            results.append(data)
+        return results

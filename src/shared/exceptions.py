@@ -35,6 +35,10 @@ class PermissionDeniedException(AppException):
         super().__init__(message=message, status_code=403)
 
 
+# ForbiddenException 별칭
+ForbiddenException = PermissionDeniedException
+
+
 class ValidationException(AppException):
     """유효성 검사 실패"""
 

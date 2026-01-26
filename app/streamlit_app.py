@@ -3,6 +3,7 @@
 import streamlit as st
 import httpx
 import json
+import time
 
 # API 설정
 import os
@@ -24,6 +25,8 @@ if "current_room" not in st.session_state:
     st.session_state.current_room = None
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "memory_toast" not in st.session_state:
+    st.session_state.memory_toast = None
 
 
 def api_request(method: str, endpoint: str, data: dict = None, user_id: str = None):
@@ -75,13 +78,77 @@ def load_departments():
 
 
 def load_chat_rooms():
-    """채팅방 목록 로드"""
+    """채팅방 목록 로드 (모든 채팅방)"""
     return api_request("GET", "/chat-rooms", user_id=st.session_state.user_id) or []
 
 
 def load_messages(room_id: str):
     """채팅방 메시지 로드"""
     return api_request("GET", f"/chat-rooms/{room_id}/messages", user_id=st.session_state.user_id) or []
+
+
+def show_memory_toast():
+    """메모리 저장 토스트 표시"""
+    if st.session_state.memory_toast:
+        memories = st.session_state.memory_toast
+        
+        # 토스트 스타일 컨테이너
+        toast_html = f"""
+        <div style="
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 9999;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 350px;
+            animation: slideIn 0.3s ease-out;
+        ">
+            <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">
+                🧠 메모리 자동 저장됨 ({len(memories)}개)
+            </div>
+        """
+        
+        for mem in memories[:3]:  # 최대 3개만 표시
+            content = mem.get('content', '')[:50]
+            if len(mem.get('content', '')) > 50:
+                content += '...'
+            toast_html += f"""
+            <div style="
+                background: rgba(255,255,255,0.2);
+                padding: 8px 12px;
+                border-radius: 6px;
+                margin-top: 6px;
+                font-size: 13px;
+            ">
+                📝 {content}
+            </div>
+            """
+        
+        if len(memories) > 3:
+            toast_html += f"""
+            <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">
+                +{len(memories) - 3}개 더...
+            </div>
+            """
+        
+        toast_html += """
+        </div>
+        <style>
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        </style>
+        """
+        
+        st.markdown(toast_html, unsafe_allow_html=True)
+        
+        # 토스트 클리어 (다음 리로드에서 사라지도록)
+        st.session_state.memory_toast = None
 
 
 # 사이드바 - 사용자 선택
@@ -118,7 +185,31 @@ with st.sidebar:
                         st.rerun()
     
     st.markdown("---")
+    
+    # 슬래시 커맨드 도움말
+    with st.expander("📖 커맨드 도움말"):
+        st.markdown("""
+        **메모리 관리**
+        - `/remember <내용>` - 저장
+        - `/forget <검색어>` - 삭제
+        - `/search <검색어>` - 검색
+        
+        **채팅방 관리**
+        - `/members` - 멤버 목록
+        - `/invite <이메일>` - 멤버 초대
+        
+        **AI 호출**
+        - `@ai <질문>` - AI에게 질문
+        
+        **기타**
+        - `/help` - 도움말
+        """)
+    
     st.caption("Made with ❤️ for Samsung Quality Team")
+
+
+# 메모리 토스트 표시
+show_memory_toast()
 
 
 # 메인 컨텐츠
@@ -238,9 +329,9 @@ with tab1:
             
             # 메시지 입력
             st.markdown("---")
-            st.caption("💡 @ai를 포함하면 AI가 응답합니다")
+            st.caption("💡 `@ai` AI 호출 | `/remember` 메모리 저장 | `/help` 도움말")
             
-            user_input = st.chat_input("메시지를 입력하세요... (@ai로 AI 호출)")
+            user_input = st.chat_input("메시지를 입력하세요...")
             
             if user_input:
                 with st.spinner("전송 중..."):
@@ -252,11 +343,9 @@ with tab1:
                     # 메시지 목록 새로고침
                     st.session_state.messages = load_messages(room["id"])
                     
-                    # 추출된 메모리 표시
+                    # 추출된 메모리가 있으면 토스트로 표시
                     if result.get("extracted_memories"):
-                        st.success(f"🧠 {len(result['extracted_memories'])}개 메모리 자동 저장됨!")
-                        for mem in result["extracted_memories"]:
-                            st.info(f"📝 {mem['content']}")
+                        st.session_state.memory_toast = result["extracted_memories"]
                     
                     st.rerun()
         else:
@@ -378,7 +467,8 @@ with tab4:
         st.success(f"총 {len(memories)}개 메모리")
         
         for memory in memories:
-            with st.expander(f"📝 {memory['content'][:50]}...", expanded=False):
+            content_preview = memory['content'][:50] + ('...' if len(memory['content']) > 50 else '')
+            with st.expander(f"📝 {content_preview}", expanded=False):
                 st.markdown(f"**내용:** {memory['content']}")
                 st.markdown(f"**범위:** {memory['scope']}")
                 st.markdown(f"**카테고리:** {memory.get('category', '-')}")
