@@ -119,11 +119,13 @@ def render_chat_messages(messages: list, current_user_id: str):
         
         if role == "assistant":
             # AI 메시지 (왼쪽)
-            with st.chat_message("assistant", avatar="🤖"):
-                st.markdown(f"**AI Assistant** · {created_at}")
-                st.markdown(content)
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                with st.chat_message("assistant", avatar="🤖"):
+                    st.markdown(f"**AI Assistant** · {created_at}")
+                    st.markdown(content)
         elif user_id == current_user_id:
-            # 내 메시지 (오른쪽) - columns로 우측 배치
+            # 내 메시지 (오른쪽)
             col1, col2 = st.columns([1, 3])
             with col2:
                 with st.chat_message("user", avatar="🧑"):
@@ -132,9 +134,11 @@ def render_chat_messages(messages: list, current_user_id: str):
                     st.markdown(content)
         else:
             # 다른 사람 메시지 (왼쪽)
-            with st.chat_message("user", avatar="👤"):
-                st.markdown(f"**{user_name}** · {created_at}")
-                st.markdown(content)
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                with st.chat_message("user", avatar="👤"):
+                    st.markdown(f"**{user_name}** · {created_at}")
+                    st.markdown(content)
 
 
 def show_memory_toast():
