@@ -1,10 +1,12 @@
 """AI Memory Agent - Streamlit 데모 UI (카카오톡 스타일)"""
 
-import streamlit as st
+import html
+import os
+
 import httpx
+import streamlit as st
 
 # API 설정
-import os
 API_BASE_URL = os.getenv("API_BASE_URL", "http://10.244.14.73:8000/api/v1")
 
 # 페이지 설정
@@ -224,14 +226,20 @@ def load_messages(room_id: str):
     return api_request("GET", f"/chat-rooms/{room_id}/messages", user_id=st.session_state.user_id) or []
 
 
+def escape_html(text: str) -> str:
+    """HTML 특수문자 이스케이프 후 줄바꿈 처리"""
+    escaped = html.escape(text)
+    return escaped.replace("\n", "<br>")
+
+
 def render_chat_messages(messages: list, current_user_id: str):
     """카카오톡 스타일 메시지 렌더링"""
     chat_html = '<div class="chat-container">'
     
     for msg in messages:
         user_id = msg.get("user_id", "")
-        user_name = msg.get("user_name", "Unknown")
-        content = msg.get("content", "").replace("\n", "<br>")
+        user_name = escape_html(msg.get("user_name", "Unknown"))
+        content = escape_html(msg.get("content", ""))
         role = msg.get("role", "user")
         created_at = msg.get("created_at", "")[:16].replace("T", " ")
         
