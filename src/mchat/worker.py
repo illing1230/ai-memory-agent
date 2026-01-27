@@ -186,7 +186,16 @@ async def main():
         sender_name = data.get("sender_name", "unknown")
         
         # AI 응답 메시지는 무시 (무한루프 방지)
-        if message.startswith("🤖") or message.startswith("✅") or message.startswith("🔍"):
+        # 1. 내가 보낸 메시지 (Bot ID로 확인)
+        if user_id == bot_user_id:
+            return
+        
+        # 2. AI 응답 패턴 (이모지로 시작하거나 AI가 생성한 메시지)
+        if message.startswith(("🤖", "✅", "🔍", "❌", "🗑️")):
+            return
+        
+        # 3. "@ai"로 시작하는 AI 응답 패턴 (LLM이 @ai로 답변하는 경우)
+        if message.startswith("@ai ") and "입니다" in message:
             return
         
         print(f"\n[새 메시지] @{sender_name}: {message[:50]}...")
