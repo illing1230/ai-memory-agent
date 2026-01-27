@@ -186,17 +186,15 @@ async def main():
         sender_name = data.get("sender_name", "unknown")
         
         # AI 응답 메시지는 무시 (무한루프 방지)
-        # 1. 내가 보낸 메시지 (Bot ID로 확인)
-        if user_id == bot_user_id:
+        # 1. 이모지로 시작하는 AI 응답
+        if message.startswith(("🤖", "✅", "🔍", "❌", "🗑️", "📝")):
             return
         
-        # 2. AI 응답 패턴 (이모지로 시작하거나 AI가 생성한 메시지)
-        if message.startswith(("🤖", "✅", "🔍", "❌", "🗑️")):
-            return
-        
-        # 3. "@ai"로 시작하는 AI 응답 패턴 (LLM이 @ai로 답변하는 경우)
-        if message.startswith("@ai ") and "입니다" in message:
-            return
+        # 2. AI 응답 패턴 (질문에 대한 답변 형태)
+        if "@ai" in message and ("입니다" in message or "신가요" in message or "세요" in message):
+            # 질문이 아닌 답변 형태로 보임
+            if not message.strip().endswith("?"):
+                return
         
         print(f"\n[새 메시지] @{sender_name}: {message[:50]}...")
         
@@ -220,6 +218,9 @@ async def main():
             # 2. AI 응답이 있으면 Mchat에 전송
             if result.get("assistant_message"):
                 ai_response = result["assistant_message"]["content"]
+                
+                # AI 응답 앞에 이모지 추가 (무한루프 방지용)
+                ai_response = f"🤖 {ai_response}"
                 
                 await client.create_post(
                     channel_id=channel_id,
