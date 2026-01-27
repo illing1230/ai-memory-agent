@@ -26,6 +26,7 @@ async def get_or_create_agent_room(
     mchat_channel_id: str,
     mchat_channel_name: str,
     mchat_user_id: str,
+    agent_user_id: str,
 ) -> str:
     """Mchat 채널에 매핑된 Agent 채팅방 ID 반환 (없으면 생성)"""
     
@@ -48,15 +49,19 @@ async def get_or_create_agent_room(
     chat_repo = ChatRepository(db)
     room = await chat_repo.create_chat_room(
         name=f"Mchat: {mchat_channel_name or mchat_channel_id[:8]}",
-        owner_id=mchat_user_id,
+        owner_id=agent_user_id,
         room_type="personal",
     )
     
+    # 생성자를 owner로 추가
+    await chat_repo.add_member(room["id"], agent_user_id, "owner")
+    
     # 매핑 저장
+    import uuid
     await db.execute(
         """INSERT INTO mchat_channel_mapping (id, mchat_channel_id, mchat_channel_name, agent_room_id)
            VALUES (?, ?, ?, ?)""",
-        (f"map_{mchat_channel_id[:8]}", mchat_channel_id, mchat_channel_name, room["id"])
+        (str(uuid.uuid4()), mchat_channel_id, mchat_channel_name, room["id"])
     )
     await db.commit()
     
@@ -189,7 +194,7 @@ async def main():
         try:
             # Agent 사용자/채팅방 매핑
             agent_user_id = await get_or_create_agent_user(db, user_id, sender_name)
-            agent_room_id = await get_or_create_agent_room(db, channel_id, channel_name, agent_user_id)
+            agent_room_id = await get_or_create_agent_room(db, channel_id, channel_name, user_id, agent_user_id)
             
             # ChatService로 메시지 처리
             chat_service = ChatService(db)
