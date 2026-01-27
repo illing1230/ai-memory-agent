@@ -554,9 +554,13 @@ class ChatService:
         query: str,
         user_id: str,
         current_room_id: str,
-        context_sources: dict,
+        context_sources: dict | None,
     ) -> list[dict[str, Any]]:
         """컨텍스트 소스 기반 메모리 검색 (새 구조)"""
+        # context_sources가 None이면 기본값 사용
+        if context_sources is None:
+            context_sources = {}
+        
         memory_config = context_sources.get("memory", {})
         
         # 디버깅: context_sources 확인
