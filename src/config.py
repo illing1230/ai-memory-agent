@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     debug: bool = True
     log_level: str = "INFO"
 
+    # JWT Authentication
+    jwt_secret_key: str = "change-this-secret-key-in-production"
+    jwt_access_token_expire_hours: int = 24
+
     # Memory Extraction
     auto_extract_memory: bool = True
     min_message_length_for_extraction: int = 10

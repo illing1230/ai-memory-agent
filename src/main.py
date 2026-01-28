@@ -47,7 +47,7 @@ def create_app() -> FastAPI:
     # CORS 설정
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.is_development else [],
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"] if settings.is_development else [],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -58,11 +58,18 @@ def create_app() -> FastAPI:
     from src.memory.router import router as memory_router
     from src.chat.router import router as chat_router
     from src.permission.router import router as permission_router
+    from src.auth.router import router as auth_router
+    from src.websocket.router import router as websocket_router
 
+    # REST API 라우터
+    app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
     app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
     app.include_router(memory_router, prefix="/api/v1/memories", tags=["memories"])
     app.include_router(chat_router, prefix="/api/v1/chat-rooms", tags=["chat-rooms"])
     app.include_router(permission_router, prefix="/api/v1/permissions", tags=["permissions"])
+    
+    # WebSocket 라우터
+    app.include_router(websocket_router, prefix="/ws", tags=["websocket"])
 
     @app.get("/health")
     async def health_check():

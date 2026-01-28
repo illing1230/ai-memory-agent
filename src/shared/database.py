@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    password_hash TEXT,
     department_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
     department_id TEXT,
     context_sources TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES users(id),
     FOREIGN KEY (project_id) REFERENCES projects(id),
     FOREIGN KEY (department_id) REFERENCES departments(id)
@@ -168,6 +170,20 @@ async def init_database() -> None:
     # 스키마 생성
     await _db_connection.executescript(SCHEMA_SQL)
     await _db_connection.commit()
+    
+    # password_hash 컬럼 추가 (기존 DB 마이그레이션)
+    try:
+        await _db_connection.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass  # 이미 존재하면 무시
+    
+    # updated_at 컬럼 추가 (chat_rooms)
+    try:
+        await _db_connection.execute("ALTER TABLE chat_rooms ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+        await _db_connection.commit()
+    except Exception:
+        pass
 
     print(f"✅ SQLite 데이터베이스 초기화 완료: {db_path}")
 
@@ -189,8 +205,13 @@ async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
     yield _db_connection
 
 
-def get_db_sync() -> aiosqlite.Connection:
-    """데이터베이스 연결 반환 (동기 컨텍스트용)"""
-    if _db_connection is None:
-        raise RuntimeError("데이터베이스가 초기화되지 않았습니다")
-    return _db_connection
+async def get_db_sync() -> aiosqlite.Connection:
+    """데이터베이스 연결 반환 (WebSocket용)"""
+    settings = get_settings()
+    db_path = Path(settings.sqlite_db_path)
+    
+    conn = await aiosqlite.connect(db_path)
+    conn.row_factory = aiosqlite.Row
+    await conn.execute("PRAGMA foreign_keys = ON")
+    
+    return conn

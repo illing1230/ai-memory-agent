@@ -1,0 +1,222 @@
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import {
+  ChevronDown,
+  ChevronRight,
+  MessageSquare,
+  Search,
+  Plus,
+  Settings,
+  Brain,
+  BarChart3,
+  PanelLeftClose,
+  PanelLeft,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button, Tooltip, ScrollArea } from '@/components/ui'
+import { useUIStore } from '@/stores/uiStore'
+import { useChatRooms } from '@/features/chat/hooks/useChat'
+import type { ChatRoom } from '@/types'
+
+export function Sidebar() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { sidebarOpen, toggleSidebar, setCreateRoomModalOpen } = useUIStore()
+  const { data: chatRooms = [], isLoading } = useChatRooms()
+
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    chatRooms: true,
+    memory: true,
+  })
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  const isActive = (path: string) => location.pathname.startsWith(path)
+
+  if (!sidebarOpen) {
+    return (
+      <div className="flex flex-col items-center py-3 px-1 border-r border-border bg-background-secondary w-12">
+        <Tooltip content="사이드바 열기" side="right">
+          <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        </Tooltip>
+        
+        <div className="mt-4 space-y-1">
+          <Tooltip content="채팅" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActive('/chat') && 'bg-background-active')}
+              onClick={() => navigate('/chat')}
+            >
+              <MessageSquare className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+          
+          <Tooltip content="메모리 검색" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActive('/memory') && 'bg-background-active')}
+              onClick={() => navigate('/memory')}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full w-sidebar border-r border-border bg-background-secondary">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center w-6 h-6 rounded bg-accent text-white">
+            <Brain className="h-3.5 w-3.5" />
+          </div>
+          <span className="font-semibold text-sm">Memory Agent</span>
+        </div>
+        <Tooltip content="사이드바 접기" side="bottom">
+          <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </Tooltip>
+      </div>
+
+      {/* Quick Search */}
+      <div className="px-2 py-2">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-foreground-secondary h-8"
+          onClick={() => navigate('/memory/search')}
+        >
+          <Search className="h-4 w-4" />
+          <span className="text-sm">메모리 검색...</span>
+          <kbd className="ml-auto text-xs bg-background-tertiary px-1.5 py-0.5 rounded">⌘K</kbd>
+        </Button>
+      </div>
+
+      {/* Navigation */}
+      <ScrollArea className="flex-1 px-2">
+        <nav className="space-y-1 py-2">
+          {/* Chat Rooms Section */}
+          <SidebarSection
+            title="채팅방"
+            icon={MessageSquare}
+            expanded={expandedSections.chatRooms}
+            onToggle={() => toggleSection('chatRooms')}
+            action={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="opacity-0 group-hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setCreateRoomModalOpen(true)
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            }
+          >
+            {isLoading ? (
+              <div className="px-2 py-1 text-xs text-foreground-muted">로딩 중...</div>
+            ) : chatRooms.length === 0 ? (
+              <div className="px-2 py-1 text-xs text-foreground-muted">채팅방이 없습니다</div>
+            ) : (
+              chatRooms.map((room: ChatRoom) => (
+                <SidebarItem
+                  key={room.id}
+                  to={`/chat/${room.id}`}
+                  icon={MessageSquare}
+                  label={room.name}
+                  active={location.pathname === `/chat/${room.id}`}
+                />
+              ))
+            )}
+          </SidebarSection>
+
+          {/* Memory Section */}
+          <SidebarSection
+            title="메모리"
+            icon={Brain}
+            expanded={expandedSections.memory}
+            onToggle={() => toggleSection('memory')}
+          >
+            <SidebarItem
+              to="/memory/search"
+              icon={Search}
+              label="검색"
+              active={location.pathname === '/memory/search'}
+            />
+            <SidebarItem
+              to="/memory/stats"
+              icon={BarChart3}
+              label="통계"
+              active={location.pathname === '/memory/stats'}
+            />
+          </SidebarSection>
+        </nav>
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="border-t border-border p-2">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-foreground-secondary"
+          onClick={() => useUIStore.getState().setSettingsModalOpen(true)}
+        >
+          <Settings className="h-4 w-4" />
+          <span className="text-sm">설정</span>
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+interface SidebarSectionProps {
+  title: string
+  icon: React.ElementType
+  expanded: boolean
+  onToggle: () => void
+  action?: React.ReactNode
+  children: React.ReactNode
+}
+
+function SidebarSection({ title, icon: Icon, expanded, onToggle, action, children }: SidebarSectionProps) {
+  return (
+    <div className="group">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1 w-full px-2 py-1 text-sm text-foreground-secondary hover:bg-background-hover rounded-md transition-colors"
+      >
+        {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        <Icon className="h-3.5 w-3.5 mr-1" />
+        <span className="flex-1 text-left font-medium">{title}</span>
+        {action}
+      </button>
+      {expanded && <div className="ml-4 mt-1 space-y-0.5">{children}</div>}
+    </div>
+  )
+}
+
+interface SidebarItemProps {
+  to: string
+  icon: React.ElementType
+  label: string
+  active?: boolean
+}
+
+function SidebarItem({ to, icon: Icon, label, active }: SidebarItemProps) {
+  return (
+    <Link to={to} className={cn('sidebar-item', active && 'active')}>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{label}</span>
+    </Link>
+  )
+}

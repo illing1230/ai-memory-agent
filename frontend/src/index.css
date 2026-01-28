@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Theme - Notion inspired */
+    --bg-default: #ffffff;
+    --bg-secondary: #f7f6f3;
+    --bg-tertiary: #f1f1ef;
+    --bg-hover: rgba(55, 53, 47, 0.04);
+    --bg-active: rgba(55, 53, 47, 0.08);
+    
+    --fg-default: #37352f;
+    --fg-secondary: #37352fa6;
+    --fg-tertiary: #37352f73;
+    --fg-muted: #37352f40;
+    
+    --border-default: rgba(55, 53, 47, 0.09);
+    --border-strong: rgba(55, 53, 47, 0.16);
+    
+    --accent: #2383e2;
+    --accent-hover: #1d73c7;
+    --accent-muted: rgba(35, 131, 226, 0.1);
+    
+    --success: #0f7b6c;
+    --warning: #d9730d;
+    --error: #e03e3e;
+  }
+
+  .dark {
+    --bg-default: #191919;
+    --bg-secondary: #202020;
+    --bg-tertiary: #2f2f2f;
+    --bg-hover: rgba(255, 255, 255, 0.055);
+    --bg-active: rgba(255, 255, 255, 0.09);
+    
+    --fg-default: rgba(255, 255, 255, 0.9);
+    --fg-secondary: rgba(255, 255, 255, 0.7);
+    --fg-tertiary: rgba(255, 255, 255, 0.5);
+    --fg-muted: rgba(255, 255, 255, 0.3);
+    
+    --border-default: rgba(255, 255, 255, 0.094);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    
+    --accent: #529cca;
+    --accent-hover: #6fb1da;
+    --accent-muted: rgba(82, 156, 202, 0.15);
+    
+    --success: #4dab9a;
+    --warning: #ffa344;
+    --error: #ff7369;
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--fg-muted);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-tertiary);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    background: var(--accent-muted);
+    color: var(--fg-default);
+  }
+}
+
+@layer components {
+  .hover-bg {
+    @apply transition-colors duration-150;
+  }
+  
+  .hover-bg:hover {
+    background: var(--bg-hover);
+  }
+
+  .hover-bg:active {
+    background: var(--bg-active);
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-2 px-2 py-1.5 rounded-md text-sm;
+    @apply text-foreground-secondary hover-bg cursor-pointer;
+    @apply transition-all duration-150;
+  }
+
+  .sidebar-item.active {
+    @apply bg-background-active text-foreground;
+  }
+
+  .card {
+    @apply bg-background rounded-lg border border-border shadow-soft;
+  }
+
+  .typing-dot {
+    @apply w-2 h-2 rounded-full bg-foreground-tertiary;
+    animation: typing 1.4s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes typing {
+    0%, 60%, 100% {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(-4px);
+    }
+  }
+}
