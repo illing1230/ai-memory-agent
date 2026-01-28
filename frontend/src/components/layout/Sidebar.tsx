@@ -8,13 +8,15 @@ import {
   Plus,
   Settings,
   Brain,
-  BarChart3,
+  List,
   PanelLeftClose,
   PanelLeft,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button, Tooltip, ScrollArea } from '@/components/ui'
+import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
 import { useUIStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/features/auth/store/authStore'
 import { useChatRooms } from '@/features/chat/hooks/useChat'
 import type { ChatRoom } from '@/types'
 
@@ -22,6 +24,7 @@ export function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { sidebarOpen, toggleSidebar, setCreateRoomModalOpen } = useUIStore()
+  const { user, logout } = useAuthStore()
   const { data: chatRooms = [], isLoading } = useChatRooms()
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -33,7 +36,13 @@ export function Sidebar() {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
-  const isActive = (path: string) => location.pathname.startsWith(path)
+  const isActive = (path: string) => location.pathname === path
+  const isActivePrefix = (path: string) => location.pathname.startsWith(path)
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   if (!sidebarOpen) {
     return (
@@ -49,7 +58,7 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              className={cn(isActive('/chat') && 'bg-background-active')}
+              className={cn(isActivePrefix('/chat') && 'bg-background-active')}
               onClick={() => navigate('/chat')}
             >
               <MessageSquare className="h-4 w-4" />
@@ -60,10 +69,18 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              className={cn(isActive('/memory') && 'bg-background-active')}
-              onClick={() => navigate('/memory')}
+              className={cn(isActivePrefix('/memory') && 'bg-background-active')}
+              onClick={() => navigate('/memory/search')}
             >
               <Search className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+        </div>
+
+        <div className="mt-auto">
+          <Tooltip content="로그아웃" side="right">
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <LogOut className="h-4 w-4" />
             </Button>
           </Tooltip>
         </div>
@@ -152,28 +169,47 @@ export function Sidebar() {
               to="/memory/search"
               icon={Search}
               label="검색"
-              active={location.pathname === '/memory/search'}
+              active={isActive('/memory/search')}
             />
             <SidebarItem
-              to="/memory/stats"
-              icon={BarChart3}
-              label="통계"
-              active={location.pathname === '/memory/stats'}
+              to="/memory/list"
+              icon={List}
+              label="목록"
+              active={isActive('/memory/list')}
             />
           </SidebarSection>
         </nav>
       </ScrollArea>
 
-      {/* Footer */}
-      <div className="border-t border-border p-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-foreground-secondary"
-          onClick={() => useUIStore.getState().setSettingsModalOpen(true)}
-        >
-          <Settings className="h-4 w-4" />
-          <span className="text-sm">설정</span>
-        </Button>
+      {/* User & Footer */}
+      <div className="border-t border-border p-2 space-y-1">
+        {/* User Info */}
+        {user && (
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-background-hover">
+            <Avatar alt={user.name} fallback={user.name.charAt(0)} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user.name}</p>
+              <p className="text-xs text-foreground-muted truncate">{user.email}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Settings & Logout */}
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            className="flex-1 justify-start gap-2 text-foreground-secondary"
+            onClick={() => useUIStore.getState().setSettingsModalOpen(true)}
+          >
+            <Settings className="h-4 w-4" />
+            <span className="text-sm">설정</span>
+          </Button>
+          <Tooltip content="로그아웃" side="top">
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
     </div>
   )

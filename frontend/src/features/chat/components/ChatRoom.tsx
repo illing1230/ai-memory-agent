@@ -4,6 +4,7 @@ import { Users, Settings, MoreHorizontal, Plus, Wifi, WifiOff } from 'lucide-rea
 import { Button, Tooltip } from '@/components/ui'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
+import { MembersPanel } from './MembersPanel'
 import { LoadingScreen } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useChatRoom, useMessages, useSendMessage, useChatRooms } from '../hooks/useChat'
@@ -20,13 +21,14 @@ export function ChatRoom() {
   
   const [isSending, setIsSending] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
+  const [showMembersPanel, setShowMembersPanel] = useState(false)
 
   const { data: chatRooms = [] } = useChatRooms()
   const { data: room, isLoading: roomLoading } = useChatRoom(roomId)
   const { data: messages = [], isLoading: messagesLoading } = useMessages(roomId)
   const sendMessageMutation = useSendMessage(roomId || '')
 
-  // WebSocket 연결 (토큰이 있을 때만)
+  // WebSocket 연결
   const effectiveToken = token || localStorage.getItem('access_token') || 'dev-token'
   
   const { isConnected, sendMessage: wsSendMessage, startTyping, stopTyping } = useWebSocket({
@@ -34,7 +36,6 @@ export function ChatRoom() {
     token: effectiveToken,
     onMessage: useCallback((msg: unknown) => {
       const message = msg as { type: string; data: { user_name?: string; user_id?: string } }
-      // 타이핑 인디케이터 처리
       if (message.type === 'typing:start') {
         setTypingUsers(prev => {
           if (prev.includes(message.data.user_name || '')) return prev
@@ -86,13 +87,11 @@ export function ChatRoom() {
     
     stopTyping()
     
-    // WebSocket으로 전송 시도
     if (isConnected) {
       wsSendMessage(content)
       return
     }
     
-    // 폴백: REST API 사용
     setIsSending(true)
     try {
       await sendMessageMutation.mutateAsync({ content })
@@ -109,29 +108,52 @@ export function ChatRoom() {
     }
   }, [isConnected, startTyping])
 
+  // Context Sources 표시
+  const contextSources = room.context_sources?.memory
+  const sourceLabels: string[] = ['이 채팅방']
+  if (contextSources?.other_chat_rooms?.length) {
+    sourceLabels.push(`다른방(${contextSources.other_chat_rooms.length})`)
+  }
+  if (contextSources?.include_personal) {
+    sourceLabels.push('개인전체⚠️')
+  }
+  if (contextSources?.projects?.length) {
+    sourceLabels.push(`프로젝트(${contextSources.projects.length})`)
+  }
+  if (contextSources?.departments?.length) {
+    sourceLabels.push(`부서(${contextSources.departments.length})`)
+  }
+
   return (
     <div className="flex flex-col h-full bg-background">
       <header className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-3">
-          <h1 className="font-semibold text-lg">{room.name}</h1>
-          <span className="px-2 py-0.5 text-xs rounded-full bg-background-secondary text-foreground-secondary">
-            {room.room_type === 'personal' ? '개인' : room.room_type === 'project' ? '프로젝트' : '부서'}
-          </span>
-          {/* 연결 상태 표시 */}
-          <Tooltip content={isConnected ? '실시간 연결됨' : '오프라인 (폴링 모드)'} side="bottom">
-            <span className={cn(
-              'flex items-center gap-1 px-2 py-0.5 text-xs rounded-full',
-              isConnected ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
-            )}>
-              {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-              {isConnected ? '실시간' : '폴링'}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3">
+            <h1 className="font-semibold text-lg truncate">{room.name}</h1>
+            <span className="px-2 py-0.5 text-xs rounded-full bg-background-secondary text-foreground-secondary shrink-0">
+              {room.room_type === 'personal' ? '개인' : room.room_type === 'project' ? '프로젝트' : '부서'}
             </span>
-          </Tooltip>
+            <Tooltip content={isConnected ? '실시간 연결됨' : '오프라인 (폴링 모드)'} side="bottom">
+              <span className={cn(
+                'flex items-center gap-1 px-2 py-0.5 text-xs rounded-full shrink-0',
+                isConnected ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+              )}>
+                {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                {isConnected ? '실시간' : '폴링'}
+              </span>
+            </Tooltip>
+          </div>
+          {/* Context Sources 표시 */}
+          <p className="text-xs text-foreground-muted mt-1">
+            📦 메모리 소스: {sourceLabels.join(', ')}
+          </p>
         </div>
         
-        <div className="flex items-center gap-1">
-          <Tooltip content="멤버" side="bottom">
-            <Button variant="ghost" size="icon"><Users className="h-4 w-4" /></Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <Tooltip content="멤버 관리" side="bottom">
+            <Button variant="ghost" size="icon" onClick={() => setShowMembersPanel(true)}>
+              <Users className="h-4 w-4" />
+            </Button>
           </Tooltip>
           <Tooltip content="설정" side="bottom">
             <Button variant="ghost" size="icon"><Settings className="h-4 w-4" /></Button>
@@ -152,6 +174,13 @@ export function ChatRoom() {
         onSend={handleSend} 
         disabled={isSending}
         onTyping={handleTyping}
+      />
+
+      {/* Members Panel */}
+      <MembersPanel
+        roomId={roomId}
+        open={showMembersPanel}
+        onClose={() => setShowMembersPanel(false)}
       />
     </div>
   )
