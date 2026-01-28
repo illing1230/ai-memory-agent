@@ -9,6 +9,7 @@ import {
   Settings,
   Brain,
   List,
+  Briefcase,
   PanelLeftClose,
   PanelLeft,
   LogOut,
@@ -65,14 +66,25 @@ export function Sidebar() {
             </Button>
           </Tooltip>
           
-          <Tooltip content="메모리 검색" side="right">
+          <Tooltip content="메모리" side="right">
             <Button
               variant="ghost"
               size="icon"
               className={cn(isActivePrefix('/memory') && 'bg-background-active')}
               onClick={() => navigate('/memory/search')}
             >
-              <Search className="h-4 w-4" />
+              <Brain className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+
+          <Tooltip content="프로젝트" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActive('/projects') && 'bg-background-active')}
+              onClick={() => navigate('/projects')}
+            >
+              <Briefcase className="h-4 w-4" />
             </Button>
           </Tooltip>
         </div>
@@ -178,6 +190,14 @@ export function Sidebar() {
               active={isActive('/memory/list')}
             />
           </SidebarSection>
+
+          {/* Projects - 단일 항목 */}
+          <SidebarItem
+            to="/projects"
+            icon={Briefcase}
+            label="프로젝트 관리"
+            active={isActive('/projects')}
+          />
         </nav>
       </ScrollArea>
 

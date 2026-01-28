@@ -5,6 +5,7 @@ import { Button, Tooltip } from '@/components/ui'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
 import { MembersPanel } from './MembersPanel'
+import { ContextSourcesModal } from './ContextSourcesModal'
 import { LoadingScreen } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useChatRoom, useMessages, useSendMessage, useChatRooms } from '../hooks/useChat'
@@ -12,16 +13,19 @@ import { useAuthStore } from '@/features/auth/store/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { cn } from '@/lib/utils'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function ChatRoom() {
   const { roomId } = useParams<{ roomId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { user, token } = useAuthStore()
   const { setCreateRoomModalOpen } = useUIStore()
   
   const [isSending, setIsSending] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [showMembersPanel, setShowMembersPanel] = useState(false)
+  const [showContextModal, setShowContextModal] = useState(false)
 
   const { data: chatRooms = [] } = useChatRooms()
   const { data: room, isLoading: roomLoading } = useChatRoom(roomId)
@@ -108,9 +112,17 @@ export function ChatRoom() {
     }
   }, [isConnected, startTyping])
 
+  const handleContextSave = () => {
+    // 채팅방 정보 다시 로드
+    queryClient.invalidateQueries({ queryKey: ['chat', 'room', roomId] })
+  }
+
   // Context Sources 표시
   const contextSources = room.context_sources?.memory
-  const sourceLabels: string[] = ['이 채팅방']
+  const sourceLabels: string[] = []
+  if (contextSources?.include_this_room !== false) {
+    sourceLabels.push('이 채팅방')
+  }
   if (contextSources?.other_chat_rooms?.length) {
     sourceLabels.push(`다른방(${contextSources.other_chat_rooms.length})`)
   }
@@ -122,6 +134,9 @@ export function ChatRoom() {
   }
   if (contextSources?.departments?.length) {
     sourceLabels.push(`부서(${contextSources.departments.length})`)
+  }
+  if (sourceLabels.length === 0) {
+    sourceLabels.push('이 채팅방')
   }
 
   return (
@@ -143,10 +158,13 @@ export function ChatRoom() {
               </span>
             </Tooltip>
           </div>
-          {/* Context Sources 표시 */}
-          <p className="text-xs text-foreground-muted mt-1">
-            📦 메모리 소스: {sourceLabels.join(', ')}
-          </p>
+          {/* Context Sources - 클릭하면 설정 모달 열기 */}
+          <button
+            onClick={() => setShowContextModal(true)}
+            className="text-xs text-foreground-muted mt-1 hover:text-accent transition-colors text-left"
+          >
+            📦 메모리 소스: {sourceLabels.join(', ')} <span className="text-accent">(변경)</span>
+          </button>
         </div>
         
         <div className="flex items-center gap-1 shrink-0">
@@ -155,8 +173,10 @@ export function ChatRoom() {
               <Users className="h-4 w-4" />
             </Button>
           </Tooltip>
-          <Tooltip content="설정" side="bottom">
-            <Button variant="ghost" size="icon"><Settings className="h-4 w-4" /></Button>
+          <Tooltip content="메모리 소스 설정" side="bottom">
+            <Button variant="ghost" size="icon" onClick={() => setShowContextModal(true)}>
+              <Settings className="h-4 w-4" />
+            </Button>
           </Tooltip>
           <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
         </div>
@@ -181,6 +201,14 @@ export function ChatRoom() {
         roomId={roomId}
         open={showMembersPanel}
         onClose={() => setShowMembersPanel(false)}
+      />
+
+      {/* Context Sources Modal */}
+      <ContextSourcesModal
+        room={room}
+        open={showContextModal}
+        onClose={() => setShowContextModal(false)}
+        onSave={handleContextSave}
       />
     </div>
   )
