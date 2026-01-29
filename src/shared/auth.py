@@ -6,6 +6,8 @@ from typing import Optional
 import hashlib
 import base64
 
+from fastapi import Header, HTTPException
+
 from src.config import get_settings
 
 
@@ -79,3 +81,26 @@ def verify_password(password: str, hashed: str) -> bool:
         return hash_value == expected_hash.hex()
     except Exception:
         return False
+
+
+def get_current_user_id(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+) -> str:
+    """
+    현재 사용자 ID 추출
+    - Bearer 토큰 우선 확인
+    - X-User-ID 헤더 폴백 (개발 환경)
+    """
+    # Bearer 토큰 확인
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        user_id = verify_access_token(token)
+        if user_id:
+            return user_id
+    
+    # X-User-ID 헤더 확인 (개발용 폴백)
+    if x_user_id:
+        return x_user_id
+    
+    raise HTTPException(status_code=401, detail="인증이 필요합니다")

@@ -1,10 +1,11 @@
 """Memory API Router"""
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 import aiosqlite
 
 from src.shared.database import get_db
 from src.shared.exceptions import NotFoundException, PermissionDeniedException
+from src.shared.auth import get_current_user_id
 from src.memory.service import MemoryService
 from src.memory.schemas import (
     MemoryCreate,
@@ -21,11 +22,6 @@ router = APIRouter()
 
 def get_memory_service(db: aiosqlite.Connection = Depends(get_db)) -> MemoryService:
     return MemoryService(db)
-
-
-def get_current_user_id(x_user_id: str = Header(..., description="현재 사용자 ID")) -> str:
-    """헤더에서 사용자 ID 추출 (간단한 인증)"""
-    return x_user_id
 
 
 @router.post("", response_model=MemoryResponse)

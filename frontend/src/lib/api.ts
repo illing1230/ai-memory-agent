@@ -22,6 +22,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('access_token')
+  const userId = localStorage.getItem('user_id')
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -30,6 +31,11 @@ async function request<T>(
   
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+  }
+  
+  // Backend chat/memory 라우터 호환을 위한 X-User-ID 헤더
+  if (userId) {
+    (headers as Record<string, string>)['X-User-ID'] = userId
   }
   
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {

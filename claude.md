@@ -4,7 +4,7 @@
 
 AI Memory Agent는 멀티채팅 환경에서 권한 기반 메모리 관리를 제공하는 시스템입니다.
 Mem0.ai의 컨셉을 기반으로 하되, 멀티채팅 지원과 세분화된 권한 관리 기능을 추가합니다.
-aa
+
 ## 핵심 기능
 
 ### 1. 멀티채팅 기반 메모리 저장
@@ -14,7 +14,7 @@ aa
 
 ### 2. 권한 기반 메모리 접근 제어
 - **개인(Personal)**: 사용자 본인만 접근 가능한 메모리
-- **채팅방(Chatroom)**: 해당 채팅방 멤버만 접근 가능한 메모리 ⭐ 신규
+- **채팅방(Chatroom)**: 해당 채팅방 멤버만 접근 가능한 메모리
 - **프로젝트(Project)**: 특정 프로젝트 참여자만 접근 가능한 메모리
 - **부서(Department)**: 부서 전체가 공유하는 메모리
 
@@ -22,7 +22,12 @@ aa
 - **SQLite**: 메타데이터, 권한, 관계 정보 저장
 - **Qdrant**: 벡터 임베딩 저장 및 시맨틱 검색
 
-### 4. 슬래시 커맨드 지원
+### 4. 실시간 채팅
+- WebSocket 기반 실시간 메시지 전송
+- 타이핑 인디케이터
+- 자동 재연결
+
+### 5. 슬래시 커맨드 지원
 - `/remember <내용>` - 채팅방 메모리 저장
 - `/forget <검색어>` - 메모리 삭제
 - `/search <검색어>` - 메모리 검색
@@ -36,12 +41,15 @@ aa
 
 | 구분 | 기술 | 비고 |
 |------|------|------|
-| Backend | FastAPI (Python 3.11+) | |
-| Database | SQLite (개발) / PostgreSQL (운영) | |
-| Vector DB | Qdrant | 내부망: 10.244.11.230:30011 |
-| Embedding | HuggingFace (기본), OpenAI, Ollama | 내부망: smart-dna.sec.samsung.net |
-| LLM | OpenAI Compatible (Qwen3-32B), Ollama, Anthropic | 내부망: 10.244.11.119:30434 |
-| Frontend | Streamlit | 카카오톡 스타일 데모 UI |
+| **Backend** | FastAPI (Python 3.11+) | REST API + WebSocket |
+| **Frontend** | React 18 + TypeScript + Vite | SPA |
+| **상태관리** | Zustand + TanStack Query | 클라이언트/서버 상태 분리 |
+| **스타일링** | Tailwind CSS | 유틸리티 기반 |
+| **Database** | SQLite (개발) / PostgreSQL (운영) | |
+| **Vector DB** | Qdrant | 내부망: 10.244.11.230:30011 |
+| **Embedding** | HuggingFace (기본), OpenAI, Ollama | 내부망: smart-dna.sec.samsung.net |
+| **LLM** | OpenAI Compatible (Qwen3-32B), Ollama, Anthropic | 내부망: 10.244.11.119:30434 |
+| **실시간 통신** | WebSocket (FastAPI + Native) | |
 
 ---
 
@@ -50,19 +58,25 @@ aa
 ```
 ai-memory-agent/
 ├── claude.md                    # 프로젝트 정의서
-├── pyproject.toml               # 의존성 관리
+├── pyproject.toml               # Python 의존성 관리
 ├── README.md                    # 프로젝트 설명
 ├── errors.md                    # 에러 트래킹
 ├── .env.example                 # 환경변수 템플릿
 ├── .env                         # 환경변수 (git 제외)
 │
 ├── app/
-│   └── streamlit_app.py         # Streamlit 데모 UI (카카오톡 스타일)
+│   └── streamlit_app.py         # Streamlit 데모 UI (레거시)
 │
-├── src/
+├── src/                         # Backend (FastAPI)
 │   ├── __init__.py
 │   ├── main.py                  # FastAPI 앱 엔트리포인트
 │   ├── config.py                # 설정 관리 (pydantic-settings)
+│   │
+│   ├── auth/                    # ✅ 인증 기능
+│   │   ├── __init__.py
+│   │   ├── router.py            # 로그인/회원가입/토큰검증
+│   │   ├── service.py           # 인증 비즈니스 로직
+│   │   └── schemas.py           # Pydantic 스키마
 │   │
 │   ├── memory/                  # ✅ 메모리 관리 기능
 │   │   ├── __init__.py
@@ -77,6 +91,11 @@ ai-memory-agent/
 │   │   ├── service.py           # 비즈니스 로직 (AI 응답, 커맨드)
 │   │   ├── repository.py        # 데이터 접근 계층
 │   │   └── schemas.py           # Pydantic 스키마
+│   │
+│   ├── websocket/               # ✅ WebSocket 실시간 통신
+│   │   ├── __init__.py
+│   │   ├── router.py            # WebSocket 엔드포인트
+│   │   └── manager.py           # 연결 관리자
 │   │
 │   ├── permission/              # ✅ 권한 관리 기능
 │   │   ├── __init__.py
@@ -98,6 +117,7 @@ ai-memory-agent/
 │   │
 │   └── shared/                  # 공유 모듈
 │       ├── __init__.py
+│       ├── auth.py              # 공통 인증 유틸리티 (get_current_user_id)
 │       ├── database.py          # SQLite 연결 관리 + 스키마 정의
 │       ├── vector_store.py      # Qdrant 연결 관리
 │       ├── exceptions.py        # 커스텀 예외
@@ -117,6 +137,57 @@ ai-memory-agent/
 │               ├── ollama.py
 │               └── anthropic.py
 │
+├── frontend/                    # Frontend (React + TypeScript)
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts           # Vite 설정 (프록시 포함)
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   └── src/
+│       ├── App.tsx              # 라우팅 및 인증 설정
+│       ├── main.tsx             # 엔트리포인트
+│       ├── index.css            # Tailwind 설정
+│       │
+│       ├── components/          # 공용 컴포넌트
+│       │   ├── ui/              # 기본 UI (Button, Input 등)
+│       │   ├── layout/          # 레이아웃 (Sidebar, MainLayout)
+│       │   └── common/          # 공통 (Loading, EmptyState)
+│       │
+│       ├── features/            # 기능별 모듈 (Feature-based)
+│       │   ├── auth/            # 인증
+│       │   │   ├── api/
+│       │   │   │   └── authApi.ts
+│       │   │   ├── components/
+│       │   │   │   └── LoginForm.tsx
+│       │   │   └── store/
+│       │   │       └── authStore.ts
+│       │   ├── chat/            # 채팅
+│       │   │   ├── api/
+│       │   │   │   └── chatApi.ts
+│       │   │   ├── components/
+│       │   │   └── hooks/
+│       │   │       └── useChat.ts
+│       │   ├── memory/          # 메모리
+│       │   │   ├── api/
+│       │   │   │   └── memoryApi.ts
+│       │   │   └── components/
+│       │   ├── project/         # 프로젝트
+│       │   └── workspace/       # 워크스페이스
+│       │
+│       ├── hooks/               # 전역 커스텀 훅
+│       │   ├── index.ts
+│       │   └── useWebSocket.ts  # WebSocket 연결 관리
+│       │
+│       ├── lib/                 # 유틸리티
+│       │   ├── api.ts           # API 클라이언트 (인증 헤더 자동 추가)
+│       │   └── utils.ts         # 헬퍼 함수
+│       │
+│       ├── stores/              # 전역 상태 (Zustand)
+│       │
+│       └── types/               # TypeScript 타입 정의
+│           ├── index.ts
+│           └── common.types.ts
+│
 ├── tests/                       # 테스트
 │   ├── __init__.py
 │   ├── conftest.py
@@ -124,9 +195,91 @@ ai-memory-agent/
 │   ├── test_chat/
 │   └── test_permission/
 │
+├── docs/                        # 문서
+│
 └── data/                        # 로컬 데이터 저장소
     └── sqlite/                  # SQLite DB 파일
         └── memory.db
+```
+
+---
+
+## 인증 체계
+
+### 인증 플로우
+
+```
+┌─────────────────┐                  ┌──────────────────────────────────┐
+│    Frontend     │                  │            Backend               │
+├─────────────────┤                  ├──────────────────────────────────┤
+│ 1. Login 요청   │─────────────────▶│ POST /api/v1/auth/login          │
+│                 │◀─────────────────│ → access_token + user 반환       │
+├─────────────────┤                  ├──────────────────────────────────┤
+│ 2. 토큰 저장    │                  │                                  │
+│ - access_token  │                  │                                  │
+│ - user_id       │                  │                                  │
+├─────────────────┤                  ├──────────────────────────────────┤
+│ 3. API 호출     │─────────────────▶│ get_current_user_id() 검증       │
+│ Headers:        │                  │ 1. Authorization: Bearer 토큰    │
+│ - Authorization │                  │ 2. X-User-ID 폴백 (개발용)       │
+│ - X-User-ID     │                  │                                  │
+└─────────────────┘                  └──────────────────────────────────┘
+```
+
+### 공통 인증 함수
+
+모든 라우터에서 `src/shared/auth.py`의 `get_current_user_id()` 함수를 사용합니다:
+
+```python
+# src/shared/auth.py
+def get_current_user_id(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None, alias="X-User-ID"),
+) -> str:
+    """
+    현재 사용자 ID 추출
+    - Bearer 토큰 우선 확인
+    - X-User-ID 헤더 폴백 (개발 환경)
+    """
+    # Bearer 토큰 확인
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        user_id = verify_access_token(token)
+        if user_id:
+            return user_id
+    
+    # X-User-ID 헤더 확인 (개발용 폴백)
+    if x_user_id:
+        return x_user_id
+    
+    raise HTTPException(status_code=401, detail="인증이 필요합니다")
+```
+
+### Frontend API 클라이언트
+
+`frontend/src/lib/api.ts`에서 자동으로 인증 헤더를 추가합니다:
+
+```typescript
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem('access_token')
+  const userId = localStorage.getItem('user_id')
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  
+  // Backend chat/memory 라우터 호환을 위한 X-User-ID 헤더
+  if (userId) {
+    headers['X-User-ID'] = userId
+  }
+  
+  // ... fetch 로직
+}
 ```
 
 ---
@@ -149,6 +302,7 @@ ai-memory-agent/
 | id | TEXT (UUID) | PK |
 | name | TEXT | 사용자명 |
 | email | TEXT | 이메일 (UNIQUE) |
+| password_hash | TEXT | 비밀번호 해시 |
 | department_id | TEXT | FK → departments.id |
 | created_at | DATETIME | 생성일시 |
 | updated_at | DATETIME | 수정일시 |
@@ -263,6 +417,14 @@ ai-memory-agent/
 
 ## API 엔드포인트 (구현 완료)
 
+### Auth API (`/api/v1/auth`)
+| Method | Endpoint | 설명 | 상태 |
+|--------|----------|------|------|
+| POST | `/auth/login` | 로그인 | ✅ |
+| POST | `/auth/register` | 회원가입 | ✅ |
+| GET | `/auth/me` | 현재 사용자 정보 | ✅ |
+| POST | `/auth/verify` | 토큰 검증 | ✅ |
+
 ### Memory API (`/api/v1/memories`)
 | Method | Endpoint | 설명 | 상태 |
 |--------|----------|------|------|
@@ -289,6 +451,34 @@ ai-memory-agent/
 | GET | `/chat-rooms/{id}/messages` | 메시지 목록 | ✅ |
 | POST | `/chat-rooms/{id}/messages` | 메시지 전송 + AI 응답 | ✅ |
 
+### WebSocket (`/ws`)
+| Endpoint | 설명 | 상태 |
+|----------|------|------|
+| `/ws/chat/{room_id}?token={token}` | 실시간 채팅 | ✅ |
+
+#### WebSocket 메시지 타입
+
+**클라이언트 → 서버:**
+```typescript
+{ type: "message:send", data: { content: "메시지 내용" } }
+{ type: "typing:start", data: {} }
+{ type: "typing:stop", data: {} }
+{ type: "ping", data: {} }
+```
+
+**서버 → 클라이언트:**
+```typescript
+{ type: "message:new", data: { id, content, user_id, user_name, ... } }
+{ type: "member:join", data: { user_id, user_name } }
+{ type: "member:leave", data: { user_id } }
+{ type: "memory:extracted", data: { count, memories: [...] } }
+{ type: "room:info", data: { room_id, online_users: [...] } }
+{ type: "typing:start", data: { user_id, user_name } }
+{ type: "typing:stop", data: { user_id } }
+{ type: "pong", data: {} }
+{ type: "error", data: { message: "..." } }
+```
+
 ### User API (`/api/v1/users`)
 | Method | Endpoint | 설명 | 상태 |
 |--------|----------|------|------|
@@ -308,7 +498,7 @@ ai-memory-agent/
 ### Permission API (`/api/v1/permissions`)
 | Method | Endpoint | 설명 | 상태 |
 |--------|----------|------|------|
-| GET | `/permissions/check` | 권한 확인 | ✅ |
+| POST | `/permissions/check` | 권한 확인 | ✅ |
 
 ### Health Check
 | Method | Endpoint | 설명 | 상태 |
@@ -380,11 +570,21 @@ ai-memory-agent/
 - [x] 컨텍스트 소스 기반 메모리 검색
 - [x] Streamlit 데모 UI
 
-### Phase 4: 고도화 🔄 진행 중
+### Phase 4: React Frontend ✅ 완료
+- [x] React + TypeScript + Vite 셋업
+- [x] Tailwind CSS 스타일링
+- [x] 인증 시스템 (로그인/회원가입)
+- [x] 채팅방 UI (목록, 메시지)
+- [x] 메모리 검색/관리 UI
+- [x] WebSocket 실시간 통신
+- [x] Backend-Frontend 인증 연동
+
+### Phase 5: 고도화 🔄 진행 중
 - [ ] 메모리 중복 제거/병합 최적화
 - [ ] 성능 최적화
 - [ ] PostgreSQL 마이그레이션
 - [ ] RAG 컬렉션 연동
+- [ ] Mchat 연동
 
 ---
 
@@ -393,6 +593,19 @@ ai-memory-agent/
 ### 삼성 내부망 기본 설정 (권장)
 
 ```env
+# ===========================================
+# Application Settings
+# ===========================================
+APP_ENV=development
+DEBUG=true
+LOG_LEVEL=INFO
+
+# ===========================================
+# JWT Configuration
+# ===========================================
+JWT_SECRET_KEY=your-secret-key-change-in-production
+JWT_ACCESS_TOKEN_EXPIRE_HOURS=24
+
 # ===========================================
 # Database Configuration
 # ===========================================
@@ -426,13 +639,6 @@ OPENAI_LLM_MODEL=/data/Qwen3-32B
 OPENAI_API_KEY=Bearer ghu_xxxxx
 
 # ===========================================
-# Application Settings
-# ===========================================
-APP_ENV=development
-DEBUG=true
-LOG_LEVEL=INFO
-
-# ===========================================
 # Memory Extraction Settings
 # ===========================================
 AUTO_EXTRACT_MEMORY=true
@@ -443,6 +649,19 @@ DUPLICATE_THRESHOLD=0.85
 ### 외부망/범용 설정 (옵션)
 
 ```env
+# ===========================================
+# Application Settings
+# ===========================================
+APP_ENV=development
+DEBUG=true
+LOG_LEVEL=INFO
+
+# ===========================================
+# JWT Configuration
+# ===========================================
+JWT_SECRET_KEY=your-secret-key-change-in-production
+JWT_ACCESS_TOKEN_EXPIRE_HOURS=24
+
 # ===========================================
 # Database Configuration
 # ===========================================
@@ -492,34 +711,51 @@ OPENAI_LLM_MODEL=gpt-4o-mini
 
 ## 실행 방법
 
-### 1. 의존성 설치
+### 1. Backend 설정
+
 ```bash
+# 의존성 설치
 pip install -e .
 # 또는
 pip install -e ".[dev]"  # 개발 의존성 포함
-```
 
-### 2. 환경 변수 설정
-```bash
+# 환경 변수 설정
 cp .env.example .env
 # .env 파일 수정
 ```
 
-### 3. FastAPI 서버 실행
+### 2. Frontend 설정
+
 ```bash
+cd frontend
+
+# 의존성 설치
+npm install
+```
+
+### 3. 서버 실행
+
+```bash
+# Terminal 1: Backend 실행
 python -m src.main
 # 또는
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+
+# Terminal 2: Frontend 실행
+cd frontend
+npm run dev
 ```
 
-### 4. Streamlit UI 실행
+### 4. 접속
+- **Frontend**: http://localhost:3000
+- **Backend Swagger UI**: http://localhost:8000/docs
+- **Backend ReDoc**: http://localhost:8000/redoc
+
+### 5. 테스트 데이터 생성 (선택)
+
 ```bash
-streamlit run app/streamlit_app.py
+python -m src.scripts.seed_data
 ```
-
-### 5. API 문서 확인
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
 
 ---
 
@@ -590,6 +826,8 @@ from src.shared.providers.factory import get_embedding_provider, get_llm_provide
 | **권한 관리** | ❌ 없음 | ✅ Personal/Chatroom/Project/Department | 신규 |
 | **멀티 채팅방** | ❌ 없음 | ✅ 지원 | 신규 |
 | **채팅방 멤버 관리** | ❌ 없음 | ✅ owner/admin/member | 신규 |
+| **실시간 통신** | ❌ 없음 | ✅ WebSocket | 신규 |
+| **React Frontend** | ❌ 없음 | ✅ React + TypeScript | 신규 |
 | **슬래시 커맨드** | ❌ 없음 | ✅ /remember, /search, /forget 등 | 신규 |
 | **Vector DB** | ✅ Qdrant, Chroma, etc | ✅ Qdrant | 동일 |
 | **Embedding** | ✅ 다양한 Provider | ✅ HuggingFace, OpenAI, Ollama | 동일 |

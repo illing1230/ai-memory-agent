@@ -1,10 +1,11 @@
 """Chat Room API Router"""
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 import aiosqlite
 
 from src.shared.database import get_db
 from src.shared.exceptions import NotFoundException, ForbiddenException
+from src.shared.auth import get_current_user_id
 from src.chat.service import ChatService
 from src.chat.schemas import (
     ChatRoomCreate,
@@ -22,10 +23,6 @@ router = APIRouter()
 
 def get_chat_service(db: aiosqlite.Connection = Depends(get_db)) -> ChatService:
     return ChatService(db)
-
-
-def get_current_user_id(x_user_id: str = Header(..., description="현재 사용자 ID")) -> str:
-    return x_user_id
 
 
 # ==================== Chat Room ====================

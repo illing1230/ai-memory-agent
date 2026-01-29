@@ -17,8 +17,8 @@ export interface User {
   name: string
   email: string
   department_id?: string
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 // 부서

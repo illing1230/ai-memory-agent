@@ -1,10 +1,11 @@
 """User API Router"""
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 import aiosqlite
 
 from src.shared.database import get_db
 from src.shared.exceptions import NotFoundException, ValidationException, ForbiddenException
+from src.shared.auth import get_current_user_id
 from src.user.service import UserService
 from src.user.schemas import (
     DepartmentCreate,
@@ -25,10 +26,6 @@ router = APIRouter()
 
 def get_user_service(db: aiosqlite.Connection = Depends(get_db)) -> UserService:
     return UserService(db)
-
-
-def get_current_user_id(x_user_id: str = Header(..., description="현재 사용자 ID")) -> str:
-    return x_user_id
 
 
 # ==================== Department ====================

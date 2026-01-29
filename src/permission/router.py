@@ -1,9 +1,10 @@
 """Permission API Router"""
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends
 import aiosqlite
 
 from src.shared.database import get_db
+from src.shared.auth import get_current_user_id
 from src.permission.service import PermissionService
 from src.permission.schemas import (
     PermissionCheckRequest,
@@ -15,10 +16,6 @@ router = APIRouter()
 
 def get_permission_service(db: aiosqlite.Connection = Depends(get_db)) -> PermissionService:
     return PermissionService(db)
-
-
-def get_current_user_id(x_user_id: str = Header(..., description="현재 사용자 ID")) -> str:
-    return x_user_id
 
 
 @router.post("/check", response_model=PermissionCheckResponse)
