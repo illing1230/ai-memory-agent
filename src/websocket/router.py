@@ -22,20 +22,35 @@ async def websocket_chat(
     websocket: WebSocket,
     room_id: str,
     token: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),  # 개발용 user_id 직접 전달
 ):
     """채팅방 WebSocket 엔드포인트"""
-    
+    from src.config import get_settings
+    settings = get_settings()
+
     # 인증 확인
-    user_id = None
-    if token:
-        user_id = verify_access_token(token)
-    
-    if not user_id:
+    authenticated_user_id = None
+
+    # 1. 토큰으로 인증 시도
+    if token and token != "dev-token":
+        authenticated_user_id = verify_access_token(token)
+
+    # 2. 개발 환경에서 user_id 쿼리 파라미터 또는 dev-token 허용
+    if not authenticated_user_id and settings.is_development:
+        if user_id:
+            authenticated_user_id = user_id
+        elif token == "dev-token":
+            # dev-token인 경우 기본 개발자 계정 사용
+            authenticated_user_id = "dev-user-001"
+
+    if not authenticated_user_id:
         await websocket.close(code=4001, reason="Unauthorized")
         return
+
+    user_id = authenticated_user_id
     
     # DB 연결
-    db = get_db_sync()
+    db = await get_db_sync()
     
     try:
         # 사용자 정보 조회
@@ -168,3 +183,4 @@ async def websocket_chat(
         print(f"WebSocket error: {e}")
     finally:
         await manager.disconnect(room_id, user_id)
+        await db.close()

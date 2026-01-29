@@ -140,7 +140,10 @@ npm run dev
 ```bash
 python -m src.scripts.seed_data
 ```
-
+###### db 초기화
+```bash
+del data\sqlite\memory.db
+```
 ## 🔐 인증 체계
 
 ### 인증 플로우

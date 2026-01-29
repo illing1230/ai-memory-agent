@@ -1,7 +1,7 @@
 """WebSocket 연결 관리자"""
 
 import asyncio
-from typing import Dict, Set, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -19,14 +19,14 @@ class Connection:
 
 class ConnectionManager:
     """WebSocket 연결 관리자"""
-    
+
     def __init__(self):
-        # room_id -> set of connections
-        self.room_connections: Dict[str, Set[Connection]] = {}
+        # room_id -> {user_id: connection}
+        self.room_connections: Dict[str, Dict[str, Connection]] = {}
         # user_id -> connection (1:1)
         self.user_connections: Dict[str, Connection] = {}
         self._lock = asyncio.Lock()
-    
+
     async def connect(
         self,
         websocket: WebSocket,
@@ -36,17 +36,17 @@ class ConnectionManager:
     ) -> Connection:
         """연결 수락 및 등록"""
         await websocket.accept()
-        
+
         connection = Connection(
             websocket=websocket,
             user_id=user_id,
             user_name=user_name,
         )
-        
+
         async with self._lock:
             if room_id not in self.room_connections:
-                self.room_connections[room_id] = set()
-            self.room_connections[room_id].add(connection)
+                self.room_connections[room_id] = {}
+            self.room_connections[room_id][user_id] = connection
             self.user_connections[user_id] = connection
         
         # 입장 알림
@@ -70,10 +70,10 @@ class ConnectionManager:
         connection = None
         async with self._lock:
             connection = self.user_connections.pop(user_id, None)
-            
-            if room_id in self.room_connections and connection:
-                self.room_connections[room_id].discard(connection)
-                
+
+            if room_id in self.room_connections:
+                self.room_connections[room_id].pop(user_id, None)
+
                 if not self.room_connections[room_id]:
                     del self.room_connections[room_id]
         
@@ -99,25 +99,25 @@ class ConnectionManager:
         exclude_user: Optional[str] = None,
     ):
         """채팅방 전체에 메시지 브로드캐스트"""
-        connections = self.room_connections.get(room_id, set()).copy()
-        
+        connections = dict(self.room_connections.get(room_id, {}))
+
         disconnected = []
-        for conn in connections:
-            if exclude_user and conn.user_id == exclude_user:
+        for uid, conn in connections.items():
+            if exclude_user and uid == exclude_user:
                 continue
-            
+
             try:
                 await conn.websocket.send_json(message)
             except Exception:
-                disconnected.append(conn)
-        
+                disconnected.append(uid)
+
         # 끊어진 연결 정리
         if disconnected:
             async with self._lock:
-                for conn in disconnected:
+                for uid in disconnected:
                     if room_id in self.room_connections:
-                        self.room_connections[room_id].discard(conn)
-                    self.user_connections.pop(conn.user_id, None)
+                        self.room_connections[room_id].pop(uid, None)
+                    self.user_connections.pop(uid, None)
     
     async def send_to_user(self, user_id: str, message: dict):
         """특정 사용자에게 메시지 전송"""
@@ -130,19 +130,19 @@ class ConnectionManager:
     
     def get_room_users(self, room_id: str) -> list[dict]:
         """채팅방 접속 사용자 목록"""
-        connections = self.room_connections.get(room_id, set())
+        connections = self.room_connections.get(room_id, {})
         return [
             {
                 "user_id": conn.user_id,
                 "user_name": conn.user_name,
                 "connected_at": conn.connected_at.isoformat(),
             }
-            for conn in connections
+            for conn in connections.values()
         ]
-    
+
     def get_room_user_count(self, room_id: str) -> int:
         """채팅방 접속 인원 수"""
-        return len(self.room_connections.get(room_id, set()))
+        return len(self.room_connections.get(room_id, {}))
 
 
 # 전역 연결 관리자

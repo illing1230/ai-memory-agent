@@ -8,26 +8,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.shared.database import init_database, close_database
-from src.shared.vector_store import init_vector_store, close_vector_store
+from src.shared.vector_store import init_vector_store, close_vector_store, is_vector_store_available
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """애플리케이션 생명주기 관리"""
     settings = get_settings()
-    
+
     # 시작 시 초기화
     await init_database()
     await init_vector_store()
-    
+
+    # 서비스 상태 출력
+    qdrant_status = "✅" if is_vector_store_available() else "❌"
     print(f"🚀 AI Memory Agent 시작 (환경: {settings.app_env})")
-    
+    print(f"   - SQLite: ✅")
+    print(f"   - Qdrant: {qdrant_status}")
+
     yield
-    
+
     # 종료 시 정리
     await close_database()
     await close_vector_store()
-    
+
     print("👋 AI Memory Agent 종료")
 
 
@@ -74,7 +78,14 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check():
         """헬스 체크"""
-        return {"status": "healthy", "version": "0.1.0"}
+        return {
+            "status": "healthy",
+            "version": "0.1.0",
+            "services": {
+                "database": True,  # SQLite는 항상 사용 가능
+                "vector_store": is_vector_store_available(),
+            }
+        }
 
     return app
 

@@ -35,21 +35,53 @@ export function ChatRoom() {
   // WebSocket 연결
   const effectiveToken = token || localStorage.getItem('access_token') || 'dev-token'
   
+  const handleWebSocketMessage = useCallback((msg: unknown) => {
+    const message = msg as { type: string; data: { user_name?: string; user_id?: string } }
+    if (message.type === 'typing:start') {
+      setTypingUsers(prev => {
+        if (prev.includes(message.data.user_name || '')) return prev
+        return [...prev, message.data.user_name || '']
+      })
+    } else if (message.type === 'typing:stop') {
+      setTypingUsers(prev => prev.filter(u => u !== message.data.user_name))
+    }
+  }, [])
+
   const { isConnected, sendMessage: wsSendMessage, startTyping, stopTyping } = useWebSocket({
     roomId: roomId || '',
     token: effectiveToken,
-    onMessage: useCallback((msg: unknown) => {
-      const message = msg as { type: string; data: { user_name?: string; user_id?: string } }
-      if (message.type === 'typing:start') {
-        setTypingUsers(prev => {
-          if (prev.includes(message.data.user_name || '')) return prev
-          return [...prev, message.data.user_name || '']
-        })
-      } else if (message.type === 'typing:stop') {
-        setTypingUsers(prev => prev.filter(u => u !== message.data.user_name))
-      }
-    }, []),
+    onMessage: handleWebSocketMessage,
   })
+
+  const handleTyping = useCallback(() => {
+    if (isConnected) {
+      startTyping()
+    }
+  }, [isConnected, startTyping])
+
+  const handleContextSave = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['chat', 'room', roomId] })
+  }, [queryClient, roomId])
+
+  const handleSend = useCallback(async (content: string) => {
+    if (!content.trim() || isSending) return
+
+    stopTyping()
+
+    if (isConnected) {
+      wsSendMessage(content)
+      return
+    }
+
+    setIsSending(true)
+    try {
+      await sendMessageMutation.mutateAsync({ content })
+    } catch (error) {
+      console.error('메시지 전송 실패:', error)
+    } finally {
+      setIsSending(false)
+    }
+  }, [isSending, stopTyping, isConnected, wsSendMessage, sendMessageMutation])
 
   if (!roomId) {
     return (
@@ -84,37 +116,6 @@ export function ChatRoom() {
         />
       </div>
     )
-  }
-
-  const handleSend = async (content: string) => {
-    if (!content.trim() || isSending) return
-    
-    stopTyping()
-    
-    if (isConnected) {
-      wsSendMessage(content)
-      return
-    }
-    
-    setIsSending(true)
-    try {
-      await sendMessageMutation.mutateAsync({ content })
-    } catch (error) {
-      console.error('메시지 전송 실패:', error)
-    } finally {
-      setIsSending(false)
-    }
-  }
-
-  const handleTyping = useCallback(() => {
-    if (isConnected) {
-      startTyping()
-    }
-  }, [isConnected, startTyping])
-
-  const handleContextSave = () => {
-    // 채팅방 정보 다시 로드
-    queryClient.invalidateQueries({ queryKey: ['chat', 'room', roomId] })
   }
 
   // Context Sources 표시

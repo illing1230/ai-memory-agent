@@ -41,6 +41,11 @@ export function useWebSocket({
 
   // WebSocket URL 생성
   const getWsUrl = useCallback(() => {
+    // 개발 환경에서는 백엔드 서버 직접 연결
+    if (import.meta.env.DEV) {
+      return `ws://localhost:8000/ws/chat/${roomId}?token=${token}`
+    }
+    // 프로덕션에서는 같은 호스트 사용
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     return `${protocol}//${host}/ws/chat/${roomId}?token=${token}`

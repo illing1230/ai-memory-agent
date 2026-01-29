@@ -21,6 +21,8 @@ DEPARTMENTS = [
 ]
 
 USERS = [
+    # 개발자 테스트 계정 (프론트엔드 dev-user-001과 매칭)
+    {"id": "dev-user-001", "name": "개발자", "email": "dev@test.local", "dept_idx": 1},
     # 품질팀
     {"name": "김품질", "email": "kim.quality@samsung.com", "dept_idx": 0},
     {"name": "이검사", "email": "lee.inspector@samsung.com", "dept_idx": 0},
@@ -45,27 +47,29 @@ PROJECTS = [
 ]
 
 # 프로젝트 멤버 매핑 (project_idx -> user_idx 리스트)
+# 인덱스: 0=개발자, 1=김품질, 2=이검사, 3=박관리, 4=최개발, 5=정백엔드, 6=강프론트, 7=윤데이터, 8=한기획, 9=서전략, 10=임분석
 PROJECT_MEMBERS = {
-    0: [0, 1, 2],  # PLM 시스템 - 품질팀 전원
-    1: [3, 4, 5, 6],  # MemGate - 개발팀 전원
-    2: [3, 4, 6],  # RAG 시스템 - 개발팀 일부
-    3: [0, 1, 7],  # 품질 대시보드 - 품질팀 + 기획팀
-    4: [7, 8, 9],  # 신제품 기획 - 기획팀 전원
+    0: [1, 2, 3],  # PLM 시스템 - 품질팀 전원
+    1: [0, 4, 5, 6, 7],  # MemGate - 개발자 + 개발팀 전원
+    2: [4, 5, 7],  # RAG 시스템 - 개발팀 일부
+    3: [1, 2, 8],  # 품질 대시보드 - 품질팀 + 기획팀
+    4: [8, 9, 10],  # 신제품 기획 - 기획팀 전원
 }
 
 CHAT_ROOMS = [
     # 개인 채팅방
-    {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 0},
-    {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 3},
-    {"name": "한기획의 메모", "room_type": "personal", "owner_idx": 7},
+    {"name": "개발자의 메모", "room_type": "personal", "owner_idx": 0},
+    {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 1},
+    {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 4},
+    {"name": "한기획의 메모", "room_type": "personal", "owner_idx": 8},
     # 프로젝트 채팅방
-    {"name": "PLM 개발 채팅", "room_type": "project", "owner_idx": 0, "project_idx": 0},
-    {"name": "MemGate 개발 채팅", "room_type": "project", "owner_idx": 3, "project_idx": 1},
-    {"name": "RAG 논의", "room_type": "project", "owner_idx": 4, "project_idx": 2},
+    {"name": "PLM 개발 채팅", "room_type": "project", "owner_idx": 1, "project_idx": 0},
+    {"name": "MemGate 개발 채팅", "room_type": "project", "owner_idx": 0, "project_idx": 1},
+    {"name": "RAG 논의", "room_type": "project", "owner_idx": 5, "project_idx": 2},
     # 부서 채팅방
-    {"name": "품질팀 공유", "room_type": "department", "owner_idx": 0, "dept_idx": 0},
-    {"name": "개발팀 공유", "room_type": "department", "owner_idx": 3, "dept_idx": 1},
-    {"name": "기획팀 공유", "room_type": "department", "owner_idx": 7, "dept_idx": 2},
+    {"name": "품질팀 공유", "room_type": "department", "owner_idx": 1, "dept_idx": 0},
+    {"name": "개발팀 공유", "room_type": "department", "owner_idx": 0, "dept_idx": 1},
+    {"name": "기획팀 공유", "room_type": "department", "owner_idx": 8, "dept_idx": 2},
 ]
 
 MEMORIES = [
@@ -73,21 +77,21 @@ MEMORIES = [
     {
         "content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다",
         "scope": "personal",
-        "owner_idx": 0,
+        "owner_idx": 1,
         "category": "preference",
         "importance": "medium",
     },
     {
         "content": "최개발은 Python보다 Rust를 선호한다",
         "scope": "personal",
-        "owner_idx": 3,
+        "owner_idx": 4,
         "category": "preference",
         "importance": "high",
     },
     {
         "content": "한기획은 매주 금요일에 주간 보고서를 작성한다",
         "scope": "personal",
-        "owner_idx": 7,
+        "owner_idx": 8,
         "category": "fact",
         "importance": "medium",
     },
@@ -95,7 +99,7 @@ MEMORIES = [
     {
         "content": "PLM 시스템의 데이터베이스는 PostgreSQL을 사용한다",
         "scope": "project",
-        "owner_idx": 0,
+        "owner_idx": 1,
         "project_idx": 0,
         "category": "fact",
         "importance": "high",
@@ -103,7 +107,7 @@ MEMORIES = [
     {
         "content": "MemGate는 Qdrant 벡터 DB와 SQLite를 함께 사용한다",
         "scope": "project",
-        "owner_idx": 3,
+        "owner_idx": 0,
         "project_idx": 1,
         "category": "fact",
         "importance": "high",
@@ -111,7 +115,7 @@ MEMORIES = [
     {
         "content": "RAG 시스템에서 chunk 크기는 512 토큰으로 결정했다",
         "scope": "project",
-        "owner_idx": 4,
+        "owner_idx": 5,
         "project_idx": 2,
         "category": "decision",
         "importance": "high",
@@ -119,7 +123,7 @@ MEMORIES = [
     {
         "content": "품질 대시보드는 Grafana로 구현하기로 했다",
         "scope": "project",
-        "owner_idx": 0,
+        "owner_idx": 1,
         "project_idx": 3,
         "category": "decision",
         "importance": "medium",
@@ -127,7 +131,7 @@ MEMORIES = [
     {
         "content": "신제품 출시일은 2025년 3월로 목표한다",
         "scope": "project",
-        "owner_idx": 7,
+        "owner_idx": 8,
         "project_idx": 4,
         "category": "decision",
         "importance": "high",
@@ -136,7 +140,7 @@ MEMORIES = [
     {
         "content": "품질팀 회의는 매주 화요일 오전 10시에 진행한다",
         "scope": "department",
-        "owner_idx": 0,
+        "owner_idx": 1,
         "dept_idx": 0,
         "category": "fact",
         "importance": "medium",
@@ -144,7 +148,7 @@ MEMORIES = [
     {
         "content": "개발팀은 GitFlow 브랜치 전략을 사용한다",
         "scope": "department",
-        "owner_idx": 3,
+        "owner_idx": 0,
         "dept_idx": 1,
         "category": "fact",
         "importance": "high",
@@ -152,7 +156,7 @@ MEMORIES = [
     {
         "content": "기획팀은 Notion을 공식 문서 도구로 사용한다",
         "scope": "department",
-        "owner_idx": 7,
+        "owner_idx": 8,
         "dept_idx": 2,
         "category": "fact",
         "importance": "medium",
@@ -161,21 +165,21 @@ MEMORIES = [
     {
         "content": "김품질은 커피보다 녹차를 선호한다",
         "scope": "personal",
-        "owner_idx": 0,
+        "owner_idx": 1,
         "category": "preference",
         "importance": "low",
     },
     {
         "content": "최개발의 업무 집중 시간은 오후 2시~5시이다",
         "scope": "personal",
-        "owner_idx": 3,
+        "owner_idx": 4,
         "category": "preference",
         "importance": "medium",
     },
     {
         "content": "MemGate API는 FastAPI로 구현한다",
         "scope": "project",
-        "owner_idx": 4,
+        "owner_idx": 5,
         "project_idx": 1,
         "category": "decision",
         "importance": "high",
@@ -183,7 +187,7 @@ MEMORIES = [
     {
         "content": "RAG 시스템에서 HyDE 기법을 적용하기로 했다",
         "scope": "project",
-        "owner_idx": 6,
+        "owner_idx": 7,
         "project_idx": 2,
         "category": "decision",
         "importance": "high",
@@ -199,8 +203,15 @@ async def seed_data():
     await init_database()
     await init_vector_store()
 
-    db = get_db_sync()
-    embedding_provider = get_embedding_provider()
+    db = await get_db_sync()
+
+    # 임베딩 프로바이더 (연결 실패해도 계속 진행)
+    embedding_provider = None
+    try:
+        embedding_provider = get_embedding_provider()
+        print("✅ Embedding Provider 연결됨")
+    except Exception as e:
+        print(f"⚠️  Embedding Provider 연결 실패 (메모리 벡터 없이 진행): {e}")
 
     try:
         # 1. 부서 생성
@@ -219,7 +230,8 @@ async def seed_data():
         print("\n👤 사용자 생성...")
         user_ids = []
         for user in USERS:
-            user_id = str(uuid.uuid4())
+            # 미리 정의된 ID가 있으면 사용, 없으면 UUID 생성
+            user_id = user.get("id", str(uuid.uuid4()))
             now = datetime.utcnow().isoformat()
             await db.execute(
                 """INSERT INTO users (id, name, email, department_id, created_at, updated_at)
@@ -227,7 +239,7 @@ async def seed_data():
                 (user_id, user["name"], user["email"], dept_ids[user["dept_idx"]], now, now),
             )
             user_ids.append(user_id)
-            print(f"  ✓ {user['name']} ({user['email']})")
+            print(f"  ✓ {user['name']} ({user['email']}) - {user_id}")
 
         # 3. 프로젝트 생성
         print("\n📋 프로젝트 생성...")
@@ -283,12 +295,16 @@ async def seed_data():
             project_id = project_ids[mem["project_idx"]] if "project_idx" in mem else None
             department_id = dept_ids[mem["dept_idx"]] if "dept_idx" in mem else None
 
-            # 임베딩 생성
-            try:
-                vector = await embedding_provider.embed(mem["content"])
-            except Exception as e:
-                print(f"  ⚠ 임베딩 실패 (스킵): {e}")
-                vector = None
+            # 임베딩 생성 (프로바이더 있을 때만)
+            vector = None
+            if embedding_provider:
+                try:
+                    vector = await embedding_provider.embed(mem["content"])
+                except Exception as e:
+                    print(f"  ⚠ 임베딩 실패 (스킵): {e}")
+                    vector = None
+                    vector_id = None
+            else:
                 vector_id = None
 
             # SQLite에 저장
@@ -331,10 +347,11 @@ async def seed_data():
 
         # 테스트용 사용자 ID 출력
         print("\n📌 테스트용 사용자 ID:")
-        for i, user in enumerate(USERS[:3]):
+        for i, user in enumerate(USERS[:4]):
             print(f"  {user['name']}: {user_ids[i]}")
 
     finally:
+        await db.close()
         await close_database()
         await close_vector_store()
 

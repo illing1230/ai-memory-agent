@@ -9,79 +9,94 @@ from src.config import get_settings
 
 # 전역 Qdrant 클라이언트
 _qdrant_client: AsyncQdrantClient | None = None
+_qdrant_available: bool = False
+
+
+def is_vector_store_available() -> bool:
+    """Qdrant 사용 가능 여부 반환"""
+    return _qdrant_available
 
 
 async def init_vector_store() -> None:
-    """Qdrant 벡터 저장소 초기화"""
-    global _qdrant_client
+    """Qdrant 벡터 저장소 초기화 (연결 실패해도 서버는 계속 실행)"""
+    global _qdrant_client, _qdrant_available
 
     settings = get_settings()
 
-    # 클라이언트 생성
-    _qdrant_client = AsyncQdrantClient(
-        url=settings.qdrant_url,
-        api_key=settings.qdrant_api_key if settings.qdrant_api_key else None,
-    )
-
-    # Collection 존재 확인 및 생성
     try:
-        await _qdrant_client.get_collection(settings.qdrant_collection)
-        print(f"✅ Qdrant Collection 확인됨: {settings.qdrant_collection}")
-        
-        # 기존 Collection에 chat_room_id 인덱스 추가 시도
+        # 클라이언트 생성
+        _qdrant_client = AsyncQdrantClient(
+            url=settings.qdrant_url,
+            api_key=settings.qdrant_api_key if settings.qdrant_api_key else None,
+            timeout=5,  # 연결 타임아웃 5초
+        )
+
+        # Collection 존재 확인 및 생성
         try:
+            await _qdrant_client.get_collection(settings.qdrant_collection)
+            print(f"✅ Qdrant Collection 확인됨: {settings.qdrant_collection}")
+
+            # 기존 Collection에 chat_room_id 인덱스 추가 시도
+            try:
+                await _qdrant_client.create_payload_index(
+                    collection_name=settings.qdrant_collection,
+                    field_name="chat_room_id",
+                    field_schema=models.PayloadSchemaType.KEYWORD,
+                )
+                print(f"✅ chat_room_id 인덱스 추가됨")
+            except Exception:
+                pass  # 이미 존재하면 무시
+
+        except UnexpectedResponse:
+            # Collection 생성
+            await _qdrant_client.create_collection(
+                collection_name=settings.qdrant_collection,
+                vectors_config=models.VectorParams(
+                    size=settings.embedding_dimension,
+                    distance=models.Distance.COSINE,
+                ),
+            )
+
+            # 인덱스 생성 (payload 필드)
+            await _qdrant_client.create_payload_index(
+                collection_name=settings.qdrant_collection,
+                field_name="memory_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            await _qdrant_client.create_payload_index(
+                collection_name=settings.qdrant_collection,
+                field_name="scope",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            await _qdrant_client.create_payload_index(
+                collection_name=settings.qdrant_collection,
+                field_name="owner_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            await _qdrant_client.create_payload_index(
+                collection_name=settings.qdrant_collection,
+                field_name="project_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            await _qdrant_client.create_payload_index(
+                collection_name=settings.qdrant_collection,
+                field_name="department_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
             await _qdrant_client.create_payload_index(
                 collection_name=settings.qdrant_collection,
                 field_name="chat_room_id",
                 field_schema=models.PayloadSchemaType.KEYWORD,
             )
-            print(f"✅ chat_room_id 인덱스 추가됨")
-        except Exception:
-            pass  # 이미 존재하면 무시
-            
-    except (UnexpectedResponse, Exception):
-        # Collection 생성
-        await _qdrant_client.create_collection(
-            collection_name=settings.qdrant_collection,
-            vectors_config=models.VectorParams(
-                size=settings.embedding_dimension,
-                distance=models.Distance.COSINE,
-            ),
-        )
-        
-        # 인덱스 생성 (payload 필드)
-        await _qdrant_client.create_payload_index(
-            collection_name=settings.qdrant_collection,
-            field_name="memory_id",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
-        await _qdrant_client.create_payload_index(
-            collection_name=settings.qdrant_collection,
-            field_name="scope",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
-        await _qdrant_client.create_payload_index(
-            collection_name=settings.qdrant_collection,
-            field_name="owner_id",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
-        await _qdrant_client.create_payload_index(
-            collection_name=settings.qdrant_collection,
-            field_name="project_id",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
-        await _qdrant_client.create_payload_index(
-            collection_name=settings.qdrant_collection,
-            field_name="department_id",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
-        await _qdrant_client.create_payload_index(
-            collection_name=settings.qdrant_collection,
-            field_name="chat_room_id",
-            field_schema=models.PayloadSchemaType.KEYWORD,
-        )
 
-        print(f"✅ Qdrant Collection 생성됨: {settings.qdrant_collection} (dimension: {settings.embedding_dimension})")
+            print(f"✅ Qdrant Collection 생성됨: {settings.qdrant_collection} (dimension: {settings.embedding_dimension})")
+
+        _qdrant_available = True
+
+    except Exception as e:
+        print(f"⚠️  Qdrant 연결 실패 (벡터 검색 기능 비활성화): {e}")
+        _qdrant_client = None
+        _qdrant_available = False
 
 
 async def close_vector_store() -> None:
@@ -94,10 +109,8 @@ async def close_vector_store() -> None:
         print("✅ Qdrant 연결 종료")
 
 
-def get_vector_store() -> AsyncQdrantClient:
-    """Qdrant 클라이언트 반환"""
-    if _qdrant_client is None:
-        raise RuntimeError("Qdrant가 초기화되지 않았습니다")
+def get_vector_store() -> AsyncQdrantClient | None:
+    """Qdrant 클라이언트 반환 (연결 안됐으면 None)"""
     return _qdrant_client
 
 
@@ -107,9 +120,12 @@ async def upsert_vector(
     payload: dict[str, Any],
 ) -> None:
     """벡터 저장/업데이트"""
-    settings = get_settings()
     client = get_vector_store()
+    if client is None:
+        print("⚠️  Qdrant 미연결: 벡터 저장 건너뜀")
+        return
 
+    settings = get_settings()
     await client.upsert(
         collection_name=settings.qdrant_collection,
         points=[
@@ -129,8 +145,12 @@ async def search_vectors(
     filter_conditions: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """벡터 검색"""
-    settings = get_settings()
     client = get_vector_store()
+    if client is None:
+        print("⚠️  Qdrant 미연결: 벡터 검색 불가")
+        return []
+
+    settings = get_settings()
 
     # 필터 조건 구성
     query_filter = None
@@ -176,9 +196,12 @@ async def search_vectors(
 
 async def delete_vector(vector_id: str) -> None:
     """벡터 삭제"""
-    settings = get_settings()
     client = get_vector_store()
+    if client is None:
+        print("⚠️  Qdrant 미연결: 벡터 삭제 건너뜀")
+        return
 
+    settings = get_settings()
     await client.delete(
         collection_name=settings.qdrant_collection,
         points_selector=models.PointIdsList(points=[vector_id]),
@@ -187,9 +210,12 @@ async def delete_vector(vector_id: str) -> None:
 
 async def get_vector(vector_id: str) -> dict[str, Any] | None:
     """벡터 조회"""
-    settings = get_settings()
     client = get_vector_store()
+    if client is None:
+        print("⚠️  Qdrant 미연결: 벡터 조회 불가")
+        return None
 
+    settings = get_settings()
     results = await client.retrieve(
         collection_name=settings.qdrant_collection,
         ids=[vector_id],
