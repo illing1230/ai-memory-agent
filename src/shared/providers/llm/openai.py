@@ -75,8 +75,12 @@ class OpenAILLMProvider(BaseLLMProvider):
         }
 
         try:
-            # SSL 검증 비활성화 (내부망 대응)
-            async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
+            # SSL 검증 비활성화 (내부망 대응) + 프록시 비활성화
+            async with httpx.AsyncClient(
+                timeout=120.0,
+                verify=False,
+                proxy=None,  # 프록시 비활성화 (내부망 직접 접속)
+            ) as client:
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=headers,
