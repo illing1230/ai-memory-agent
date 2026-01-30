@@ -46,11 +46,11 @@ class HuggingFaceEmbeddingProvider(BaseEmbeddingProvider):
 
         try:
             # 내부망 직접 접속: 프록시 완전 비활성화
-            transport = httpx.AsyncHTTPTransport(retries=2)
+            # trust_env=False로 환경변수 프록시 설정 무시
             async with httpx.AsyncClient(
                 timeout=60.0,
                 verify=False,
-                mounts={"all://": transport},  # 프록시 완전 비활성화
+                trust_env=False,  # 환경변수 HTTP_PROXY/HTTPS_PROXY 무시
             ) as client:
                 response = await client.post(
                     self.model_url,

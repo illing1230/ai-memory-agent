@@ -76,12 +76,11 @@ class OpenAILLMProvider(BaseLLMProvider):
 
         try:
             # 내부망 직접 접속: 프록시 완전 비활성화
-            # mounts를 사용하여 모든 요청에 프록시 없이 직접 연결
-            transport = httpx.AsyncHTTPTransport(retries=2)
+            # trust_env=False로 환경변수 프록시 설정 무시
             async with httpx.AsyncClient(
-                timeout=120.0,
+                timeout=httpx.Timeout(120.0, connect=30.0),
                 verify=False,
-                mounts={"all://": transport},  # 프록시 완전 비활성화
+                trust_env=False,  # 환경변수 HTTP_PROXY/HTTPS_PROXY 무시
             ) as client:
                 print(f"[LLM] 요청 URL: {self.base_url}/chat/completions")
                 print(f"[LLM] 모델: {self.model}")
