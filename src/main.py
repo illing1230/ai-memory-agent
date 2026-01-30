@@ -1,13 +1,7 @@
 """FastAPI 애플리케이션 엔트리포인트"""
 
-import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-
-# 내부망 IP 대역 프록시 제외 (서버 시작 전 설정)
-# 10.244.x.x 대역은 프록시를 거치지 않고 직접 접속
-os.environ.setdefault("NO_PROXY", "10.244.*,localhost,127.0.0.1")
-os.environ.setdefault("no_proxy", "10.244.*,localhost,127.0.0.1")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

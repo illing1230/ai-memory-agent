@@ -1,5 +1,6 @@
 """설정 관리 모듈"""
 
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -72,6 +73,9 @@ class Settings(BaseSettings):
     mchat_token: str | None = None
     mchat_enabled: bool = False
 
+    # Proxy 설정 (내부망 직접 접속용)
+    no_proxy: str = "10.244.*,localhost,127.0.0.1"
+
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
@@ -79,9 +83,17 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+    
+    def apply_proxy_settings(self) -> None:
+        """NO_PROXY 환경 변수 적용 (내부망 직접 접속)"""
+        if self.no_proxy:
+            os.environ["NO_PROXY"] = self.no_proxy
+            os.environ["no_proxy"] = self.no_proxy
 
 
 @lru_cache
 def get_settings() -> Settings:
     """설정 싱글톤 반환"""
-    return Settings()
+    settings = Settings()
+    settings.apply_proxy_settings()  # 설정 로드 시 프록시 설정 적용
+    return settings
