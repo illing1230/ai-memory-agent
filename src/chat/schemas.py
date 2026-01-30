@@ -34,6 +34,12 @@ class ChatRoomCreate(ChatRoomBase):
     context_sources: ContextSources | None = None
 
 
+class ChatRoomUpdate(BaseModel):
+    """채팅방 수정 요청"""
+    name: str | None = None
+    context_sources: ContextSources | None = None
+
+
 class ChatRoomResponse(ChatRoomBase):
     id: str
     owner_id: str

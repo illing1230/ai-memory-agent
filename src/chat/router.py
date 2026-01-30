@@ -9,6 +9,7 @@ from src.shared.auth import get_current_user_id
 from src.chat.service import ChatService
 from src.chat.schemas import (
     ChatRoomCreate,
+    ChatRoomUpdate,
     ChatRoomResponse,
     ContextSources,
     MessageCreate,
@@ -69,15 +70,14 @@ async def get_chat_room(
 @router.put("/{room_id}", response_model=ChatRoomResponse)
 async def update_chat_room(
     room_id: str,
-    name: str | None = None,
-    context_sources: ContextSources | None = None,
+    data: ChatRoomUpdate,
     user_id: str = Depends(get_current_user_id),
     service: ChatService = Depends(get_chat_service),
 ):
     """채팅방 수정 (owner/admin만)"""
     try:
-        cs = context_sources.model_dump() if context_sources else None
-        return await service.update_chat_room(room_id, user_id, name, cs)
+        cs = data.context_sources.model_dump() if data.context_sources else None
+        return await service.update_chat_room(room_id, user_id, data.name, cs)
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=e.message)
     except ForbiddenException as e:
