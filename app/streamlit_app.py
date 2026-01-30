@@ -54,7 +54,8 @@ def api_request(method: str, endpoint: str, data: dict = None, user_id: str = No
         headers["X-User-ID"] = user_id
     
     try:
-        with httpx.Client(timeout=60.0) as client:
+        # 프록시 비활성화 (내부망 직접 접속)
+        with httpx.Client(timeout=60.0, proxy=None) as client:
             if method == "GET":
                 response = client.get(url, headers=headers)
             elif method == "POST":
