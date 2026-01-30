@@ -46,7 +46,13 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # 내부망 직접 접속: 프록시 완전 비활성화
+            transport = httpx.AsyncHTTPTransport(retries=2)
+            async with httpx.AsyncClient(
+                timeout=60.0,
+                verify=False,
+                mounts={"all://": transport},  # 프록시 완전 비활성화
+            ) as client:
                 response = await client.post(
                     f"{self.base_url}/embeddings",
                     headers=headers,

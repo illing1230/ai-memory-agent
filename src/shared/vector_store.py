@@ -24,11 +24,20 @@ async def init_vector_store() -> None:
     settings = get_settings()
 
     try:
-        # 클라이언트 생성
+        # 내부망 직접 접속: 프록시 완전 비활성화
+        import httpx
+        transport = httpx.AsyncHTTPTransport(retries=2)
+        http_client = httpx.AsyncClient(
+            timeout=30.0,
+            verify=False,
+            mounts={"all://": transport},
+        )
+        
         _qdrant_client = AsyncQdrantClient(
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key if settings.qdrant_api_key else None,
-            timeout=5,  # 연결 타임아웃 5초
+            timeout=30,
+            https=False,  # 내부망 HTTP 사용
         )
 
         # Collection 존재 확인 및 생성

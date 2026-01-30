@@ -75,11 +75,13 @@ class OpenAILLMProvider(BaseLLMProvider):
         }
 
         try:
-            # SSL 검증 비활성화 (내부망 대응) + 프록시 비활성화
+            # 내부망 직접 접속: 프록시 완전 비활성화
+            # mounts를 사용하여 모든 요청에 프록시 없이 직접 연결
+            transport = httpx.AsyncHTTPTransport(retries=2)
             async with httpx.AsyncClient(
                 timeout=120.0,
                 verify=False,
-                proxy=None,  # 프록시 비활성화 (내부망 직접 접속)
+                mounts={"all://": transport},  # 프록시 완전 비활성화
             ) as client:
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
