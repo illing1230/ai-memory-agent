@@ -318,18 +318,29 @@ class ChatService:
         - /remember <내용> : 개인 + 채팅방 메모리 저장 (기본)
         - /remember -d <내용> : 개인 + 채팅방 + 부서 메모리 저장
         - /remember --dept <내용> : 개인 + 채팅방 + 부서 메모리 저장
+        - /remember -p <프로젝트명> <내용> : 개인 + 채팅방 + 지정 프로젝트 메모리 저장
+        - /remember --proj <프로젝트명> <내용> : 개인 + 채팅방 + 지정 프로젝트 메모리 저장
         """
         if not content:
-            return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`\n예: `/remember -d 팀 회의는 매주 월요일 10시`", []
+            return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`\n예: `/remember -d 팀 회의는 매주 월요일 10시`\n예: `/remember -p AI프로젝트 마감일은 매월 말일`", []
         
-        # 부서 메모리 옵션 확인
+        # 옵션 파싱
         include_dept = False
+        include_proj = False
+        project_name = None
+        
         if content.startswith('--dept '):
             include_dept = True
             content = content[len('--dept '):].strip()
         elif content.startswith('-d '):
             include_dept = True
             content = content[len('-d '):].strip()
+        elif content.startswith('--proj '):
+            include_proj = True
+            content = content[len('--proj '):].strip()
+        elif content.startswith('-p '):
+            include_proj = True
+            content = content[len('-p '):].strip()
         
         if not content:
             return "❌ 저장할 내용을 입력하세요.", []
@@ -342,6 +353,30 @@ class ChatService:
                 user_dept_id = user.get("department_id")
             if not user_dept_id:
                 return "❌ 부서 정보가 없어 부서 메모리를 저장할 수 없습니다.", []
+        
+        # 사용자 프로젝트 정보 조회 (프로젝트 메모리 저장 시 필요)
+        user_proj_id = None
+        if include_proj:
+            # 프로젝트 이름 추출 (첫 단어)
+            parts = content.split(maxsplit=1)
+            if len(parts) >= 2:
+                project_name = parts[0]
+                content = parts[1]
+            else:
+                return "❌ 프로젝트명과 내용을 입력하세요.\n\n예: `/remember -p AI프로젝트 마감일은 매월 말일`", []
+            
+            # 프로젝트 이름으로 검색
+            user_projects = await self.user_repo.get_user_projects(user_id)
+            found_project = None
+            for proj in user_projects:
+                if proj["name"] == project_name:
+                    found_project = proj
+                    break
+            
+            if not found_project:
+                return f"❌ '{project_name}' 프로젝트를 찾을 수 없습니다.\n\n내 프로젝트 목록: {', '.join([p['name'] for p in user_projects])}", []
+            
+            user_proj_id = found_project["id"]
         
         try:
             embedding_provider = get_embedding_provider()
@@ -409,6 +444,27 @@ class ChatService:
                 })
                 saved_memories.append(memory_dept)
                 saved_scopes.append("부서")
+            
+            # 4. 프로젝트 메모리 저장 (옵션)
+            if include_proj and user_proj_id:
+                vector_id_proj = str(uuid.uuid4())
+                memory_proj = await self.memory_repo.create_memory(
+                    content=content,
+                    owner_id=user_id,
+                    scope="project",
+                    vector_id=vector_id_proj,
+                    project_id=user_proj_id,
+                    category="fact",
+                    importance="medium",
+                )
+                await upsert_vector(vector_id_proj, vector, {
+                    "memory_id": memory_proj["id"],
+                    "scope": "project",
+                    "owner_id": user_id,
+                    "project_id": user_proj_id,
+                })
+                saved_memories.append(memory_proj)
+                saved_scopes.append("프로젝트")
             
             scope_label = " + ".join(saved_scopes)
             return f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: {scope_label}", saved_memories
@@ -547,6 +603,7 @@ class ChatService:
 **메모리 관리**
 • `/remember <내용>` - 개인 + 채팅방 메모리 저장
 • `/remember -d <내용>` - 개인 + 채팅방 + 부서 메모리 저장
+• `/remember -p <프로젝트명> <내용>` - 개인 + 채팅방 + 지정 프로젝트 메모리 저장
 • `/forget <검색어>` - 메모리 삭제
 • `/search <검색어>` - 메모리 검색
 
@@ -561,7 +618,7 @@ class ChatService:
 • `/help` - 이 도움말 표시
 
 **맞춤 설정**
-메모리 소스 설정에서 개인 메모리, 다른 채팅방, 부서 메모리를 활성화하면
+메모리 소스 설정에서 개인 메모리, 다른 채팅방, 부서 메모리, 프로젝트 메모리를 활성화하면
 AI가 해당 메모리들도 참조합니다."""
 
     async def get_messages(

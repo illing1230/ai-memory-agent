@@ -104,12 +104,16 @@ export function Sidebar() {
     <div className="flex flex-col h-full w-sidebar border-r border-border bg-background-secondary">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          className="flex items-center gap-2 px-2 h-auto hover:bg-background-hover"
+          onClick={() => navigate('/chat')}
+        >
           <div className="flex items-center justify-center w-6 h-6 rounded bg-accent text-white">
             <Brain className="h-3.5 w-3.5" />
           </div>
           <span className="font-semibold text-sm">Memory Agent</span>
-        </div>
+        </Button>
         <Tooltip content="사이드바 접기" side="bottom">
           <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
             <PanelLeftClose className="h-4 w-4" />
