@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
 # ==================== Department ====================
@@ -28,7 +28,7 @@ class DepartmentResponse(DepartmentBase):
 
 class UserBase(BaseModel):
     name: str
-    email: EmailStr
+    email: str
 
 
 class UserCreate(UserBase):
@@ -37,7 +37,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     name: str | None = None
-    email: EmailStr | None = None
+    email: str | None = None
     department_id: str | None = None
 
 
