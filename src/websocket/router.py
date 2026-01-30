@@ -180,7 +180,10 @@ async def websocket_chat(
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"WebSocket error: {type(e).__name__}: {e}")
+        print(f"WebSocket traceback: {error_detail}")
     finally:
         await manager.disconnect(room_id, user_id)
         await db.close()

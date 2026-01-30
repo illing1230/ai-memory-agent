@@ -83,25 +83,60 @@ class OpenAILLMProvider(BaseLLMProvider):
                 verify=False,
                 mounts={"all://": transport},  # 프록시 완전 비활성화
             ) as client:
+                print(f"[LLM] 요청 URL: {self.base_url}/chat/completions")
+                print(f"[LLM] 모델: {self.model}")
+                
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers=headers,
                     json=payload,
                 )
-                response.raise_for_status()
+                
+                print(f"[LLM] 응답 상태: {response.status_code}")
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    print(f"[LLM] 에러 응답: {error_text[:500]}")
+                    raise ProviderException("OpenAI LLM", f"HTTP {response.status_code}: {error_text[:200]}")
+                
                 data = response.json()
+                
+                if "choices" not in data or len(data["choices"]) == 0:
+                    print(f"[LLM] 잘못된 응답 형식: {data}")
+                    raise ProviderException("OpenAI LLM", f"잘못된 응답 형식: choices 없음")
+                
                 content = data["choices"][0]["message"]["content"]
                 
                 # <think>...</think> 태그 제거 (Qwen3 등)
                 content = re.sub(r"<think>[\s\S]*?</think>", "", content)
                 content = content.strip()
                 
+                print(f"[LLM] 응답 길이: {len(content)}자")
                 return content
 
         except httpx.HTTPStatusError as e:
-            raise ProviderException("OpenAI LLM", f"HTTP 오류: {e.response.status_code}")
+            error_msg = f"HTTP 오류: {e.response.status_code}"
+            try:
+                error_body = e.response.text
+                print(f"[LLM] HTTPStatusError: {error_msg}, Body: {error_body[:500]}")
+                error_msg += f" - {error_body[:200]}"
+            except Exception:
+                pass
+            raise ProviderException("OpenAI LLM", error_msg)
+        except httpx.ConnectError as e:
+            print(f"[LLM] 연결 오류: {e}")
+            raise ProviderException("OpenAI LLM", f"연결 실패: {self.base_url} - {e}")
+        except httpx.TimeoutException as e:
+            print(f"[LLM] 타임아웃: {e}")
+            raise ProviderException("OpenAI LLM", f"타임아웃 (120초): {self.base_url}")
+        except ProviderException:
+            raise
         except Exception as e:
-            raise ProviderException("OpenAI LLM", str(e))
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[LLM] 예상치 못한 오류: {type(e).__name__}: {e}")
+            print(f"[LLM] Traceback: {error_detail}")
+            raise ProviderException("OpenAI LLM", f"{type(e).__name__}: {e}")
 
     async def extract_memories(
         self,
