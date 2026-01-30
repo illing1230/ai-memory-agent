@@ -311,37 +311,107 @@ class ChatService:
         user_id: str,
         content: str,
     ) -> tuple[str, list[dict]]:
-        """/remember - 메모리 저장 (chatroom scope)"""
+        """/remember - 메모리 저장
+        
+        기본: 개인 메모리 + 채팅방 메모리 둘 다 저장
+        옵션:
+        - /remember <내용> : 개인 + 채팅방 메모리 저장 (기본)
+        - /remember -d <내용> : 개인 + 채팅방 + 부서 메모리 저장
+        - /remember --dept <내용> : 개인 + 채팅방 + 부서 메모리 저장
+        """
         if not content:
-            return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`", []
+            return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`\n예: `/remember -d 팀 회의는 매주 월요일 10시`", []
+        
+        # 부서 메모리 옵션 확인
+        include_dept = False
+        if content.startswith('--dept '):
+            include_dept = True
+            content = content[len('--dept '):].strip()
+        elif content.startswith('-d '):
+            include_dept = True
+            content = content[len('-d '):].strip()
+        
+        if not content:
+            return "❌ 저장할 내용을 입력하세요.", []
+        
+        # 사용자 부서 정보 조회 (부서 메모리 저장 시 필요)
+        user_dept_id = None
+        if include_dept:
+            user = await self.user_repo.get_user(user_id)
+            if user:
+                user_dept_id = user.get("department_id")
+            if not user_dept_id:
+                return "❌ 부서 정보가 없어 부서 메모리를 저장할 수 없습니다.", []
         
         try:
-            # 채팅방 메모리로 저장 (chatroom scope)
-            scope = "chatroom"
-            
             embedding_provider = get_embedding_provider()
             vector = await embedding_provider.embed(content)
-            vector_id = str(uuid.uuid4())
             
-            memory = await self.memory_repo.create_memory(
+            saved_memories = []
+            saved_scopes = []
+            
+            # 1. 개인 메모리 저장
+            vector_id_personal = str(uuid.uuid4())
+            memory_personal = await self.memory_repo.create_memory(
                 content=content,
                 owner_id=user_id,
-                scope=scope,
-                vector_id=vector_id,
+                scope="personal",
+                vector_id=vector_id_personal,
+                chat_room_id=None,
+                category="fact",
+                importance="medium",
+            )
+            await upsert_vector(vector_id_personal, vector, {
+                "memory_id": memory_personal["id"],
+                "scope": "personal",
+                "owner_id": user_id,
+            })
+            saved_memories.append(memory_personal)
+            saved_scopes.append("개인")
+            
+            # 2. 채팅방 메모리 저장
+            vector_id_chatroom = str(uuid.uuid4())
+            memory_chatroom = await self.memory_repo.create_memory(
+                content=content,
+                owner_id=user_id,
+                scope="chatroom",
+                vector_id=vector_id_chatroom,
                 chat_room_id=room["id"],
                 category="fact",
                 importance="medium",
             )
-            
-            payload = {
-                "memory_id": memory["id"],
-                "scope": scope,
+            await upsert_vector(vector_id_chatroom, vector, {
+                "memory_id": memory_chatroom["id"],
+                "scope": "chatroom",
                 "owner_id": user_id,
                 "chat_room_id": room["id"],
-            }
-            await upsert_vector(vector_id, vector, payload)
+            })
+            saved_memories.append(memory_chatroom)
+            saved_scopes.append("채팅방")
             
-            return f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: 이 채팅방", [memory]
+            # 3. 부서 메모리 저장 (옵션)
+            if include_dept and user_dept_id:
+                vector_id_dept = str(uuid.uuid4())
+                memory_dept = await self.memory_repo.create_memory(
+                    content=content,
+                    owner_id=user_id,
+                    scope="department",
+                    vector_id=vector_id_dept,
+                    department_id=user_dept_id,
+                    category="fact",
+                    importance="medium",
+                )
+                await upsert_vector(vector_id_dept, vector, {
+                    "memory_id": memory_dept["id"],
+                    "scope": "department",
+                    "owner_id": user_id,
+                    "department_id": user_dept_id,
+                })
+                saved_memories.append(memory_dept)
+                saved_scopes.append("부서")
+            
+            scope_label = " + ".join(saved_scopes)
+            return f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: {scope_label}", saved_memories
             
         except Exception as e:
             print(f"메모리 저장 실패: {e}")
@@ -475,7 +545,8 @@ class ChatService:
         return """📖 **사용 가능한 커맨드**
 
 **메모리 관리**
-• `/remember <내용>` - 이 채팅방에 메모리 저장
+• `/remember <내용>` - 개인 + 채팅방 메모리 저장
+• `/remember -d <내용>` - 개인 + 채팅방 + 부서 메모리 저장
 • `/forget <검색어>` - 메모리 삭제
 • `/search <검색어>` - 메모리 검색
 
@@ -487,7 +558,11 @@ class ChatService:
 • `@ai <질문>` - AI에게 질문
 
 **기타**
-• `/help` - 이 도움말 표시"""
+• `/help` - 이 도움말 표시
+
+**맞춤 설정**
+메모리 소스 설정에서 개인 메모리, 다른 채팅방, 부서 메모리를 활성화하면
+AI가 해당 메모리들도 참조합니다."""
 
     async def get_messages(
         self,
