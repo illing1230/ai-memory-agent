@@ -10,6 +10,7 @@ import {
   Brain,
   List,
   Briefcase,
+  FileText,
   PanelLeftClose,
   PanelLeft,
   LogOut,
@@ -86,6 +87,17 @@ export function Sidebar() {
               onClick={() => navigate('/projects')}
             >
               <Briefcase className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+
+          <Tooltip content="문서 관리" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActive('/documents') && 'bg-background-active')}
+              onClick={() => navigate('/documents')}
+            >
+              <FileText className="h-4 w-4" />
             </Button>
           </Tooltip>
 
@@ -215,6 +227,14 @@ export function Sidebar() {
             icon={Briefcase}
             label="프로젝트 관리"
             active={isActive('/projects')}
+          />
+
+          {/* Documents - 단일 항목 */}
+          <SidebarItem
+            to="/documents"
+            icon={FileText}
+            label="문서 관리"
+            active={isActive('/documents')}
           />
 
           {/* Admin - admin role만 표시 */}

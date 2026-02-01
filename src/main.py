@@ -65,6 +65,7 @@ def create_app() -> FastAPI:
     from src.auth.router import router as auth_router
     from src.websocket.router import router as websocket_router
     from src.admin.router import router as admin_router
+    from src.document.router import router as document_router
 
     # REST API 라우터
     app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router, prefix="/api/v1/chat-rooms", tags=["chat-rooms"])
     app.include_router(permission_router, prefix="/api/v1/permissions", tags=["permissions"])
     app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
+    app.include_router(document_router, prefix="/api/v1/documents", tags=["documents"])
 
     # WebSocket 라우터
     app.include_router(websocket_router, prefix="/ws", tags=["websocket"])

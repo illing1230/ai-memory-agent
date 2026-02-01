@@ -3,6 +3,7 @@ import {
   getChatRooms,
   getChatRoom,
   createChatRoom,
+  deleteChatRoom,
   getMessages,
   sendMessage,
   getChatRoomMembers,
@@ -68,6 +69,16 @@ export function useSendMessage(roomId: string) {
           return [...messages, ...newMessages]
         }
       )
+    },
+  })
+}
+
+export function useDeleteChatRoom() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (roomId: string) => deleteChatRoom(roomId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.rooms() })
     },
   })
 }

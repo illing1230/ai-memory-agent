@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { X, AlertTriangle, Loader2 } from 'lucide-react'
+import { X, AlertTriangle, Loader2, FileText, Upload, Link2, Unlink } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import { get, put } from '@/lib/api'
-import type { ChatRoom } from '@/types'
+import { get, put, post, del } from '@/lib/api'
+import type { ChatRoom, Document } from '@/types'
+import { DocumentUpload } from '@/features/document/components/DocumentUpload'
 
 interface ContextSourcesModalProps {
   room: ChatRoom
@@ -46,6 +47,12 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   const [myProjects, setMyProjects] = useState<Project[]>([])
   const [myDepartment, setMyDepartment] = useState<Department | null>(null)
   
+  // 문서 데이터
+  const [linkedDocuments, setLinkedDocuments] = useState<Document[]>([])
+  const [allMyDocuments, setAllMyDocuments] = useState<Document[]>([])
+  const [showUpload, setShowUpload] = useState(false)
+  const [showLinkPicker, setShowLinkPicker] = useState(false)
+
   // 설정 값
   const [includeThisRoom, setIncludeThisRoom] = useState(true)
   const [selectedRooms, setSelectedRooms] = useState<string[]>([])
@@ -81,6 +88,21 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           } catch {
             setMyDepartment(null)
           }
+        }
+
+        // 문서 목록 로드
+        try {
+          const roomDocs = await get<Document[]>('/documents', { chat_room_id: room.id })
+          setLinkedDocuments(roomDocs)
+        } catch {
+          setLinkedDocuments([])
+        }
+
+        try {
+          const myDocs = await get<Document[]>('/documents')
+          setAllMyDocuments(myDocs)
+        } catch {
+          setAllMyDocuments([])
         }
 
         // 기존 설정 로드
@@ -146,6 +168,43 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
     )
   }
 
+  const handleLinkDocument = async (docId: string) => {
+    try {
+      await post(`/documents/${docId}/link/${room.id}`)
+      const roomDocs = await get<Document[]>('/documents', { chat_room_id: room.id })
+      setLinkedDocuments(roomDocs)
+      setShowLinkPicker(false)
+    } catch (e) {
+      console.error('문서 연결 실패:', e)
+    }
+  }
+
+  const handleUnlinkDocument = async (docId: string) => {
+    try {
+      await del(`/documents/${docId}/link/${room.id}`)
+      setLinkedDocuments(prev => prev.filter(d => d.id !== docId))
+    } catch (e) {
+      console.error('문서 연결 해제 실패:', e)
+    }
+  }
+
+  const handleUploadSuccess = async () => {
+    try {
+      const roomDocs = await get<Document[]>('/documents', { chat_room_id: room.id })
+      setLinkedDocuments(roomDocs)
+      const myDocs = await get<Document[]>('/documents')
+      setAllMyDocuments(myDocs)
+      setShowUpload(false)
+    } catch {
+      // ignore
+    }
+  }
+
+  // 연결 가능한 문서 (이미 연결된 문서 제외)
+  const linkableDocs = allMyDocuments.filter(
+    d => d.status === 'completed' && !linkedDocuments.some(ld => ld.id === d.id)
+  )
+
   if (!open) return null
 
   return (
@@ -160,9 +219,9 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div>
-              <h2 className="text-lg font-semibold">메모리 소스 설정</h2>
+              <h2 className="text-lg font-semibold">컨텍스트 소스 설정</h2>
               <p className="text-sm text-foreground-secondary mt-0.5">
-                AI가 참조할 메모리 범위를 선택하세요
+                AI가 참조할 메모리와 문서를 설정하세요
               </p>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onClose}>
@@ -296,6 +355,94 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                     </label>
                   </div>
                 )}
+
+                {/* RAG 문서 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium">RAG 문서</h3>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={() => { setShowUpload(!showUpload); setShowLinkPicker(false) }}
+                      >
+                        <Upload className="h-3 w-3 mr-1" />
+                        업로드
+                      </Button>
+                      {linkableDocs.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => { setShowLinkPicker(!showLinkPicker); setShowUpload(false) }}
+                        >
+                          <Link2 className="h-3 w-3 mr-1" />
+                          연결
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-foreground-muted">
+                    업로드된 문서를 AI 답변의 참고 자료로 사용합니다. (대화 &gt; 문서 &gt; 메모리 순 우선순위)
+                  </p>
+
+                  {/* 업로드 영역 */}
+                  {showUpload && (
+                    <div className="p-3 border border-border rounded-lg">
+                      <DocumentUpload chatRoomId={room.id} onSuccess={handleUploadSuccess} />
+                    </div>
+                  )}
+
+                  {/* 기존 문서 연결 */}
+                  {showLinkPicker && linkableDocs.length > 0 && (
+                    <div className="p-3 border border-border rounded-lg space-y-1">
+                      <p className="text-xs text-foreground-muted mb-2">연결할 문서를 선택하세요</p>
+                      {linkableDocs.map(doc => (
+                        <button
+                          key={doc.id}
+                          className="flex items-center gap-2 w-full p-2 rounded-md hover:bg-background-hover text-left"
+                          onClick={() => handleLinkDocument(doc.id)}
+                        >
+                          <FileText className="h-4 w-4 text-accent shrink-0" />
+                          <span className="text-sm truncate flex-1">{doc.name}</span>
+                          <span className="text-xs text-foreground-muted">{doc.chunk_count} chunks</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 연결된 문서 목록 */}
+                  {linkedDocuments.length > 0 ? (
+                    <div className="space-y-1">
+                      {linkedDocuments.map(doc => (
+                        <div
+                          key={doc.id}
+                          className="flex items-center gap-2 p-2 rounded-md border border-border"
+                        >
+                          <FileText className="h-4 w-4 text-accent shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate">{doc.name}</p>
+                            <p className="text-xs text-foreground-muted">
+                              {doc.file_type.toUpperCase()} · {doc.chunk_count} chunks
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleUnlinkDocument(doc.id)}
+                            title="연결 해제"
+                          >
+                            <Unlink className="h-3.5 w-3.5 text-foreground-muted" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-foreground-muted py-2">연결된 문서가 없습니다</p>
+                  )}
+                </div>
               </div>
             )}
           </ScrollArea>

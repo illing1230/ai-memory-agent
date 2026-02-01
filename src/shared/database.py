@@ -129,6 +129,43 @@ CREATE TABLE IF NOT EXISTS memory_access_log (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- 문서 테이블
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'txt')),
+    file_size INTEGER NOT NULL,
+    owner_id TEXT NOT NULL,
+    chat_room_id TEXT,
+    status TEXT DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')),
+    chunk_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users(id),
+    FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE SET NULL
+);
+
+-- 문서 청크 테이블
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    vector_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+);
+
+-- 문서-채팅방 연결 테이블
+CREATE TABLE IF NOT EXISTS document_chat_rooms (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    chat_room_id TEXT NOT NULL,
+    linked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
+    UNIQUE (document_id, chat_room_id)
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -148,6 +185,11 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages(chat_room_id)
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_room_members_room ON chat_room_members(chat_room_id);
 CREATE INDEX IF NOT EXISTS idx_chat_room_members_user ON chat_room_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_owner ON documents(owner_id);
+CREATE INDEX IF NOT EXISTS idx_documents_chat_room ON documents(chat_room_id);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_document ON document_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_chat_rooms_document ON document_chat_rooms(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_chat_rooms_room ON document_chat_rooms(chat_room_id);
 """
 
 

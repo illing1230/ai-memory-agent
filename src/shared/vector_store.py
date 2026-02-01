@@ -46,15 +46,16 @@ async def init_vector_store() -> None:
             print(f"✅ Qdrant Collection 확인됨: {settings.qdrant_collection}")
 
             # 기존 Collection에 chat_room_id 인덱스 추가 시도
-            try:
-                await _qdrant_client.create_payload_index(
-                    collection_name=settings.qdrant_collection,
-                    field_name="chat_room_id",
-                    field_schema=models.PayloadSchemaType.KEYWORD,
-                )
-                print(f"✅ chat_room_id 인덱스 추가됨")
-            except Exception:
-                pass  # 이미 존재하면 무시
+            for idx_field in ["chat_room_id", "document_id"]:
+                try:
+                    await _qdrant_client.create_payload_index(
+                        collection_name=settings.qdrant_collection,
+                        field_name=idx_field,
+                        field_schema=models.PayloadSchemaType.KEYWORD,
+                    )
+                    print(f"✅ {idx_field} 인덱스 추가됨")
+                except Exception:
+                    pass  # 이미 존재하면 무시
 
         except UnexpectedResponse:
             # Collection 생성
@@ -95,6 +96,11 @@ async def init_vector_store() -> None:
             await _qdrant_client.create_payload_index(
                 collection_name=settings.qdrant_collection,
                 field_name="chat_room_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            await _qdrant_client.create_payload_index(
+                collection_name=settings.qdrant_collection,
+                field_name="document_id",
                 field_schema=models.PayloadSchemaType.KEYWORD,
             )
 

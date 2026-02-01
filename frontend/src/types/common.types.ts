@@ -176,3 +176,34 @@ export interface PaginatedMemories {
   limit: number
   offset: number
 }
+
+// 문서
+export interface Document {
+  id: string
+  name: string
+  file_type: 'pdf' | 'txt'
+  file_size: number
+  owner_id: string
+  chat_room_id?: string
+  status: 'processing' | 'completed' | 'failed'
+  chunk_count: number
+  created_at: string
+}
+
+export interface DocumentChunk {
+  id: string
+  document_id: string
+  content: string
+  chunk_index: number
+  vector_id?: string
+}
+
+export interface DocumentDetail extends Document {
+  chunks: DocumentChunk[]
+}
+
+export interface DocumentLink {
+  document_id: string
+  chat_room_id: string
+  linked_at: string
+}

@@ -8,6 +8,7 @@ import aiosqlite
 from src.chat.repository import ChatRepository
 from src.memory.repository import MemoryRepository
 from src.user.repository import UserRepository
+from src.document.repository import DocumentRepository
 from src.shared.exceptions import NotFoundException, ForbiddenException
 from src.shared.vector_store import search_vectors, upsert_vector
 from src.shared.providers import get_embedding_provider, get_llm_provider
@@ -30,6 +31,7 @@ class ChatService:
         self.repo = ChatRepository(db)
         self.memory_repo = MemoryRepository(db)
         self.user_repo = UserRepository(db)
+        self.document_repo = DocumentRepository(db)
         self.settings = get_settings()
 
     # ==================== Chat Room ====================
@@ -641,17 +643,25 @@ AI가 해당 메모리들도 참조합니다."""
         user_id: str,
         user_message: str,
     ) -> dict[str, Any]:
-        """AI 응답 생성"""
+        """AI 응답 생성 (우선순위: 대화 > RAG 문서 > 메모리)"""
+        # Step 1: 최근 대화 (최우선)
         recent_messages = await self.repo.get_recent_messages(room["id"], limit=20)
-        
+
+        # Step 2: RAG 문서 검색 (높은 우선순위)
+        document_chunks = await self._search_relevant_documents(
+            query=user_message,
+            chat_room_id=room["id"],
+        )
+
+        # Step 3: 메모리 검색 (보조)
         relevant_memories = await self._search_relevant_memories(
             query=user_message,
             user_id=user_id,
             current_room_id=room["id"],
             context_sources=room.get("context_sources", {}),
         )
-        
-        system_prompt = self._build_system_prompt(relevant_memories)
+
+        system_prompt = self._build_system_prompt(relevant_memories, document_chunks)
         conversation_context = self._build_conversation(recent_messages)
         
         full_prompt = f"""[최근 대화 내용]
@@ -680,6 +690,60 @@ AI가 해당 메모리들도 참조합니다."""
             "response": response,
             "extracted_memories": extracted_memories,
         }
+
+    async def _search_relevant_documents(
+        self,
+        query: str,
+        chat_room_id: str,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """채팅방에 연결된 문서에서 관련 청크 검색 (RAG)"""
+        doc_ids = await self.document_repo.get_linked_document_ids(chat_room_id)
+        if not doc_ids:
+            return []
+
+        try:
+            embedding_provider = get_embedding_provider()
+            query_vector = await embedding_provider.embed(query)
+        except Exception as e:
+            print(f"문서 검색용 임베딩 실패: {e}")
+            return []
+
+        try:
+            results = await search_vectors(
+                query_vector=query_vector,
+                limit=limit,
+                filter_conditions={
+                    "scope": "document",
+                    "document_id": doc_ids,
+                },
+            )
+        except Exception as e:
+            print(f"문서 벡터 검색 실패: {e}")
+            return []
+
+        enriched = []
+        for r in results:
+            doc_id = r["payload"].get("document_id")
+            chunk_idx = r["payload"].get("chunk_index")
+            doc = await self.document_repo.get_document(doc_id)
+
+            chunks = await self.document_repo.get_chunks(doc_id)
+            chunk_content = ""
+            for c in chunks:
+                if c["chunk_index"] == chunk_idx:
+                    chunk_content = c["content"]
+                    break
+
+            enriched.append({
+                "content": chunk_content,
+                "score": r["score"],
+                "document_name": doc["name"] if doc else "Unknown",
+                "chunk_index": chunk_idx,
+                "document_id": doc_id,
+            })
+
+        return enriched
 
     async def _search_relevant_memories(
         self,
@@ -807,19 +871,35 @@ AI가 해당 메모리들도 참조합니다."""
         
         return unique_memories[:10]
 
-    def _build_system_prompt(self, memories: list[dict[str, Any]]) -> str:
-        """시스템 프롬프트 구성"""
-        base_prompt = """당신은 팀의 AI 어시스턴트입니다. 
+    def _build_system_prompt(
+        self,
+        memories: list[dict[str, Any]],
+        document_chunks: list[dict[str, Any]] | None = None,
+    ) -> str:
+        """시스템 프롬프트 구성 (우선순위: RAG 문서 > 메모리)"""
+        base_prompt = """당신은 팀의 AI 어시스턴트입니다.
 사용자들의 질문에 친절하고 정확하게 답변하세요.
 대화 내용을 잘 참고하여 맥락에 맞는 답변을 해주세요."""
-        
+
+        # RAG 문서 (높은 우선순위 - 먼저 배치)
+        if document_chunks:
+            doc_text = "\n\n[참고 문서 - 업로드된 문서에서 검색된 내용]\n"
+            for i, chunk in enumerate(document_chunks, 1):
+                doc_name = chunk.get("document_name", "Unknown")
+                content = chunk.get("content", "")
+                score = chunk.get("score", 0)
+                doc_text += f"{i}. [{doc_name}] {content} (유사도: {score:.2f})\n"
+            doc_text += "\n위 문서 내용을 우선적으로 참고하여 답변해주세요."
+            base_prompt += doc_text
+
+        # 메모리 (보조 - 뒤에 배치)
         if memories:
             memory_text = "\n\n[저장된 메모리 - 참고용]\n"
             for i, m in enumerate(memories, 1):
                 mem = m["memory"]
                 memory_text += f"{i}. {mem['content']} (유사도: {m['score']:.2f})\n"
             base_prompt += memory_text
-        
+
         return base_prompt
 
     def _build_conversation(self, messages: list[dict[str, Any]]) -> str:
