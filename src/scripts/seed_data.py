@@ -22,7 +22,7 @@ DEPARTMENTS = [
 
 USERS = [
     # 개발자 테스트 계정 (프론트엔드 dev-user-001과 매칭)
-    {"id": "dev-user-001", "name": "개발자", "email": "dev@test.local", "dept_idx": 1},
+    {"id": "dev-user-001", "name": "개발자", "email": "dev@test.local", "dept_idx": 1, "role": "admin"},
     # 품질팀
     {"name": "김품질", "email": "kim.quality@samsung.com", "dept_idx": 0},
     {"name": "이검사", "email": "lee.inspector@samsung.com", "dept_idx": 0},
@@ -232,11 +232,12 @@ async def seed_data():
         for user in USERS:
             # 미리 정의된 ID가 있으면 사용, 없으면 UUID 생성
             user_id = user.get("id", str(uuid.uuid4()))
+            role = user.get("role", "user")
             now = datetime.utcnow().isoformat()
             await db.execute(
-                """INSERT INTO users (id, name, email, department_id, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (user_id, user["name"], user["email"], dept_ids[user["dept_idx"]], now, now),
+                """INSERT INTO users (id, name, email, role, department_id, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, user["name"], user["email"], role, dept_ids[user["dept_idx"]], now, now),
             )
             user_ids.append(user_id)
             print(f"  ✓ {user['name']} ({user['email']}) - {user_id}")

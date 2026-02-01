@@ -40,6 +40,7 @@ class AuthService:
                 "name": user["name"],
                 "email": user["email"],
                 "department_id": user.get("department_id"),
+                "role": user.get("role", "user"),
             }
         }
 
@@ -84,6 +85,7 @@ class AuthService:
                 "name": user["name"],
                 "email": user["email"],
                 "department_id": department_id,
+                "role": "user",
             }
         }
 
@@ -102,6 +104,7 @@ class AuthService:
             "name": user["name"],
             "email": user["email"],
             "department_id": user.get("department_id"),
+            "role": user.get("role", "user"),
         }
 
     def verify_token(self, token: str) -> Optional[str]:

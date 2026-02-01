@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT,
+    role TEXT DEFAULT 'user',
     department_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -181,6 +182,13 @@ async def init_database() -> None:
     # updated_at 컬럼 추가 (chat_rooms)
     try:
         await _db_connection.execute("ALTER TABLE chat_rooms ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # role 컬럼 추가 (users)
+    try:
+        await _db_connection.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
         await _db_connection.commit()
     except Exception:
         pass

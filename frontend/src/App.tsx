@@ -4,6 +4,7 @@ import { ChatRoom } from '@/features/chat/components/ChatRoom'
 import { MemorySearch } from '@/features/memory/components/MemorySearch'
 import { MemoryList } from '@/features/memory/components/MemoryList'
 import { ProjectManagement } from '@/features/project/components/ProjectManagement'
+import { AdminPage } from '@/features/admin/components/AdminPage'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuthStore } from '@/features/auth/store/authStore'
 
@@ -20,6 +21,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       id: 'dev-user-001',
       name: '개발자',
       email: 'dev@test.local',
+      role: 'admin',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -50,6 +52,7 @@ function App() {
           <Route path="memory/search" element={<MemorySearch />} />
           <Route path="memory/list" element={<MemoryList />} />
           <Route path="projects" element={<ProjectManagement />} />
+          <Route path="admin" element={<AdminPage />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/chat" replace />} />

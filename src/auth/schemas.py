@@ -16,6 +16,7 @@ class UserInfo(BaseModel):
     name: str
     email: str
     department_id: Optional[str] = None
+    role: str = "user"
 
 
 class LoginResponse(BaseModel):

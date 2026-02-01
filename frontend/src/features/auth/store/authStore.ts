@@ -61,6 +61,7 @@ export function setDevUser() {
     id: 'dev-user-001',
     name: '개발자',
     email: 'dev@test.local',
+    role: 'admin',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }

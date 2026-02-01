@@ -16,6 +16,7 @@ export interface User {
   id: string
   name: string
   email: string
+  role?: string
   department_id?: string
   created_at?: string
   updated_at?: string
@@ -107,4 +108,71 @@ export interface Memory {
 export interface MemorySearchResult {
   memory: Memory
   score: number
+}
+
+// 관리자 타입
+export interface DashboardStats {
+  total_users: number
+  total_chat_rooms: number
+  total_memories: number
+  total_messages: number
+  total_departments: number
+  total_projects: number
+}
+
+export interface AdminUser {
+  id: string
+  name: string
+  email: string
+  role: string
+  department_id?: string
+  department_name?: string
+  created_at?: string
+}
+
+export interface AdminChatRoom {
+  id: string
+  name: string
+  room_type: string
+  owner_id: string
+  owner_name?: string
+  member_count: number
+  message_count: number
+  created_at?: string
+}
+
+export interface AdminDepartment {
+  id: string
+  name: string
+  description?: string
+  member_count: number
+  created_at?: string
+}
+
+export interface AdminProject {
+  id: string
+  name: string
+  description?: string
+  department_id?: string
+  department_name?: string
+  member_count: number
+  created_at?: string
+}
+
+export interface AdminMemory {
+  id: string
+  content: string
+  scope: string
+  owner_id: string
+  owner_name?: string
+  category?: string
+  importance?: string
+  created_at?: string
+}
+
+export interface PaginatedMemories {
+  items: AdminMemory[]
+  total: number
+  limit: number
+  offset: number
 }

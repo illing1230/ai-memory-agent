@@ -6,7 +6,7 @@ from typing import Optional
 import hashlib
 import base64
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
 from src.config import get_settings
 
@@ -104,3 +104,20 @@ def get_current_user_id(
         return x_user_id
     
     raise HTTPException(status_code=401, detail="인증이 필요합니다")
+
+
+async def get_current_admin_user(
+    user_id: str = Depends(get_current_user_id),
+) -> str:
+    """관리자 권한 확인. admin role이 아니면 403 반환."""
+    from src.shared.database import get_db_sync
+
+    db = await get_db_sync()
+    try:
+        cursor = await db.execute("SELECT role FROM users WHERE id = ?", (user_id,))
+        row = await cursor.fetchone()
+        if not row or row["role"] != "admin":
+            raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
+        return user_id
+    finally:
+        await db.close()

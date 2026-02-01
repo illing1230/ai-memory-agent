@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   LogOut,
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
@@ -87,6 +88,19 @@ export function Sidebar() {
               <Briefcase className="h-4 w-4" />
             </Button>
           </Tooltip>
+
+          {user?.role === 'admin' && (
+            <Tooltip content="관리자" side="right">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(isActive('/admin') && 'bg-background-active')}
+                onClick={() => navigate('/admin')}
+              >
+                <Shield className="h-4 w-4" />
+              </Button>
+            </Tooltip>
+          )}
         </div>
 
         <div className="mt-auto">
@@ -202,6 +216,16 @@ export function Sidebar() {
             label="프로젝트 관리"
             active={isActive('/projects')}
           />
+
+          {/* Admin - admin role만 표시 */}
+          {user?.role === 'admin' && (
+            <SidebarItem
+              to="/admin"
+              icon={Shield}
+              label="관리자"
+              active={isActive('/admin')}
+            />
+          )}
         </nav>
       </ScrollArea>
 
