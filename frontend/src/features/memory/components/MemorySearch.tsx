@@ -19,7 +19,7 @@ export function MemorySearch() {
     setTimeout(() => setDebouncedQuery(value), 300)
   }
 
-  const { data: searchResults, isLoading } = useMemorySearch({ query: debouncedQuery, limit: 20 })
+  const { data: searchResults, isLoading, isError, error } = useMemorySearch({ query: debouncedQuery, limit: 20 })
   const deleteMemory = useDeleteMemory()
 
   const filteredResults = useMemo(() => {
@@ -84,6 +84,8 @@ export function MemorySearch() {
             <EmptyState icon={Search} title="검색어를 입력하세요" description="2글자 이상 입력하면 검색이 시작됩니다" />
           ) : isLoading ? (
             <div className="flex justify-center py-8"><Loading size="lg" /></div>
+          ) : isError ? (
+            <EmptyState icon={Brain} title="검색 중 오류가 발생했습니다" description={(error as Error)?.message || '잠시 후 다시 시도해주세요'} />
           ) : filteredResults.length === 0 ? (
             <EmptyState icon={Brain} title="검색 결과가 없습니다" description={`"${debouncedQuery}"와 관련된 메모리를 찾을 수 없습니다`} />
           ) : (

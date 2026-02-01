@@ -21,8 +21,15 @@ export interface SearchMemoriesParams {
   scope?: string
 }
 
+interface MemorySearchResponse {
+  results: MemorySearchResult[]
+  total: number
+  query: string
+}
+
 export async function searchMemories(params: SearchMemoriesParams): Promise<MemorySearchResult[]> {
-  return post<MemorySearchResult[]>('/memories/search', params)
+  const response = await post<MemorySearchResponse>('/memories/search', params)
+  return response.results
 }
 
 export interface CreateMemoryParams {

@@ -9,7 +9,7 @@ import type { Memory } from '@/types'
 
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const { data: memories, isLoading, refetch, isRefetching } = useMemories({ limit: 100 })
+  const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
 
   const toggleExpand = (id: string) => {
@@ -84,6 +84,13 @@ export function MemoryList() {
             <div className="flex justify-center py-12">
               <Loading size="lg" />
             </div>
+          ) : isError ? (
+            <EmptyState
+              icon={Brain}
+              title="메모리를 불러오는 중 오류가 발생했습니다"
+              description={(error as Error)?.message || '잠시 후 다시 시도해주세요'}
+              action={<Button variant="secondary" size="sm" onClick={() => refetch()}>다시 시도</Button>}
+            />
           ) : !memories || memories.length === 0 ? (
             <EmptyState
               icon={Brain}
