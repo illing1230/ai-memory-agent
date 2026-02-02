@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import aiosqlite
 
@@ -194,6 +194,23 @@ MEMORIES = [
     },
 ]
 
+# 공유 설정 (resource_type, resource_idx, target_type, target_idx, role, created_by_idx)
+# resource_idx: project_idx 또는 chat_room_idx
+# target_idx: user_idx, project_idx, dept_idx
+SHARES = [
+    # 프로젝트 공유
+    {"resource_type": "project", "resource_idx": 0, "target_type": "user", "target_idx": 4, "role": "member", "created_by_idx": 1},  # PLM 시스템 -> 최개발
+    {"resource_type": "project", "resource_idx": 1, "target_type": "user", "target_idx": 1, "role": "viewer", "created_by_idx": 0},  # MemGate -> 김품질
+    {"resource_type": "project", "resource_idx": 2, "target_type": "project", "target_idx": 1, "role": "member", "created_by_idx": 5},  # RAG 시스템 -> MemGate
+    {"resource_type": "project", "resource_idx": 3, "target_type": "department", "target_idx": 1, "role": "viewer", "created_by_idx": 1},  # 품질 대시보드 -> 개발팀
+    
+    # 채팅방 공유
+    {"resource_type": "chat_room", "resource_idx": 4, "target_type": "user", "target_idx": 4, "role": "member", "created_by_idx": 1},  # PLM 개발 채팅 -> 최개발
+    {"resource_type": "chat_room", "resource_idx": 5, "target_type": "user", "target_idx": 1, "role": "viewer", "created_by_idx": 0},  # MemGate 개발 채팅 -> 김품질
+    {"resource_type": "chat_room", "resource_idx": 6, "target_type": "project", "target_idx": 1, "role": "member", "created_by_idx": 5},  # RAG 논의 -> MemGate
+    {"resource_type": "chat_room", "resource_idx": 7, "target_type": "department", "target_idx": 1, "role": "viewer", "created_by_idx": 1},  # 품질팀 공유 -> 개발팀
+]
+
 
 async def seed_data():
     """가짜 데이터 생성"""
@@ -233,7 +250,7 @@ async def seed_data():
             # 미리 정의된 ID가 있으면 사용, 없으면 UUID 생성
             user_id = user.get("id", str(uuid.uuid4()))
             role = user.get("role", "user")
-            now = datetime.utcnow().isoformat()
+            now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
             await db.execute(
                 """INSERT INTO users (id, name, email, role, department_id, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
@@ -247,7 +264,7 @@ async def seed_data():
         project_ids = []
         for project in PROJECTS:
             project_id = str(uuid.uuid4())
-            now = datetime.utcnow().isoformat()
+            now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
             await db.execute(
                 """INSERT INTO projects (id, name, description, department_id, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
@@ -291,7 +308,7 @@ async def seed_data():
         for mem in MEMORIES:
             memory_id = str(uuid.uuid4())
             vector_id = str(uuid.uuid4())
-            now = datetime.utcnow().isoformat()
+            now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
 
             project_id = project_ids[mem["project_idx"]] if "project_idx" in mem else None
             department_id = dept_ids[mem["dept_idx"]] if "dept_idx" in mem else None
@@ -333,6 +350,41 @@ async def seed_data():
             scope_icon = {"personal": "👤", "project": "📋", "department": "🏢"}
             print(f"  {scope_icon.get(mem['scope'], '❓')} {mem['content'][:40]}...")
 
+        # 7. 공유 설정 생성
+        print("\n🔗 공유 설정 생성...")
+        for share in SHARES:
+            share_id = str(uuid.uuid4())
+            now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
+            
+            # 리소스 ID 결정
+            if share["resource_type"] == "project":
+                resource_id = project_ids[share["resource_idx"]]
+                resource_name = PROJECTS[share["resource_idx"]]["name"]
+            else:  # chat_room
+                resource_id = chat_room_ids[share["resource_idx"]]
+                resource_name = CHAT_ROOMS[share["resource_idx"]]["name"]
+            
+            # 타겟 ID 결정
+            if share["target_type"] == "user":
+                target_id = user_ids[share["target_idx"]]
+                target_name = USERS[share["target_idx"]]["name"]
+            elif share["target_type"] == "project":
+                target_id = project_ids[share["target_idx"]]
+                target_name = PROJECTS[share["target_idx"]]["name"]
+            else:  # department
+                target_id = dept_ids[share["target_idx"]]
+                target_name = DEPARTMENTS[share["target_idx"]]["name"]
+            
+            await db.execute(
+                """INSERT INTO shares (id, resource_type, resource_id, target_type, target_id, role, created_at, created_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (share_id, share["resource_type"], resource_id, share["target_type"], target_id, 
+                 share["role"], now, user_ids[share["created_by_idx"]]),
+            )
+            
+            target_icon = {"user": "👤", "project": "📋", "department": "🏢"}
+            print(f"  ✓ {resource_name} -> {target_icon[share['target_type']]} {target_name} ({share['role']})")
+
         await db.commit()
 
         # 요약 출력
@@ -344,6 +396,7 @@ async def seed_data():
         print(f"  📋 프로젝트: {len(PROJECTS)}개")
         print(f"  💬 채팅방: {len(CHAT_ROOMS)}개")
         print(f"  🧠 메모리: {len(MEMORIES)}개")
+        print(f"  🔗 공유 설정: {len(SHARES)}개")
         print("=" * 50)
 
         # 테스트용 사용자 ID 출력

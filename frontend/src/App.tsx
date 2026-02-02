@@ -6,6 +6,7 @@ import { MemoryList } from '@/features/memory/components/MemoryList'
 import { ProjectManagement } from '@/features/project/components/ProjectManagement'
 import { AdminPage } from '@/features/admin/components/AdminPage'
 import { DocumentPage } from '@/features/document/components/DocumentPage'
+import { ChatRoomManagement } from '@/features/chatroom/components/ChatRoomManagement'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuthStore } from '@/features/auth/store/authStore'
 
@@ -54,6 +55,7 @@ function App() {
           <Route path="memory/list" element={<MemoryList />} />
           <Route path="projects" element={<ProjectManagement />} />
           <Route path="documents" element={<DocumentPage />} />
+          <Route path="chatrooms" element={<ChatRoomManagement />} />
           <Route path="admin" element={<AdminPage />} />
         </Route>
         

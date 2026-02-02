@@ -101,6 +101,17 @@ export function Sidebar() {
             </Button>
           </Tooltip>
 
+          <Tooltip content="채팅방 관리" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActive('/chatrooms') && 'bg-background-active')}
+              onClick={() => navigate('/chatrooms')}
+            >
+              <MessageSquare className="h-4 w-4" />
+            </Button>
+          </Tooltip>
+
           {user?.role === 'admin' && (
             <Tooltip content="관리자" side="right">
               <Button
@@ -235,6 +246,14 @@ export function Sidebar() {
             icon={FileText}
             label="문서 관리"
             active={isActive('/documents')}
+          />
+
+          {/* Chat Room Management - 단일 항목 */}
+          <SidebarItem
+            to="/chatrooms"
+            icon={MessageSquare}
+            label="채팅방 관리"
+            active={isActive('/chatrooms')}
           />
 
           {/* Admin - admin role만 표시 */}

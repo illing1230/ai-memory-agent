@@ -9,10 +9,12 @@ import {
   UserPlus,
   RefreshCw,
   ChevronRight,
+  Share2,
 } from 'lucide-react'
 import { Button, Input, ScrollArea, Avatar } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
+import { ShareModal } from '@/features/share/components/ShareModal'
 import { cn } from '@/lib/utils'
 import { get, post, del } from '@/lib/api'
 
@@ -58,6 +60,9 @@ export function ProjectManagement() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'member' | 'admin'>('member')
   const [isInviting, setIsInviting] = useState(false)
+  
+  // 공유 모달
+  const [showShareModal, setShowShareModal] = useState(false)
 
   const userId = localStorage.getItem('user_id')
 
@@ -287,17 +292,27 @@ export function ProjectManagement() {
                     내 역할: {roleLabel[myRole!]}
                   </p>
                 </div>
-                {canDelete && (
+                <div className="flex gap-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="text-error hover:text-error hover:bg-error/10"
-                    onClick={handleDeleteProject}
+                    onClick={() => setShowShareModal(true)}
                   >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    삭제
+                    <Share2 className="h-4 w-4 mr-1" />
+                    공유
                   </Button>
-                )}
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-error hover:text-error hover:bg-error/10"
+                      onClick={handleDeleteProject}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      삭제
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -453,6 +468,17 @@ export function ProjectManagement() {
             </div>
           </div>
         </>
+      )}
+      
+      {/* 공유 모달 */}
+      {showShareModal && selectedProject && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          resourceType="project"
+          resourceId={selectedProject.id}
+          resourceName={selectedProject.name}
+        />
       )}
     </div>
   )

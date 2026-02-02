@@ -79,7 +79,9 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 
 export function formatTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleTimeString('ko-KR', {
+  // UTC+9 (한국 시간)으로 변환
+  const koreaTime = new Date(d.getTime() + (9 * 60 * 60 * 1000))
+  return koreaTime.toLocaleTimeString('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
   })

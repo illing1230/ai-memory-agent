@@ -915,9 +915,16 @@ AI가 해당 메모리들도 참조합니다."""
         document_chunks: list[dict[str, Any]] | None = None,
     ) -> str:
         """시스템 프롬프트 구성 (우선순위: RAG 문서 > 메모리)"""
-        base_prompt = """당신은 팀의 AI 어시스턴트입니다.
+        # 현재 날짜 (UTC+9)
+        from datetime import datetime, timedelta, timezone
+        current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
+        
+        base_prompt = f"""당신은 팀의 AI 어시스턴트입니다.
 사용자들의 질문에 친절하고 정확하게 답변하세요.
-대화 내용을 잘 참고하여 맥락에 맞는 답변을 해주세요."""
+대화 내용을 잘 참고하여 맥락에 맞는 답변을 해주세요.
+
+현재 날짜: {current_date}
+날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요."""
 
         # RAG 문서 (높은 우선순위 - 먼저 배치)
         if document_chunks:

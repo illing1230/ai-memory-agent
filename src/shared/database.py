@@ -166,6 +166,19 @@ CREATE TABLE IF NOT EXISTS document_chat_rooms (
     UNIQUE (document_id, chat_room_id)
 );
 
+-- 공유 설정 테이블
+CREATE TABLE IF NOT EXISTS shares (
+    id TEXT PRIMARY KEY,
+    resource_type TEXT NOT NULL CHECK (resource_type IN ('project', 'document', 'chat_room')),
+    resource_id TEXT NOT NULL,
+    target_type TEXT NOT NULL CHECK (target_type IN ('user', 'project', 'department')),
+    target_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('owner', 'member', 'viewer')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_by TEXT NOT NULL,
+    UNIQUE(resource_type, resource_id, target_type, target_id)
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -190,6 +203,9 @@ CREATE INDEX IF NOT EXISTS idx_documents_chat_room ON documents(chat_room_id);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document ON document_chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_document_chat_rooms_document ON document_chat_rooms(document_id);
 CREATE INDEX IF NOT EXISTS idx_document_chat_rooms_room ON document_chat_rooms(chat_room_id);
+CREATE INDEX IF NOT EXISTS idx_shares_resource ON shares(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_shares_target ON shares(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_shares_created_by ON shares(created_by);
 """
 
 

@@ -1,18 +1,28 @@
 import { useState } from 'react'
-import { FileText, Trash2, Eye, Loader2 } from 'lucide-react'
+import { FileText, Trash2, Eye, Loader2, Share2 } from 'lucide-react'
 import { Button, Tooltip } from '@/components/ui'
 import { useDocuments, useDeleteDocument } from '../hooks/useDocument'
 import { DocumentUpload } from './DocumentUpload'
+import { ShareModal } from '@/features/share/components/ShareModal'
 import type { Document } from '@/types'
 
 export function DocumentPage() {
   const { data: documents = [], isLoading } = useDocuments()
   const deleteMutation = useDeleteDocument()
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null)
+  
+  // 공유 모달
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
 
   const handleDelete = async (docId: string) => {
     if (!confirm('이 문서를 삭제하시겠습니까?')) return
     await deleteMutation.mutateAsync(docId)
+  }
+  
+  const handleShare = (doc: Document) => {
+    setSelectedDocument(doc)
+    setShowShareModal(true)
   }
 
   const formatSize = (bytes: number) => {
@@ -101,6 +111,15 @@ export function DocumentPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <Tooltip content="공유">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleShare(doc)}
+                        >
+                          <Share2 className="h-4 w-4 text-accent" />
+                        </Button>
+                      </Tooltip>
                       <Tooltip content="삭제">
                         <Button
                           variant="ghost"
@@ -119,6 +138,20 @@ export function DocumentPage() {
           )}
         </div>
       </div>
+      
+      {/* 공유 모달 */}
+      {showShareModal && selectedDocument && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => {
+            setShowShareModal(false)
+            setSelectedDocument(null)
+          }}
+          resourceType="document"
+          resourceId={selectedDocument.id}
+          resourceName={selectedDocument.name}
+        />
+      )}
     </div>
   )
 }
