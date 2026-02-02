@@ -35,12 +35,12 @@ export interface ShareUpdate {
 
 // 공유 설정 생성
 export async function createShare(data: ShareCreate): Promise<Share> {
-  return post<Share>('/api/v1/shares', data)
+  return post<Share>('/shares', data)
 }
 
 // 공유 설정 조회
 export async function getShare(shareId: string): Promise<Share> {
-  return get<Share>(`/api/v1/shares/${shareId}`)
+  return get<Share>(`/shares/${shareId}`)
 }
 
 // 리소스의 모든 공유 설정 조회
@@ -49,13 +49,13 @@ export async function getResourceShares(
   resourceId: string
 ): Promise<ShareWithDetails[]> {
   return get<ShareWithDetails[]>(
-    `/api/v1/shares/resource/${resourceType}/${resourceId}`
+    `/shares/resource/${resourceType}/${resourceId}`
   )
 }
 
 // 나와 공유된 모든 리소스 조회
 export async function getSharedWithMe(): Promise<Share[]> {
-  return get<Share[]>('/api/v1/shares/shared-with-me')
+  return get<Share[]>('/shares/shared-with-me')
 }
 
 // 공유 설정 역할 수정
@@ -63,10 +63,10 @@ export async function updateShareRole(
   shareId: string,
   role: ShareRole
 ): Promise<Share> {
-  return put<Share>(`/api/v1/shares/${shareId}`, { role })
+  return put<Share>(`/shares/${shareId}`, { role })
 }
 
 // 공유 설정 삭제
 export async function deleteShare(shareId: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/api/v1/shares/${shareId}`)
+  return del<{ message: string }>(`/shares/${shareId}`)
 }

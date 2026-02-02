@@ -11,25 +11,12 @@ import { LoginForm } from '@/features/auth/components/LoginForm'
 import { useAuthStore } from '@/features/auth/store/authStore'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuthStore()
-  const isDev = import.meta.env.DEV
-  
-  if (!isDev && !isAuthenticated) {
+  const { isAuthenticated } = useAuthStore()
+
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
-  
-  if (isDev && !user) {
-    useAuthStore.getState().setUser({
-      id: 'dev-user-001',
-      name: '개발자',
-      email: 'dev@test.local',
-      role: 'admin',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    localStorage.setItem('user_id', 'dev-user-001')
-  }
-  
+
   return <>{children}</>
 }
 

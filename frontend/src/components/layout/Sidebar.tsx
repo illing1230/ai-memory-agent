@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   ChevronDown,
   ChevronRight,
@@ -26,6 +27,7 @@ import type { ChatRoom } from '@/types'
 export function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { sidebarOpen, toggleSidebar, setCreateRoomModalOpen } = useUIStore()
   const { user, logout } = useAuthStore()
   const { data: chatRooms = [], isLoading } = useChatRooms()
@@ -43,7 +45,11 @@ export function Sidebar() {
   const isActivePrefix = (path: string) => location.pathname.startsWith(path)
 
   const handleLogout = () => {
+    // 모든 캐시 초기화
+    queryClient.clear()
+    // 로그아웃
     logout()
+    // 로그인 페이지로 이동
     navigate('/login')
   }
 
@@ -199,7 +205,9 @@ export function Sidebar() {
             ) : chatRooms.length === 0 ? (
               <div className="px-2 py-1 text-xs text-foreground-muted">채팅방이 없습니다</div>
             ) : (
-              chatRooms.map((room: ChatRoom) => (
+              chatRooms
+                .filter((room: ChatRoom) => room.member_role) // 멤버로 속한 채팅방만 표시
+                .map((room: ChatRoom) => (
                 <SidebarItem
                   key={room.id}
                   to={`/chat/${room.id}`}

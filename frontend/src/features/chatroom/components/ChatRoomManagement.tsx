@@ -12,6 +12,7 @@ import {
   Users,
   Briefcase,
   Building2,
+  AlertCircle,
 } from 'lucide-react'
 import { Button, ScrollArea, Avatar } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
@@ -59,6 +60,7 @@ export function ChatRoomManagement() {
   
   const [isLoading, setIsLoading] = useState(true)
   const [isMembersLoading, setIsMembersLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   // 공유 모달
   const [showShareModal, setShowShareModal] = useState(false)
@@ -67,13 +69,24 @@ export function ChatRoomManagement() {
 
   // 채팅방 목록 로드
   const loadChatRooms = async () => {
-    if (!userId) return
+    if (!userId) {
+      setError('로그인이 필요합니다')
+      setIsLoading(false)
+      return
+    }
+    
     setIsLoading(true)
+    setError(null)
     try {
-      const data = await get<ChatRoom[]>(`/api/v1/chat-rooms/user/${userId}`)
-      setChatRooms(data)
+      const data = await get<ChatRoom[]>('/chat-rooms')
+      // owner/admin 권한이 있는 채팅방만 표시
+      const manageableRooms = data.filter(room => 
+        room.member_role === 'owner' || room.member_role === 'admin'
+      )
+      setChatRooms(manageableRooms)
     } catch (e) {
       console.error('채팅방 로드 실패:', e)
+      setError('채팅방을 불러오는데 실패했습니다')
     } finally {
       setIsLoading(false)
     }
@@ -83,7 +96,7 @@ export function ChatRoomManagement() {
   const loadMembers = async (roomId: string) => {
     setIsMembersLoading(true)
     try {
-      const data = await get<ChatRoomMember[]>(`/api/v1/chat-rooms/${roomId}/members`)
+      const data = await get<ChatRoomMember[]>(`/chat-rooms/${roomId}/members`)
       setMembers(data)
     } catch (e) {
       console.error('멤버 로드 실패:', e)
@@ -98,7 +111,7 @@ export function ChatRoomManagement() {
     try {
       const [projectsData, departmentsData] = await Promise.all([
         get<Project[]>('/users/projects'),
-        get<Department[]>('/departments'),
+        get<Department[]>('/users/departments'),
       ])
       setProjects(projectsData)
       setDepartments(departmentsData)
@@ -124,7 +137,7 @@ export function ChatRoomManagement() {
     if (!confirm(`"${selectedRoom.name}" 채팅방을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
     
     try {
-      await del(`/api/v1/chat-rooms/${selectedRoom.id}`)
+      await del(`/chat-rooms/${selectedRoom.id}`)
       setChatRooms(prev => prev.filter(r => r.id !== selectedRoom.id))
       setSelectedRoom(null)
     } catch (e) {
@@ -172,6 +185,19 @@ export function ChatRoomManagement() {
     return dept?.name || deptId
   }
 
+  // 로그인이 필요한 경우
+  if (!userId) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyState
+          icon={User}
+          title="로그인이 필요합니다"
+          description="채팅방을 관리하려면 로그인해주세요"
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full bg-background">
       {/* 왼쪽: 채팅방 목록 */}
@@ -192,6 +218,16 @@ export function ChatRoomManagement() {
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loading />
+            </div>
+          ) : error ? (
+            <div className="p-4 text-center">
+              <div className="flex flex-col items-center gap-2 text-sm text-error">
+                <AlertCircle className="h-8 w-8" />
+                <p>{error}</p>
+                <Button variant="outline" size="sm" onClick={loadChatRooms}>
+                  다시 시도
+                </Button>
+              </div>
             </div>
           ) : chatRooms.length === 0 ? (
             <div className="p-4 text-center text-sm text-foreground-muted">

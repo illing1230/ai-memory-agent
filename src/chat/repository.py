@@ -320,20 +320,51 @@ class ChatRepository:
         self,
         user_id: str,
     ) -> list[dict[str, Any]]:
-        """사용자가 속한 채팅방 목록"""
+        """사용자가 속한 채팅방 목록 (멤버 + 공유받은 채팅방)"""
+        # 1. 멤버로 속한 채팅방
         cursor = await self.db.execute(
             """SELECT r.*, m.role as member_role
                FROM chat_rooms r
                INNER JOIN chat_room_members m ON r.id = m.chat_room_id
-               WHERE m.user_id = ?
-               ORDER BY r.created_at DESC""",
+               WHERE m.user_id = ?""",
             (user_id,),
         )
-        rows = await cursor.fetchall()
+        member_rows = await cursor.fetchall()
+        
+        # 2. 공유받은 채팅방
+        cursor = await self.db.execute(
+            """SELECT r.*, s.role as member_role
+               FROM chat_rooms r
+               INNER JOIN shares s ON r.id = s.resource_id
+               WHERE s.resource_type = 'chat_room'
+               AND s.target_type = 'user'
+               AND s.target_id = ?""",
+            (user_id,),
+        )
+        shared_rows = await cursor.fetchall()
+        
+        # 중복 제거 (멤버로 속한 채팅방이 우선)
+        seen_ids = set()
         results = []
-        for row in rows:
+        
+        # 멤버 채팅방 먼저 추가
+        for row in member_rows:
             data = dict(row)
             if data.get("context_sources"):
                 data["context_sources"] = json.loads(data["context_sources"])
             results.append(data)
+            seen_ids.add(data["id"])
+        
+        # 공유받은 채팅방 추가 (중복 제외)
+        for row in shared_rows:
+            data = dict(row)
+            if data["id"] not in seen_ids:
+                if data.get("context_sources"):
+                    data["context_sources"] = json.loads(data["context_sources"])
+                results.append(data)
+                seen_ids.add(data["id"])
+        
+        # created_at 기준 정렬
+        results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
         return results

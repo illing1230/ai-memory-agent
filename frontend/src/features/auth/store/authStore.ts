@@ -43,6 +43,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('access_token')
         localStorage.removeItem('user_id')
+        // persist 스토리지도 완전히 초기화
+        localStorage.removeItem('auth-storage')
         set({ user: null, token: null, isAuthenticated: false })
       },
       
@@ -70,6 +72,8 @@ export function setDevUser() {
   useAuthStore.getState().setUser(devUser)
 }
 
-if (import.meta.env.DEV) {
-  setDevUser()
-}
+// 개발 환경에서 자동으로 setDevUser()를 호출하지 않음
+// 필요할 때 수동으로 호출하여 사용
+// if (import.meta.env.DEV) {
+//   setDevUser()
+// }

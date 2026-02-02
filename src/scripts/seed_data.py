@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
+from passlib.context import CryptContext
 
 import aiosqlite
 
@@ -10,6 +11,9 @@ from src.config import get_settings
 from src.shared.database import init_database, close_database, get_db_sync
 from src.shared.vector_store import init_vector_store, close_vector_store, upsert_vector
 from src.shared.providers import get_embedding_provider
+
+# 비밀번호 해시 컨텍스트
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ==================== 샘플 데이터 정의 ====================
@@ -71,6 +75,21 @@ CHAT_ROOMS = [
     {"name": "개발팀 공유", "room_type": "department", "owner_idx": 0, "dept_idx": 1},
     {"name": "기획팀 공유", "room_type": "department", "owner_idx": 8, "dept_idx": 2},
 ]
+
+# 채팅방 멤버 매핑 (chat_room_idx -> user_idx 리스트)
+# 인덱스: 0=개발자, 1=김품질, 2=이검사, 3=박관리, 4=최개발, 5=정백엔드, 6=강프론트, 7=윤데이터, 8=한기획, 9=서전략, 10=임분석
+CHAT_ROOM_MEMBERS = {
+    0: [0],  # 개발자의 메모 - 개발자만
+    1: [1],  # 김품질의 메모 - 김품질만
+    2: [4],  # 최개발의 메모 - 최개발만
+    3: [8],  # 한기획의 메모 - 한기획만
+    4: [1, 2, 3],  # PLM 개발 채팅 - 품질팀 전원
+    5: [0, 4, 5, 6, 7],  # MemGate 개발 채팅 - 개발자 + 개발팀 전원
+    6: [4, 5, 7],  # RAG 논의 - 개발팀 일부
+    7: [1, 2, 8],  # 품질팀 공유 - 품질팀 + 기획팀
+    8: [0, 4, 5, 6, 7],  # 개발팀 공유 - 개발팀 전원
+    9: [8, 9, 10],  # 기획팀 공유 - 기획팀 전원
+}
 
 MEMORIES = [
     # 개인 메모리
@@ -272,18 +291,32 @@ async def seed_data():
         # 2. 사용자 생성
         print("\n👤 사용자 생성...")
         user_ids = []
-        for user in USERS:
+        
+        # 테스트 사용자 비밀번호 설정
+        settings = get_settings()
+        test_password = getattr(settings, 'test_user_password', 'test123')
+        test_password_hash = pwd_context.hash(test_password)
+        
+        for i, user in enumerate(USERS):
             # 미리 정의된 ID가 있으면 사용, 없으면 UUID 생성
             user_id = user.get("id", str(uuid.uuid4()))
             role = user.get("role", "user")
             now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
+            
+            # admin 계정(dev-user-001)은 비밀번호 설정하지 않음
+            # 나머지 테스트 사용자들에게 TEST_USER_PASSWORD 적용
+            password_hash = None
+            if user_id != "dev-user-001":
+                password_hash = test_password_hash
+            
             await db.execute(
-                """INSERT INTO users (id, name, email, role, department_id, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (user_id, user["name"], user["email"], role, dept_ids[user["dept_idx"]], now, now),
+                """INSERT INTO users (id, name, email, role, department_id, password_hash, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, user["name"], user["email"], role, dept_ids[user["dept_idx"]], password_hash, now, now),
             )
             user_ids.append(user_id)
-            print(f"  ✓ {user['name']} ({user['email']}) - {user_id}")
+            password_info = f" (비밀번호: {test_password})" if password_hash else " (비밀번호 없음)"
+            print(f"  ✓ {user['name']} ({user['email']}) - {user_id}{password_info}")
 
         # 3. 프로젝트 생성
         print("\n📋 프로젝트 생성...")
@@ -329,8 +362,22 @@ async def seed_data():
             chat_room_ids.append(room_id)
             print(f"  ✓ {room['name']} ({room['room_type']})")
 
-        # 6. 메모리 생성 (벡터 포함)
+        # 6. 채팅방 멤버 추가
+        print("\n👥 채팅방 멤버 추가...")
+        for room_idx, member_indices in CHAT_ROOM_MEMBERS.items():
+            for i, user_idx in enumerate(member_indices):
+                member_id = str(uuid.uuid4())
+                role = "owner" if i == 0 else "member"
+                await db.execute(
+                    """INSERT INTO chat_room_members (id, chat_room_id, user_id, role)
+                       VALUES (?, ?, ?, ?)""",
+                    (member_id, chat_room_ids[room_idx], user_ids[user_idx], role),
+                )
+            print(f"  ✓ {CHAT_ROOMS[room_idx]['name']}: {len(member_indices)}명")
+
+        # 7. 메모리 생성 (벡터 포함)
         print("\n🧠 메모리 생성...")
+        memory_ids = []
         for mem in MEMORIES:
             memory_id = str(uuid.uuid4())
             vector_id = str(uuid.uuid4())
@@ -374,10 +421,29 @@ async def seed_data():
                 }
                 await upsert_vector(vector_id, vector, payload)
 
+            memory_ids.append(memory_id)
             scope_icon = {"personal": "👤", "project": "📋", "department": "🏢"}
             print(f"  {scope_icon.get(mem['scope'], '❓')} {mem['content'][:40]}...")
 
-        # 7. 공유 설정 생성
+        # 7.5. superseded 관계 설정
+        print("\n🔄 superseded 관계 설정...")
+        for i, mem in enumerate(MEMORIES):
+            if "supersedes_idx" in mem:
+                superseded_memory_id = memory_ids[mem["supersedes_idx"]]
+                new_memory_id = memory_ids[i]
+                now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
+                
+                # 이전 메모리를 superseded로 표시
+                await db.execute(
+                    """UPDATE memories 
+                       SET superseded = 1, superseded_by = ?, superseded_at = ?
+                       WHERE id = ?""",
+                    (new_memory_id, now, superseded_memory_id)
+                )
+                
+                print(f"  ✓ {MEMORIES[mem['supersedes_idx']]['content'][:30]}... -> {mem['content'][:30]}...")
+
+        # 8. 공유 설정 생성
         print("\n🔗 공유 설정 생성...")
         for share in SHARES:
             share_id = str(uuid.uuid4())

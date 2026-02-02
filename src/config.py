@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production", "test"] = "development"
     debug: bool = True
     log_level: str = "INFO"
+    
+    # Test User Password (개발 환경용)
+    test_user_password: str = "test123"
 
     # JWT Authentication
     jwt_secret_key: str = "change-this-secret-key-in-production"

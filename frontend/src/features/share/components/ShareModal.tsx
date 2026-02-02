@@ -54,7 +54,7 @@ export function ShareModal({
       const [usersData, projectsData, departmentsData] = await Promise.all([
         get<User[]>('/users'),
         get<Project[]>('/users/projects'),
-        get<Department[]>('/departments'),
+        get<Department[]>('/users/departments'),
       ])
       setUsers(usersData)
       setProjects(projectsData)
@@ -71,12 +71,31 @@ export function ShareModal({
   const handleAddShare = async () => {
     if (!targetId.trim()) return
 
+    // 이메일 또는 이름으로 사용자 ID 찾기
+    let actualTargetId = targetId
+    if (targetType === 'user') {
+      const user = users.find(u => u.email === targetId || u.name === targetId)
+      if (user) {
+        actualTargetId = user.id
+      }
+    } else if (targetType === 'project') {
+      const project = projects.find(p => p.name === targetId)
+      if (project) {
+        actualTargetId = project.id
+      }
+    } else if (targetType === 'department') {
+      const department = departments.find(d => d.name === targetId)
+      if (department) {
+        actualTargetId = department.id
+      }
+    }
+
     try {
       await createShareMutation.mutateAsync({
         resource_type: resourceType,
         resource_id: resourceId,
         target_type: targetType,
-        target_id: targetId,
+        target_id: actualTargetId,
         role,
       })
       setTargetId('')
@@ -200,14 +219,14 @@ export function ShareModal({
               <Input
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
-                placeholder={targetType === 'user' ? '이메일 입력...' : 'ID 입력...'}
+                placeholder={targetType === 'user' ? '이메일 또는 이름 검색...' : '이름 검색...'}
                 list="available-targets"
                 className="flex-1"
               />
               <datalist id="available-targets">
                 {getAvailableTargets().map((target: any) => (
-                  <option key={target.id} value={target.id}>
-                    {target.name || target.email}
+                  <option key={target.id} value={target.email || target.name}>
+                    {target.name} ({target.email})
                   </option>
                 ))}
               </datalist>
