@@ -105,6 +105,15 @@ class ChatService:
     async def delete_chat_room(self, room_id: str, user_id: str) -> bool:
         """채팅방 삭제 (owner만 가능)"""
         await self._check_owner_permission(room_id, user_id)
+        
+        # Vector DB에서 채팅방 메모리 삭제
+        try:
+            from src.shared.vector_store import delete_vectors_by_filter
+            await delete_vectors_by_filter({"chat_room_id": room_id})
+            print(f"채팅방 {room_id}의 Vector DB 데이터 삭제 완료")
+        except Exception as e:
+            print(f"Vector DB 삭제 실패: {e}")
+        
         return await self.repo.delete_chat_room(room_id)
 
     # ==================== Chat Room Members ====================
@@ -646,13 +655,13 @@ AI가 해당 메모리들도 참조합니다."""
         """AI 응답 생성 (우선순위: 대화 > RAG 문서 > 메모리)"""
         # Step 1: 최근 대화 (최우선)
         recent_messages = await self.repo.get_recent_messages(room["id"], limit=20)
-
+        
         # Step 2: RAG 문서 검색 (높은 우선순위)
         document_chunks = await self._search_relevant_documents(
             query=user_message,
             chat_room_id=room["id"],
         )
-
+        
         # Step 3: 메모리 검색 (보조)
         relevant_memories = await self._search_relevant_memories(
             query=user_message,
@@ -660,7 +669,7 @@ AI가 해당 메모리들도 참조합니다."""
             current_room_id=room["id"],
             context_sources=room.get("context_sources", {}),
         )
-
+        
         system_prompt = self._build_system_prompt(relevant_memories, document_chunks)
         conversation_context = self._build_conversation(recent_messages)
         
@@ -679,6 +688,35 @@ AI가 해당 메모리들도 참조합니다."""
             temperature=0.7,
             max_tokens=1000,
         )
+        
+        # AI 응답을 Vector DB에 저장 (채팅방 메모리)
+        try:
+            embedding_provider = get_embedding_provider()
+            vector = await embedding_provider.embed(response)
+            vector_id = str(uuid.uuid4())
+            
+            # AI 응답을 채팅방 메모리로 저장
+            memory = await self.memory_repo.create_memory(
+                content=response,
+                owner_id=user_id,
+                scope="chatroom",
+                vector_id=vector_id,
+                chat_room_id=room["id"],
+                category="ai_response",
+                importance="medium",
+            )
+            
+            # Vector DB에 저장
+            await upsert_vector(vector_id, vector, {
+                "memory_id": memory["id"],
+                "scope": "chatroom",
+                "owner_id": user_id,
+                "chat_room_id": room["id"],
+            })
+            
+            print(f"AI 응답을 Vector DB에 저장했습니다: {memory['id']}")
+        except Exception as e:
+            print(f"AI 응답 Vector DB 저장 실패: {e}")
         
         extracted_memories = await self._extract_and_save_memories(
             conversation=recent_messages + [{"role": "user", "content": user_message}],

@@ -223,6 +223,51 @@ async def delete_vector(vector_id: str) -> None:
     )
 
 
+async def delete_vectors_by_filter(filter_conditions: dict[str, Any]) -> int:
+    """필터 조건으로 벡터 삭제"""
+    client = get_vector_store()
+    if client is None:
+        print("⚠️  Qdrant 미연결: 벡터 삭제 건너뜀")
+        return 0
+
+    settings = get_settings()
+
+    # 필터 조건 구성
+    must_conditions = []
+    for key, value in filter_conditions.items():
+        if value is not None:
+            must_conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    match=models.MatchValue(value=value),
+                )
+            )
+
+    if not must_conditions:
+        return 0
+
+    query_filter = models.Filter(must=must_conditions)
+
+    # 필터로 검색 후 삭제
+    results = await client.scroll(
+        collection_name=settings.qdrant_collection,
+        scroll_filter=query_filter,
+        limit=10000,  # 한 번에 최대 10000개 삭제
+        with_payload=False,
+    )
+
+    if results.points:
+        point_ids = [str(point.id) for point in results.points]
+        await client.delete(
+            collection_name=settings.qdrant_collection,
+            points_selector=models.PointIdsList(points=point_ids),
+        )
+        print(f"✅ Vector DB에서 {len(point_ids)}개 벡터 삭제됨")
+        return len(point_ids)
+
+    return 0
+
+
 async def get_vector(vector_id: str) -> dict[str, Any] | None:
     """벡터 조회"""
     client = get_vector_store()

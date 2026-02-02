@@ -230,7 +230,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           </div>
 
           {/* Content */}
-          <ScrollArea className="flex-1 p-6">
+          <div className="flex-1 overflow-y-auto p-6">
             {isLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-accent" />
@@ -445,7 +445,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                 </div>
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Footer */}
           <div className="flex justify-end gap-2 px-6 py-4 border-t border-border">

@@ -116,10 +116,27 @@ class ChatRepository:
         return await self.get_chat_room(room_id)
 
     async def delete_chat_room(self, room_id: str) -> bool:
-        """채팅방 삭제"""
+        """채팅방 삭제 (관련 메시지, 멤버, 메모리도 함께 삭제)"""
+        # 1. 채팅방 메시지 삭제
+        await self.db.execute(
+            "DELETE FROM chat_messages WHERE chat_room_id = ?", (room_id,)
+        )
+        
+        # 2. 채팅방 멤버 삭제
+        await self.db.execute(
+            "DELETE FROM chat_room_members WHERE chat_room_id = ?", (room_id,)
+        )
+        
+        # 3. 채팅방 메모리 삭제 (scope="chatroom"인 메모리만)
+        await self.db.execute(
+            "DELETE FROM memories WHERE chat_room_id = ? AND scope = 'chatroom'", (room_id,)
+        )
+        
+        # 4. 채팅방 삭제
         cursor = await self.db.execute(
             "DELETE FROM chat_rooms WHERE id = ?", (room_id,)
         )
+        
         await self.db.commit()
         return cursor.rowcount > 0
 
