@@ -27,6 +27,10 @@ class MemoryRepository:
         category: str | None = None,
         importance: str = "medium",
         metadata: dict | None = None,
+        topic_key: str | None = None,
+        superseded: bool = False,
+        superseded_by: str | None = None,
+        superseded_at: str | None = None,
     ) -> dict[str, Any]:
         """메모리 생성"""
         memory_id = str(uuid.uuid4())
@@ -35,8 +39,8 @@ class MemoryRepository:
         await self.db.execute(
             """INSERT INTO memories 
                (id, content, vector_id, scope, owner_id, project_id, department_id,
-                chat_room_id, source_message_id, category, importance, metadata, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                chat_room_id, source_message_id, category, importance, metadata, topic_key, superseded, superseded_by, superseded_at, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 memory_id,
                 content,
@@ -50,6 +54,10 @@ class MemoryRepository:
                 category,
                 importance,
                 json.dumps(metadata) if metadata else None,
+                topic_key,
+                1 if superseded else 0,
+                superseded_by,
+                superseded_at,
                 now,
                 now,
             ),
@@ -205,3 +213,52 @@ class MemoryRepository:
             (log_id, memory_id, user_id, action),
         )
         await self.db.commit()
+
+    async def update_superseded(
+        self,
+        memory_id: str,
+        superseded_by: str,
+    ) -> dict[str, Any] | None:
+        """메모리를 superseded 상태로 업데이트"""
+        now = datetime.utcnow().isoformat()
+        await self.db.execute(
+            """UPDATE memories 
+               SET superseded = 1, superseded_by = ?, superseded_at = ?
+               WHERE id = ?""",
+            (superseded_by, now, memory_id),
+        )
+        await self.db.commit()
+        return await self.get_memory(memory_id)
+
+    async def get_memories_by_topic_key(
+        self,
+        topic_key: str,
+        owner_id: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """topic_key로 메모리 검색"""
+        conditions = ["topic_key = ?"]
+        params = [topic_key]
+        
+        if owner_id:
+            conditions.append("owner_id = ?")
+            params.append(owner_id)
+        
+        params.append(limit)
+        
+        where_clause = " AND ".join(conditions)
+        cursor = await self.db.execute(
+            f"""SELECT * FROM memories 
+                WHERE {where_clause} 
+                ORDER BY created_at DESC 
+                LIMIT ?""",
+            params,
+        )
+        rows = await cursor.fetchall()
+        results = []
+        for row in rows:
+            data = dict(row)
+            if data.get("metadata"):
+                data["metadata"] = json.loads(data["metadata"])
+            results.append(data)
+        return results

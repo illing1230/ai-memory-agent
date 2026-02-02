@@ -80,6 +80,7 @@ MEMORIES = [
         "owner_idx": 1,
         "category": "preference",
         "importance": "medium",
+        "topic_key": "김품질 코드 리뷰 시간",
     },
     {
         "content": "최개발은 Python보다 Rust를 선호한다",
@@ -87,6 +88,7 @@ MEMORIES = [
         "owner_idx": 4,
         "category": "preference",
         "importance": "high",
+        "topic_key": "최개발 언어 선호",
     },
     {
         "content": "한기획은 매주 금요일에 주간 보고서를 작성한다",
@@ -94,6 +96,7 @@ MEMORIES = [
         "owner_idx": 8,
         "category": "fact",
         "importance": "medium",
+        "topic_key": "한기획 주간 보고서",
     },
     # 프로젝트 메모리
     {
@@ -103,6 +106,7 @@ MEMORIES = [
         "project_idx": 0,
         "category": "fact",
         "importance": "high",
+        "topic_key": "PLM 데이터베이스",
     },
     {
         "content": "MemGate는 Qdrant 벡터 DB와 SQLite를 함께 사용한다",
@@ -111,6 +115,7 @@ MEMORIES = [
         "project_idx": 1,
         "category": "fact",
         "importance": "high",
+        "topic_key": "MemGate 기술 스택",
     },
     {
         "content": "RAG 시스템에서 chunk 크기는 512 토큰으로 결정했다",
@@ -119,6 +124,7 @@ MEMORIES = [
         "project_idx": 2,
         "category": "decision",
         "importance": "high",
+        "topic_key": "RAG chunk 크기",
     },
     {
         "content": "품질 대시보드는 Grafana로 구현하기로 했다",
@@ -127,6 +133,7 @@ MEMORIES = [
         "project_idx": 3,
         "category": "decision",
         "importance": "medium",
+        "topic_key": "품질 대시보드 기술",
     },
     {
         "content": "신제품 출시일은 2025년 3월로 목표한다",
@@ -135,6 +142,7 @@ MEMORIES = [
         "project_idx": 4,
         "category": "decision",
         "importance": "high",
+        "topic_key": "신제품 출시일",
     },
     # 부서 메모리
     {
@@ -144,6 +152,7 @@ MEMORIES = [
         "dept_idx": 0,
         "category": "fact",
         "importance": "medium",
+        "topic_key": "품질팀 회의",
     },
     {
         "content": "개발팀은 GitFlow 브랜치 전략을 사용한다",
@@ -152,6 +161,7 @@ MEMORIES = [
         "dept_idx": 1,
         "category": "fact",
         "importance": "high",
+        "topic_key": "개발팀 브랜치 전략",
     },
     {
         "content": "기획팀은 Notion을 공식 문서 도구로 사용한다",
@@ -160,6 +170,7 @@ MEMORIES = [
         "dept_idx": 2,
         "category": "fact",
         "importance": "medium",
+        "topic_key": "기획팀 문서 도구",
     },
     # 추가 메모리
     {
@@ -168,6 +179,7 @@ MEMORIES = [
         "owner_idx": 1,
         "category": "preference",
         "importance": "low",
+        "topic_key": "김품질 음료 선호",
     },
     {
         "content": "최개발의 업무 집중 시간은 오후 2시~5시이다",
@@ -175,6 +187,7 @@ MEMORIES = [
         "owner_idx": 4,
         "category": "preference",
         "importance": "medium",
+        "topic_key": "최개발 업무 시간",
     },
     {
         "content": "MemGate API는 FastAPI로 구현한다",
@@ -183,6 +196,7 @@ MEMORIES = [
         "project_idx": 1,
         "category": "decision",
         "importance": "high",
+        "topic_key": "MemGate API 프레임워크",
     },
     {
         "content": "RAG 시스템에서 HyDE 기법을 적용하기로 했다",
@@ -191,6 +205,18 @@ MEMORIES = [
         "project_idx": 2,
         "category": "decision",
         "importance": "high",
+        "topic_key": "RAG HyDE 기법",
+    },
+    # UPDATE 예제 (같은 topic_key, superseded 관계)
+    {
+        "content": "신제품 출시일은 2025년 6월로 연기되었다",
+        "scope": "project",
+        "owner_idx": 8,
+        "project_idx": 4,
+        "category": "decision",
+        "importance": "high",
+        "topic_key": "신제품 출시일",
+        "supersedes_idx": 7,  # 이전 메모리(2025년 3월)를 superseded
     },
 ]
 
@@ -326,14 +352,15 @@ async def seed_data():
                 vector_id = None
 
             # SQLite에 저장
+            topic_key = mem.get("topic_key")
             await db.execute(
-                """INSERT INTO memories 
-                   (id, content, vector_id, scope, owner_id, project_id, department_id,
-                    category, importance, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (memory_id, mem["content"], vector_id, mem["scope"],
-                 user_ids[mem["owner_idx"]], project_id, department_id,
-                 mem.get("category"), mem.get("importance", "medium"), now, now),
+                """INSERT INTO memories
+                    (id, content, vector_id, scope, owner_id, project_id, department_id,
+                    category, importance, topic_key, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (memory_id, mem["content"], vector_id, mem["scope"], 
+                 user_ids[mem["owner_idx"]], project_id, department_id, 
+                 mem.get("category"), mem.get("importance", "medium"), topic_key, now, now),
             )
 
             # Qdrant에 저장

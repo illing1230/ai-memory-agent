@@ -110,6 +110,10 @@ CREATE TABLE IF NOT EXISTS memories (
     category TEXT,
     importance TEXT DEFAULT 'medium',
     metadata TEXT,
+    topic_key TEXT,
+    superseded BOOLEAN DEFAULT 0,
+    superseded_by TEXT,
+    superseded_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES users(id),
@@ -192,6 +196,8 @@ CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
 CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id);
 CREATE INDEX IF NOT EXISTS idx_memories_department ON memories(department_id);
 CREATE INDEX IF NOT EXISTS idx_memories_chat_room ON memories(chat_room_id);
+CREATE INDEX IF NOT EXISTS idx_memories_topic_key ON memories(topic_key);
+CREATE INDEX IF NOT EXISTS idx_memories_superseded ON memories(superseded);
 CREATE INDEX IF NOT EXISTS idx_memory_access_log_memory ON memory_access_log(memory_id);
 CREATE INDEX IF NOT EXISTS idx_memory_access_log_user ON memory_access_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_room ON chat_messages(chat_room_id);
@@ -247,6 +253,47 @@ async def init_database() -> None:
     # role 컬럼 추가 (users)
     try:
         await _db_connection.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # topic_key 컬럼 추가 (memories)
+    try:
+        await _db_connection.execute("ALTER TABLE memories ADD COLUMN topic_key TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # superseded 컬럼 추가 (memories)
+    try:
+        await _db_connection.execute("ALTER TABLE memories ADD COLUMN superseded BOOLEAN DEFAULT 0")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # superseded_by 컬럼 추가 (memories)
+    try:
+        await _db_connection.execute("ALTER TABLE memories ADD COLUMN superseded_by TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # superseded_at 컬럼 추가 (memories)
+    try:
+        await _db_connection.execute("ALTER TABLE memories ADD COLUMN superseded_at DATETIME")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # 인덱스 추가 (기존 DB 마이그레이션)
+    try:
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_topic_key ON memories(topic_key)")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    try:
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_superseded ON memories(superseded)")
         await _db_connection.commit()
     except Exception:
         pass

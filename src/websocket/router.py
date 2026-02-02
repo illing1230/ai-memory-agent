@@ -30,11 +30,23 @@ async def websocket_chat(
 
     # 인증 확인
     authenticated_user_id = None
-
+    
     # 1. 토큰으로 인증 시도
     if token and token != "dev-token":
         authenticated_user_id = verify_access_token(token)
-
+        
+        # 개발 환경에서 토큰 만료 무시하고 user_id 추출
+        if not authenticated_user_id and settings.is_development:
+            try:
+                import base64
+                token_data = base64.urlsafe_b64decode(token.encode()).decode()
+                parts = token_data.split("|")
+                if len(parts) >= 1:
+                    authenticated_user_id = parts[0]
+                    print(f"개발 환경: 만료된 토큰에서 user_id 추출: {authenticated_user_id}")
+            except Exception as e:
+                print(f"토큰 디코딩 실패: {e}")
+    
     # 2. 개발 환경에서 user_id 쿼리 파라미터 또는 dev-token 허용
     if not authenticated_user_id and settings.is_development:
         if user_id:
@@ -42,7 +54,7 @@ async def websocket_chat(
         elif token == "dev-token":
             # dev-token인 경우 기본 개발자 계정 사용
             authenticated_user_id = "dev-user-001"
-
+    
     if not authenticated_user_id:
         await websocket.close(code=4001, reason="Unauthorized")
         return

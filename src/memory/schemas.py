@@ -11,6 +11,10 @@ class MemoryBase(BaseModel):
     category: str | None = None
     importance: Literal["high", "medium", "low"] = "medium"
     metadata: dict | None = None
+    topic_key: str | None = None
+    superseded: bool = False
+    superseded_by: str | None = None
+    superseded_at: datetime | None = None
 
 
 class MemoryCreate(MemoryBase):

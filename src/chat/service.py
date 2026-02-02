@@ -2,6 +2,7 @@
 
 import re
 from typing import Any, Literal
+from datetime import datetime, timedelta, timezone
 
 import aiosqlite
 
@@ -22,6 +23,11 @@ AI_USER_NAME = "AI Assistant"
 
 # 슬래시 커맨드 패턴
 COMMAND_PATTERN = r"^/(\w+)\s*(.*)"
+
+# Re-ranking 파라미터
+SIMILARITY_ALPHA = 0.6  # 유사도 가중치
+RECENCY_BETA = 0.4  # 최신성 가중치
+RECENCY_DECAY_DAYS = 30  # 30일 이상이면 recency = 0
 
 
 class ChatService:
@@ -100,7 +106,100 @@ class ChatService:
     ) -> dict[str, Any]:
         """채팅방 수정 (owner/admin만 가능)"""
         await self._check_admin_permission(room_id, user_id)
-        return await self.repo.update_chat_room(room_id, name, context_sources)
+        
+        # 변경 전 상태 확인
+        old_room = await self.repo.get_chat_room(room_id)
+        old_context_sources = old_room.get("context_sources", {})
+        
+        # 채팅방 업데이트
+        updated_room = await self.repo.update_chat_room(room_id, name, context_sources)
+        
+        # 컨텍스트 소스가 변경된 경우 시스템 메시지 전송
+        if context_sources and context_sources != old_context_sources:
+            await self._send_context_sources_update_message(
+                room_id=room_id,
+                old_context_sources=old_context_sources,
+                new_context_sources=context_sources,
+                user_id=user_id,
+            )
+        
+        return updated_room
+
+    async def _send_context_sources_update_message(
+        self,
+        room_id: str,
+        old_context_sources: dict,
+        new_context_sources: dict,
+        user_id: str,
+    ) -> None:
+        """컨텍스트 소스 변경 알림 메시지 전송"""
+        try:
+            old_memory = old_context_sources.get("memory", {})
+            new_memory = new_context_sources.get("memory", {})
+            
+            changes = []
+            
+            # include_this_room 변경 확인
+            if old_memory.get("include_this_room") != new_memory.get("include_this_room"):
+                old_val = "사용" if old_memory.get("include_this_room") else "사용 안 함"
+                new_val = "사용" if new_memory.get("include_this_room") else "사용 안 함"
+                changes.append(f"• 이 채팅방 메모리: {old_val} → {new_val}")
+            
+            # include_personal 변경 확인
+            if old_memory.get("include_personal") != new_memory.get("include_personal"):
+                old_val = "사용" if old_memory.get("include_personal") else "사용 안 함"
+                new_val = "사용" if new_memory.get("include_personal") else "사용 안 함"
+                changes.append(f"• 개인 메모리: {old_val} → {new_val}")
+            
+            # other_chat_rooms 변경 확인
+            old_rooms = set(old_memory.get("other_chat_rooms", []))
+            new_rooms = set(new_memory.get("other_chat_rooms", []))
+            if old_rooms != new_rooms:
+                added = new_rooms - old_rooms
+                removed = old_rooms - new_rooms
+                if added:
+                    changes.append(f"• 추가된 채팅방: {len(added)}개")
+                if removed:
+                    changes.append(f"• 제거된 채팅방: {len(removed)}개")
+            
+            # projects 변경 확인
+            old_projects = set(old_memory.get("projects", []))
+            new_projects = set(new_memory.get("projects", []))
+            if old_projects != new_projects:
+                added = new_projects - old_projects
+                removed = old_projects - new_projects
+                if added:
+                    changes.append(f"• 추가된 프로젝트: {len(added)}개")
+                if removed:
+                    changes.append(f"• 제거된 프로젝트: {len(removed)}개")
+            
+            # departments 변경 확인
+            old_depts = set(old_memory.get("departments", []))
+            new_depts = set(new_memory.get("departments", []))
+            if old_depts != new_depts:
+                added = new_depts - old_depts
+                removed = old_depts - new_depts
+                if added:
+                    changes.append(f"• 추가된 부서: {len(added)}개")
+                if removed:
+                    changes.append(f"• 제거된 부서: {len(removed)}개")
+            
+            if changes:
+                message = f"🔧 **컨텍스트 소스 설정이 변경되었습니다**\n\n"
+                message += "\n".join(changes)
+                message += "\n\n이제 AI가 새로운 설정에 따라 메모리를 검색합니다."
+                
+                # 시스템 메시지로 전송
+                await self.repo.create_message(
+                    chat_room_id=room_id,
+                    user_id=AI_USER_ID,
+                    content=message,
+                    role="assistant",
+                )
+                
+                print(f"컨텍스트 소스 변경 알림 전송: {room_id}")
+        except Exception as e:
+            print(f"컨텍스트 소스 변경 알림 전송 실패: {e}")
 
     async def delete_chat_room(self, room_id: str, user_id: str) -> bool:
         """채팅방 삭제 (owner만 가능)"""
@@ -316,6 +415,82 @@ class ChatService:
         
         return result
 
+    async def _extract_topic_key(self, content: str) -> str:
+        """LLM을 사용하여 topic_key 추출"""
+        try:
+            llm_provider = get_llm_provider()
+            prompt = f"""다음 메모리 내용에서 핵심 주제(topic)를 3-5단어로 요약해주세요.
+주제는 구체적이고 간결해야 합니다.
+
+메모리: {content}
+
+주제:"""
+            
+            response = await llm_provider.generate(
+                prompt=prompt,
+                system_prompt="당신은 메모리의 핵심 주제를 추출하는 전문가입니다.",
+                temperature=0.3,
+                max_tokens=50,
+            )
+            
+            topic_key = response.strip()
+            return topic_key
+        except Exception as e:
+            print(f"topic_key 추출 실패: {e}")
+            # 실패하면 내용의 첫 20자를 topic_key로 사용
+            return content[:20]
+
+    async def _check_memory_relationship(
+        self,
+        new_content: str,
+        existing_memories: list[dict[str, Any]],
+    ) -> tuple[str, dict[str, Any] | None]:
+        """LLM을 사용하여 기존 메모리와의 관계 판정"""
+        if not existing_memories:
+            return "UNRELATED", None
+        
+        try:
+            llm_provider = get_llm_provider()
+            
+            # 기존 메모리 요약
+            existing_summary = "\n".join([
+                f"- {m['content'][:100]}..." 
+                for m in existing_memories[:3]
+            ])
+            
+            prompt = f"""새로운 메모리와 기존 메모리의 관계를 판단해주세요.
+
+새 메모리: {new_content}
+
+기존 메모리:
+{existing_summary}
+
+관계를 다음 중 하나로만 답변해주세요:
+- UPDATE: 기존 정보를 완전히 대체
+- SUPPLEMENT: 기존 정보에 추가
+- CONTRADICTION: 기존 정보와 상반됨
+- UNRELATED: 관계 없음
+
+관계:"""
+            
+            response = await llm_provider.generate(
+                prompt=prompt,
+                system_prompt="당신은 메모리 간의 관계를 판단하는 전문가입니다.",
+                temperature=0.1,
+                max_tokens=20,
+            )
+            
+            relationship = response.strip().upper()
+            
+            # UPDATE인 경우 가장 최근 메모리 반환
+            if relationship == "UPDATE" and existing_memories:
+                return relationship, existing_memories[0]
+            
+            return relationship, None
+        except Exception as e:
+            print(f"메모리 관계 판정 실패: {e}")
+            return "UNRELATED", None
+
     async def _cmd_remember(
         self,
         room: dict[str, Any],
@@ -390,6 +565,32 @@ class ChatService:
             user_proj_id = found_project["id"]
         
         try:
+            # 1. topic_key 추출
+            topic_key = await self._extract_topic_key(content)
+            print(f"추출된 topic_key: {topic_key}")
+            
+            # 2. 같은 topic_key를 가진 기존 메모리 검색
+            existing_memories = await self.memory_repo.get_memories_by_topic_key(
+                topic_key=topic_key,
+                owner_id=user_id,
+                limit=5,
+            )
+            
+            # 3. 기존 메모리와의 관계 판정
+            relationship, superseded_memory = await self._check_memory_relationship(
+                new_content=content,
+                existing_memories=existing_memories,
+            )
+            print(f"메모리 관계: {relationship}")
+            
+            # 4. UPDATE인 경우 기존 메모리를 superseded 처리
+            if relationship == "UPDATE" and superseded_memory:
+                await self.memory_repo.update_superseded(
+                    memory_id=superseded_memory["id"],
+                    superseded_by="",  # 새 메모리 ID는 저장 후 업데이트
+                )
+                print(f"기존 메모리 {superseded_memory['id']}를 superseded로 표시")
+            
             embedding_provider = get_embedding_provider()
             vector = await embedding_provider.embed(content)
             
@@ -406,6 +607,7 @@ class ChatService:
                 chat_room_id=None,
                 category="fact",
                 importance="medium",
+                topic_key=topic_key,
             )
             await upsert_vector(vector_id_personal, vector, {
                 "memory_id": memory_personal["id"],
@@ -425,6 +627,7 @@ class ChatService:
                 chat_room_id=room["id"],
                 category="fact",
                 importance="medium",
+                topic_key=topic_key,
             )
             await upsert_vector(vector_id_chatroom, vector, {
                 "memory_id": memory_chatroom["id"],
@@ -434,6 +637,13 @@ class ChatService:
             })
             saved_memories.append(memory_chatroom)
             saved_scopes.append("채팅방")
+            
+            # UPDATE인 경우 superseded_by 업데이트
+            if relationship == "UPDATE" and superseded_memory:
+                await self.memory_repo.update_superseded(
+                    memory_id=superseded_memory["id"],
+                    superseded_by=memory_chatroom["id"],
+                )
             
             # 3. 부서 메모리 저장 (옵션)
             if include_dept and user_dept_id:
@@ -446,6 +656,7 @@ class ChatService:
                     department_id=user_dept_id,
                     category="fact",
                     importance="medium",
+                    topic_key=topic_key,
                 )
                 await upsert_vector(vector_id_dept, vector, {
                     "memory_id": memory_dept["id"],
@@ -467,6 +678,7 @@ class ChatService:
                     project_id=user_proj_id,
                     category="fact",
                     importance="medium",
+                    topic_key=topic_key,
                 )
                 await upsert_vector(vector_id_proj, vector, {
                     "memory_id": memory_proj["id"],
@@ -478,7 +690,12 @@ class ChatService:
                 saved_scopes.append("프로젝트")
             
             scope_label = " + ".join(saved_scopes)
-            return f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: {scope_label}", saved_memories
+            response = f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: {scope_label}"
+            
+            if relationship == "UPDATE":
+                response += f"\n\nℹ️ 기존 메모리가 최신 정보로 업데이트되었습니다."
+            
+            return response, saved_memories
             
         except Exception as e:
             print(f"메모리 저장 실패: {e}")
@@ -783,6 +1000,31 @@ AI가 해당 메모리들도 참조합니다."""
 
         return enriched
 
+    def _calculate_recency_score(self, created_at: str) -> float:
+        """최신성 점수 계산"""
+        try:
+            # created_at 파싱 (timezone 정보 유지)
+            created_dt = datetime.fromisoformat(created_at)
+            
+            # timezone이 없으면 UTC로 처리
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            
+            # 현재 시간 (UTC)
+            now = datetime.now(timezone.utc)
+            
+            # 시간 차이 계산
+            days_old = (now - created_dt).days
+            
+            # 30일 이상이면 0, 그렇지 않으면 선형 감쇠
+            if days_old >= RECENCY_DECAY_DAYS:
+                return 0.0
+            else:
+                return max(0.0, 1.0 - (days_old / RECENCY_DECAY_DAYS))
+        except Exception as e:
+            print(f"최신성 점수 계산 실패: {e}")
+            return 0.5  # 실패하면 중간값 반환
+
     async def _search_relevant_memories(
         self,
         query: str,
@@ -790,7 +1032,7 @@ AI가 해당 메모리들도 참조합니다."""
         current_room_id: str,
         context_sources: dict | None,
     ) -> list[dict[str, Any]]:
-        """컨텍스트 소스 기반 메모리 검색 (새 구조)"""
+        """컨텍스트 소스 기반 메모리 검색 (re-ranking + superseded 필터링)"""
         # context_sources가 None이면 기본값 사용
         if context_sources is None:
             context_sources = {}
@@ -802,6 +1044,7 @@ AI가 해당 메모리들도 참조합니다."""
         print(f"현재 채팅방 ID: {current_room_id}")
         print(f"context_sources: {context_sources}")
         print(f"memory_config: {memory_config}")
+        print(f"include_this_room: {memory_config.get('include_this_room', True)}")
         print(f"other_chat_rooms: {memory_config.get('other_chat_rooms', [])}")
         
         embedding_provider = get_embedding_provider()
@@ -823,7 +1066,11 @@ AI가 해당 메모리들도 참조합니다."""
                     print(f"    - score: {r['score']:.3f}, payload: {r['payload']}")
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
-                        all_memories.append({"memory": memory, "score": r["score"]})
+                        # superseded된 메모리 필터링
+                        if not memory.get("superseded", False):
+                            all_memories.append({"memory": memory, "score": r["score"]})
+                        else:
+                            print(f"    - superseded된 메모리 제외: {memory['id']}")
             except Exception as e:
                 print(f"    실패: {e}")
         
@@ -843,7 +1090,11 @@ AI가 해당 메모리들도 참조합니다."""
                     print(f"    - score: {r['score']:.3f}, payload: {r['payload']}")
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
-                        all_memories.append({"memory": memory, "score": r["score"]})
+                        # superseded된 메모리 필터링
+                        if not memory.get("superseded", False):
+                            all_memories.append({"memory": memory, "score": r["score"]})
+                        else:
+                            print(f"    - superseded된 메모리 제외: {memory['id']}")
             except Exception as e:
                 print(f"    실패: {e}")
         
@@ -860,7 +1111,11 @@ AI가 해당 메모리들도 참조합니다."""
                 for r in results:
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
-                        all_memories.append({"memory": memory, "score": r["score"]})
+                        # superseded된 메모리 필터링
+                        if not memory.get("superseded", False):
+                            all_memories.append({"memory": memory, "score": r["score"]})
+                        else:
+                            print(f"    - superseded된 메모리 제외: {memory['id']}")
             except Exception as e:
                 print(f"    실패: {e}")
         
@@ -875,7 +1130,9 @@ AI가 해당 메모리들도 참조합니다."""
                 for r in results:
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
-                        all_memories.append({"memory": memory, "score": r["score"]})
+                        # superseded된 메모리 필터링
+                        if not memory.get("superseded", False):
+                            all_memories.append({"memory": memory, "score": r["score"]})
             except Exception as e:
                 print(f"프로젝트 메모리 검색 실패: {e}")
         
@@ -890,9 +1147,20 @@ AI가 해당 메모리들도 참조합니다."""
                 for r in results:
                     memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
                     if memory:
-                        all_memories.append({"memory": memory, "score": r["score"]})
+                        # superseded된 메모리 필터링
+                        if not memory.get("superseded", False):
+                            all_memories.append({"memory": memory, "score": r["score"]})
             except Exception as e:
                 print(f"부서 메모리 검색 실패: {e}")
+        
+        # Re-ranking: similarity × α + recency × β
+        for m in all_memories:
+            similarity_score = m["score"]
+            recency_score = self._calculate_recency_score(m["memory"]["created_at"])
+            final_score = (similarity_score * SIMILARITY_ALPHA) + (recency_score * RECENCY_BETA)
+            m["score"] = final_score
+            m["similarity_score"] = similarity_score
+            m["recency_score"] = recency_score
         
         # 중복 제거 및 정렬
         seen = set()
@@ -904,7 +1172,7 @@ AI가 해당 메모리들도 참조합니다."""
         
         print(f"\n========== 총 메모리 검색 결과: {len(unique_memories)}개 ==========")
         for m in unique_memories:
-            print(f"  - {m['memory']['content'][:50]}... (score: {m['score']:.3f})")
+            print(f"  - {m['memory']['content'][:50]}... (final_score: {m['score']:.3f}, similarity: {m['similarity_score']:.3f}, recency: {m['recency_score']:.3f})")
         print("")
         
         return unique_memories[:10]
@@ -916,7 +1184,6 @@ AI가 해당 메모리들도 참조합니다."""
     ) -> str:
         """시스템 프롬프트 구성 (우선순위: RAG 문서 > 메모리)"""
         # 현재 날짜 (UTC+9)
-        from datetime import datetime, timedelta, timezone
         current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
         
         base_prompt = f"""당신은 팀의 AI 어시스턴트입니다.
@@ -924,7 +1191,12 @@ AI가 해당 메모리들도 참조합니다."""
 대화 내용을 잘 참고하여 맥락에 맞는 답변을 해주세요.
 
 현재 날짜: {current_date}
-날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요."""
+날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요.
+
+[메모리 사용 가이드]
+- 여러 메모리에 상반된 정보가 있을 경우, 가장 최신 메모리를 우선 적용하세요.
+- 만약 최신 정보가 명확하지 않거나 충돌이 심각하다면, 사용자에게 확인을 요청하세요.
+- 메모리의 출처와 생성 시간을 고려하여 답변하세요."""
 
         # RAG 문서 (높은 우선순위 - 먼저 배치)
         if document_chunks:
@@ -942,7 +1214,8 @@ AI가 해당 메모리들도 참조합니다."""
             memory_text = "\n\n[저장된 메모리 - 참고용]\n"
             for i, m in enumerate(memories, 1):
                 mem = m["memory"]
-                memory_text += f"{i}. {mem['content']} (유사도: {m['score']:.2f})\n"
+                created_at = mem.get("created_at", "")
+                memory_text += f"{i}. {mem['content']} (유사도: {m['score']:.2f}, 생성일: {created_at[:10]})\n"
             base_prompt += memory_text
 
         return base_prompt
