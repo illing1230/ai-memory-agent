@@ -373,6 +373,29 @@ class ChatRepository:
         member = await self.get_member(chat_room_id, user_id)
         return member is not None
 
+    async def get_project_members(self, project_id: str) -> list[dict[str, Any]]:
+        """프로젝트 멤버 목록 조회"""
+        cursor = await self.db.execute(
+            """SELECT pm.*, u.name as user_name, u.email as user_email
+               FROM project_members pm
+               LEFT JOIN users u ON pm.user_id = u.id
+               WHERE pm.project_id = ?""",
+            (project_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    async def get_department_members(self, department_id: str) -> list[dict[str, Any]]:
+        """부서 멤버 목록 조회"""
+        cursor = await self.db.execute(
+            """SELECT id as user_id, name as user_name, email as user_email, department_id
+               FROM users
+               WHERE department_id = ?""",
+            (department_id,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     async def get_user_rooms(
         self,
         user_id: str,

@@ -51,7 +51,7 @@ class ChatService:
         department_id: str | None = None,
         context_sources: dict | None = None,
     ) -> dict[str, Any]:
-        """대화방 생성 + 생성자를 owner로 추가"""
+        """대화방 생성 + 생성자를 owner로 추가 + 프로젝트/부서 멤버 자동 초대"""
         # 기본 context_sources 설정 (새 구조)
         if context_sources is None:
             context_sources = {
@@ -80,6 +80,32 @@ class ChatService:
         
         # 생성자를 owner로 추가
         await self.repo.add_member(room["id"], owner_id, "owner")
+        
+        # 프로젝트 타입: 프로젝트 멤버 자동 초대
+        if room_type == "project" and project_id:
+            project_members = await self.repo.get_project_members(project_id)
+            for member in project_members:
+                user_id = member.get("user_id")
+                # owner는 이미 추가되었으므로 제외
+                if user_id and user_id != owner_id:
+                    try:
+                        await self.repo.add_member(room["id"], user_id, "member")
+                        print(f"프로젝트 멤버 자동 초대: {user_id}")
+                    except Exception as e:
+                        print(f"프로젝트 멤버 초대 실패 ({user_id}): {e}")
+        
+        # 부서 타입: 부서 멤버 자동 초대
+        if room_type == "department" and department_id:
+            department_members = await self.repo.get_department_members(department_id)
+            for member in department_members:
+                user_id = member.get("user_id")
+                # owner는 이미 추가되었으므로 제외
+                if user_id and user_id != owner_id:
+                    try:
+                        await self.repo.add_member(room["id"], user_id, "member")
+                        print(f"부서 멤버 자동 초대: {user_id}")
+                    except Exception as e:
+                        print(f"부서 멤버 초대 실패 ({user_id}): {e}")
         
         return room
 
