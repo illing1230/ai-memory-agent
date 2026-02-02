@@ -251,7 +251,8 @@ class ChatRepository:
         chat_room_id: str,
         user_id: str,
     ) -> dict[str, Any] | None:
-        """채팅방 멤버 조회"""
+        """채팅방 멤버 조회 (직접 멤버 + member 공유)"""
+        # 1. 직접 멤버 확인
         cursor = await self.db.execute(
             """SELECT m.*, u.name as user_name, u.email as user_email
                FROM chat_room_members m
@@ -260,7 +261,63 @@ class ChatRepository:
             (chat_room_id, user_id),
         )
         row = await cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            return dict(row)
+
+        # 2. shares 테이블에서 member 공유 확인
+        share_role = await self._get_share_role(chat_room_id, user_id)
+        if share_role and share_role in ("member", "owner"):
+            return {
+                "chat_room_id": chat_room_id,
+                "user_id": user_id,
+                "role": "member",
+                "is_shared": True,
+            }
+
+        return None
+
+    async def _get_share_role(
+        self,
+        chat_room_id: str,
+        user_id: str,
+    ) -> str | None:
+        """shares 테이블에서 사용자의 채팅방 공유 역할 조회 (user/project/department 레벨)"""
+        # 1. 직접 사용자 공유
+        cursor = await self.db.execute(
+            """SELECT role FROM shares
+               WHERE resource_type = 'chat_room' AND resource_id = ?
+               AND target_type = 'user' AND target_id = ?""",
+            (chat_room_id, user_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row["role"]
+
+        # 2. 프로젝트 레벨 공유 (사용자가 속한 프로젝트에 공유된 경우)
+        cursor = await self.db.execute(
+            """SELECT s.role FROM shares s
+               INNER JOIN project_members pm ON s.target_id = pm.project_id
+               WHERE s.resource_type = 'chat_room' AND s.resource_id = ?
+               AND s.target_type = 'project' AND pm.user_id = ?""",
+            (chat_room_id, user_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row["role"]
+
+        # 3. 부서 레벨 공유 (사용자의 부서에 공유된 경우)
+        cursor = await self.db.execute(
+            """SELECT s.role FROM shares s
+               INNER JOIN users u ON s.target_id = u.department_id
+               WHERE s.resource_type = 'chat_room' AND s.resource_id = ?
+               AND s.target_type = 'department' AND u.id = ?""",
+            (chat_room_id, user_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row["role"]
+
+        return None
 
     async def list_members(
         self,
@@ -330,10 +387,10 @@ class ChatRepository:
             (user_id,),
         )
         member_rows = await cursor.fetchall()
-        
-        # 2. 공유받은 채팅방
+
+        # 2. 공유받은 채팅방 (user 직접 공유)
         cursor = await self.db.execute(
-            """SELECT r.*, s.role as member_role
+            """SELECT r.*, s.role as share_role
                FROM chat_rooms r
                INNER JOIN shares s ON r.id = s.resource_id
                WHERE s.resource_type = 'chat_room'
@@ -341,30 +398,71 @@ class ChatRepository:
                AND s.target_id = ?""",
             (user_id,),
         )
-        shared_rows = await cursor.fetchall()
-        
+        shared_user_rows = await cursor.fetchall()
+
+        # 3. 프로젝트 레벨 공유 (사용자가 속한 프로젝트에 공유된 채팅방)
+        cursor = await self.db.execute(
+            """SELECT r.*, s.role as share_role
+               FROM chat_rooms r
+               INNER JOIN shares s ON r.id = s.resource_id
+               INNER JOIN project_members pm ON s.target_id = pm.project_id
+               WHERE s.resource_type = 'chat_room'
+               AND s.target_type = 'project'
+               AND pm.user_id = ?""",
+            (user_id,),
+        )
+        shared_project_rows = await cursor.fetchall()
+
+        # 4. 부서 레벨 공유 (사용자의 부서에 공유된 채팅방)
+        cursor = await self.db.execute(
+            """SELECT r.*, s.role as share_role
+               FROM chat_rooms r
+               INNER JOIN shares s ON r.id = s.resource_id
+               INNER JOIN users u ON s.target_id = u.department_id
+               WHERE s.resource_type = 'chat_room'
+               AND s.target_type = 'department'
+               AND u.id = ?""",
+            (user_id,),
+        )
+        shared_dept_rows = await cursor.fetchall()
+
         # 중복 제거 (멤버로 속한 채팅방이 우선)
         seen_ids = set()
         results = []
-        
-        # 멤버 채팅방 먼저 추가
+
+        # 멤버 채팅방 먼저 추가 (share_role=None)
         for row in member_rows:
             data = dict(row)
+            data["share_role"] = None
             if data.get("context_sources"):
                 data["context_sources"] = json.loads(data["context_sources"])
             results.append(data)
             seen_ids.add(data["id"])
-        
-        # 공유받은 채팅방 추가 (중복 제외)
-        for row in shared_rows:
-            data = dict(row)
-            if data["id"] not in seen_ids:
-                if data.get("context_sources"):
-                    data["context_sources"] = json.loads(data["context_sources"])
-                results.append(data)
-                seen_ids.add(data["id"])
-        
+
+        # 공유받은 채팅방 추가 (중복 제외, 가장 높은 권한 적용)
+        role_priority = {"owner": 0, "member": 1, "viewer": 2}
+        for rows in [shared_user_rows, shared_project_rows, shared_dept_rows]:
+            for row in rows:
+                data = dict(row)
+                room_id = data["id"]
+                share_role = data.get("share_role", "viewer")
+                if room_id not in seen_ids:
+                    data["member_role"] = share_role
+                    data["share_role"] = share_role
+                    if data.get("context_sources"):
+                        data["context_sources"] = json.loads(data["context_sources"])
+                    results.append(data)
+                    seen_ids.add(room_id)
+                else:
+                    # 이미 추가된 공유 방이면, 더 높은 권한으로 업데이트
+                    for r in results:
+                        if r["id"] == room_id and r.get("share_role"):
+                            if role_priority.get(share_role, 99) < role_priority.get(r["share_role"], 99):
+                                r["member_role"] = share_role
+                                r["share_role"] = share_role
+                            break
+
         # created_at 기준 정렬
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        
+
         return results

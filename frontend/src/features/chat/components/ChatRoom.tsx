@@ -130,6 +130,18 @@ export function ChatRoom() {
     )
   }
 
+  if (room.share_role === 'viewer') {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <EmptyState
+          title="조회자 권한입니다"
+          description="이 채팅방은 메모리만 공유받은 상태입니다. 컨텍스트 소스 설정에서 이 방의 메모리를 활용할 수 있습니다."
+          action={<Button variant="secondary" onClick={() => navigate('/chat')}>돌아가기</Button>}
+        />
+      </div>
+    )
+  }
+
   // Context Sources 표시
   const contextSources = room.context_sources?.memory
   const sourceLabels: string[] = []

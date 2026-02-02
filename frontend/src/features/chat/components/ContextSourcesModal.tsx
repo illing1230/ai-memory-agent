@@ -303,7 +303,10 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                             className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
                           />
                           <span className="text-sm">{r.name}</span>
-                          <span className="text-xs text-foreground-muted ml-auto">
+                          <span className="text-xs text-foreground-muted ml-auto flex items-center gap-1">
+                            {r.share_role === 'viewer' && (
+                              <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">공유</span>
+                            )}
                             {r.room_type === 'personal' ? '개인' : r.room_type === 'project' ? '프로젝트' : '부서'}
                           </span>
                         </label>

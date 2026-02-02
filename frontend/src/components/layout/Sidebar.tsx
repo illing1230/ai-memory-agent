@@ -206,13 +206,13 @@ export function Sidebar() {
               <div className="px-2 py-1 text-xs text-foreground-muted">채팅방이 없습니다</div>
             ) : (
               chatRooms
-                .filter((room: ChatRoom) => room.member_role) // 멤버로 속한 채팅방만 표시
+                .filter((room: ChatRoom) => room.share_role !== 'viewer') // viewer 공유 방은 제외 (입장 불가)
                 .map((room: ChatRoom) => (
                 <SidebarItem
                   key={room.id}
                   to={`/chat/${room.id}`}
                   icon={MessageSquare}
-                  label={room.name}
+                  label={room.share_role === 'member' ? `${room.name} (공유)` : room.name}
                   active={location.pathname === `/chat/${room.id}`}
                 />
               ))

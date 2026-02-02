@@ -3,7 +3,6 @@
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
 
 import aiosqlite
 
@@ -11,9 +10,7 @@ from src.config import get_settings
 from src.shared.database import init_database, close_database, get_db_sync
 from src.shared.vector_store import init_vector_store, close_vector_store, upsert_vector
 from src.shared.providers import get_embedding_provider
-
-# 비밀번호 해시 컨텍스트
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from src.shared.auth import hash_password
 
 
 # ==================== 샘플 데이터 정의 ====================
@@ -263,7 +260,14 @@ async def seed_data():
 
     # 초기화
     await init_database()
-    await init_vector_store()
+
+    # Qdrant 연결 (타임아웃 10초, 실패해도 계속 진행)
+    try:
+        await asyncio.wait_for(init_vector_store(), timeout=10)
+    except asyncio.TimeoutError:
+        print("⚠️  Qdrant 연결 타임아웃 (벡터 검색 기능 비활성화)")
+    except Exception as e:
+        print(f"⚠️  Qdrant 연결 실패 (벡터 검색 기능 비활성화): {e}")
 
     db = await get_db_sync()
 
@@ -295,7 +299,7 @@ async def seed_data():
         # 테스트 사용자 비밀번호 설정
         settings = get_settings()
         test_password = getattr(settings, 'test_user_password', 'test123')
-        test_password_hash = pwd_context.hash(test_password)
+        test_password_hash = hash_password(test_password)
         
         for i, user in enumerate(USERS):
             # 미리 정의된 ID가 있으면 사용, 없으면 UUID 생성
@@ -378,6 +382,7 @@ async def seed_data():
         # 7. 메모리 생성 (벡터 포함)
         print("\n🧠 메모리 생성...")
         memory_ids = []
+        embedding_failed = False  # 임베딩 한 번 실패하면 이후 스킵
         for mem in MEMORIES:
             memory_id = str(uuid.uuid4())
             vector_id = str(uuid.uuid4())
@@ -386,15 +391,18 @@ async def seed_data():
             project_id = project_ids[mem["project_idx"]] if "project_idx" in mem else None
             department_id = dept_ids[mem["dept_idx"]] if "dept_idx" in mem else None
 
-            # 임베딩 생성 (프로바이더 있을 때만)
+            # 임베딩 생성 (프로바이더 있고, 이전에 실패하지 않았을 때만)
             vector = None
-            if embedding_provider:
+            if embedding_provider and not embedding_failed:
                 try:
-                    vector = await embedding_provider.embed(mem["content"])
+                    vector = await asyncio.wait_for(
+                        embedding_provider.embed(mem["content"]), timeout=10
+                    )
                 except Exception as e:
-                    print(f"  ⚠ 임베딩 실패 (스킵): {e}")
+                    print(f"  ⚠ 임베딩 실패 (이후 임베딩 스킵): {e}")
                     vector = None
                     vector_id = None
+                    embedding_failed = True
             else:
                 vector_id = None
 

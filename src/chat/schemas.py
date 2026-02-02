@@ -47,6 +47,7 @@ class ChatRoomResponse(ChatRoomBase):
     department_id: str | None = None
     context_sources: ContextSources | None = None
     member_role: str | None = None  # 내 역할 (owner/admin/member)
+    share_role: str | None = None  # 공유 역할 (viewer/member/None=직접 멤버)
     created_at: datetime
 
     class Config:

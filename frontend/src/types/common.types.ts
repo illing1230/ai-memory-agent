@@ -48,7 +48,8 @@ export interface ChatRoom {
   owner_id: string
   project_id?: string
   department_id?: string
-  member_role?: 'owner' | 'admin' | 'member'
+  member_role?: 'owner' | 'admin' | 'member' | 'viewer'
+  share_role?: 'viewer' | 'member' | null
   context_sources?: ContextSources
   created_at: string
   updated_at?: string
