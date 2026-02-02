@@ -66,12 +66,12 @@ export function ChatRoom() {
 
   const handleDeleteRoom = useCallback(async () => {
     if (!roomId) return
-    if (!confirm('이 채팅방을 삭제하시겠습니까? 모든 메시지가 삭제됩니다.')) return
+    if (!confirm('이 대화방을 삭제하시겠습니까? 모든 메시지가 삭제됩니다.')) return
     try {
       await deleteRoomMutation.mutateAsync(roomId)
       navigate('/chat')
     } catch (error) {
-      console.error('채팅방 삭제 실패:', error)
+      console.error('대화방 삭제 실패:', error)
     }
   }, [roomId, deleteRoomMutation, navigate])
 
@@ -99,13 +99,13 @@ export function ChatRoom() {
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
         <EmptyState
-          title="채팅방을 선택하세요"
-          description={chatRooms.length === 0 ? '새 채팅방을 만들어 대화를 시작하세요' : '왼쪽 사이드바에서 채팅방을 선택하세요'}
+          title="대화방을 선택하세요"
+          description={chatRooms.length === 0 ? '새 대화방을 만들어 대화를 시작하세요' : '왼쪽 사이드바에서 대화방을 선택하세요'}
           action={
             chatRooms.length === 0 && (
               <Button onClick={() => setCreateRoomModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" />
-                새 채팅방 만들기
+                새 대화방 만들기
               </Button>
             )
           }
@@ -122,7 +122,7 @@ export function ChatRoom() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <EmptyState
-          title="채팅방을 찾을 수 없습니다"
+          title="대화방을 찾을 수 없습니다"
           description="삭제되었거나 접근 권한이 없을 수 있습니다"
           action={<Button variant="secondary" onClick={() => navigate('/chat')}>돌아가기</Button>}
         />
@@ -135,7 +135,7 @@ export function ChatRoom() {
       <div className="flex-1 flex items-center justify-center">
         <EmptyState
           title="조회자 권한입니다"
-          description="이 채팅방은 메모리만 공유받은 상태입니다. 컨텍스트 소스 설정에서 이 방의 메모리를 활용할 수 있습니다."
+          description="이 대화방은은 메모리만 공유받은 상태입니다. 컨텍스트 소스 설정에서 이 방의 메모리를 활용할 수 있습니다."
           action={<Button variant="secondary" onClick={() => navigate('/chat')}>돌아가기</Button>}
         />
       </div>
@@ -146,7 +146,7 @@ export function ChatRoom() {
   const contextSources = room.context_sources?.memory
   const sourceLabels: string[] = []
   if (contextSources?.include_this_room !== false) {
-    sourceLabels.push('이 채팅방')
+    sourceLabels.push('이 대화방')
   }
   if (contextSources?.other_chat_rooms?.length) {
     sourceLabels.push(`다른방(${contextSources.other_chat_rooms.length})`)
@@ -161,7 +161,7 @@ export function ChatRoom() {
     sourceLabels.push(`부서(${contextSources.departments.length})`)
   }
   if (sourceLabels.length === 0) {
-    sourceLabels.push('이 채팅방')
+    sourceLabels.push('이 대화방')
   }
 
   return (
@@ -204,7 +204,7 @@ export function ChatRoom() {
             </Button>
           </Tooltip>
           {user?.id === room.owner_id && (
-            <Tooltip content="채팅방 삭제" side="bottom">
+            <Tooltip content="대화방 삭제" side="bottom">
               <Button
                 variant="ghost"
                 size="icon"

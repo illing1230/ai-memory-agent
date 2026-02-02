@@ -8,7 +8,7 @@ import aiosqlite
 
 
 class ChatRepository:
-    """채팅방 관련 데이터베이스 작업"""
+    """대화방 관련 데이터베이스 작업"""
 
     def __init__(self, db: aiosqlite.Connection):
         self.db = db
@@ -24,7 +24,7 @@ class ChatRepository:
         department_id: str | None = None,
         context_sources: dict | None = None,
     ) -> dict[str, Any]:
-        """채팅방 생성"""
+        """대화방 생성"""
         room_id = str(uuid.uuid4())
         await self.db.execute(
             """INSERT INTO chat_rooms (id, name, room_type, owner_id, project_id, department_id, context_sources)
@@ -36,7 +36,7 @@ class ChatRepository:
         return await self.get_chat_room(room_id)
 
     async def get_chat_room(self, room_id: str) -> dict[str, Any] | None:
-        """채팅방 조회"""
+        """대화방 조회"""
         cursor = await self.db.execute(
             "SELECT * FROM chat_rooms WHERE id = ?", (room_id,)
         )
@@ -55,7 +55,7 @@ class ChatRepository:
         project_id: str | None = None,
         department_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """채팅방 목록 조회"""
+        """대화방 목록 조회"""
         conditions = []
         params = []
 
@@ -93,7 +93,7 @@ class ChatRepository:
         name: str | None = None,
         context_sources: dict | None = None,
     ) -> dict[str, Any] | None:
-        """채팅방 수정"""
+        """대화방 수정"""
         updates = []
         params = []
 
@@ -116,23 +116,23 @@ class ChatRepository:
         return await self.get_chat_room(room_id)
 
     async def delete_chat_room(self, room_id: str) -> bool:
-        """채팅방 삭제 (관련 메시지, 멤버, 메모리도 함께 삭제)"""
-        # 1. 채팅방 메시지 삭제
+        """대화방 삭제 (관련 메시지, 멤버, 메모리도 함께 삭제)"""
+        # 1. 대화방 메시지 삭제
         await self.db.execute(
             "DELETE FROM chat_messages WHERE chat_room_id = ?", (room_id,)
         )
         
-        # 2. 채팅방 멤버 삭제
+        # 2. 대화방 멤버 삭제
         await self.db.execute(
             "DELETE FROM chat_room_members WHERE chat_room_id = ?", (room_id,)
         )
         
-        # 3. 채팅방 메모리 삭제 (scope="chatroom"인 메모리만)
+        # 3. 대화방 메모리 삭제 (scope="chatroom"인 메모리만)
         await self.db.execute(
             "DELETE FROM memories WHERE chat_room_id = ? AND scope = 'chatroom'", (room_id,)
         )
         
-        # 4. 채팅방 삭제
+        # 4. 대화방 삭제
         cursor = await self.db.execute(
             "DELETE FROM chat_rooms WHERE id = ?", (room_id,)
         )
@@ -184,7 +184,7 @@ class ChatRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """채팅방 메시지 목록 조회"""
+        """대화방 메시지 목록 조회"""
         cursor = await self.db.execute(
             """SELECT m.*, u.name as user_name 
                FROM chat_messages m
@@ -236,7 +236,7 @@ class ChatRepository:
         user_id: str,
         role: str = "member",
     ) -> dict[str, Any]:
-        """채팅방 멤버 추가"""
+        """대화방 멤버 추가"""
         member_id = str(uuid.uuid4())
         await self.db.execute(
             """INSERT INTO chat_room_members (id, chat_room_id, user_id, role)
@@ -251,7 +251,7 @@ class ChatRepository:
         chat_room_id: str,
         user_id: str,
     ) -> dict[str, Any] | None:
-        """채팅방 멤버 조회 (직접 멤버 + member 공유)"""
+        """대화방 멤버 조회 (직접 멤버 + member 공유)"""
         # 1. 직접 멤버 확인
         cursor = await self.db.execute(
             """SELECT m.*, u.name as user_name, u.email as user_email
@@ -281,7 +281,7 @@ class ChatRepository:
         chat_room_id: str,
         user_id: str,
     ) -> str | None:
-        """shares 테이블에서 사용자의 채팅방 공유 역할 조회 (user/project/department 레벨)"""
+        """shares 테이블에서 사용자의 대화방 공유 역할 조회 (user/project/department 레벨)"""
         # 1. 직접 사용자 공유
         cursor = await self.db.execute(
             """SELECT role FROM shares
@@ -323,7 +323,7 @@ class ChatRepository:
         self,
         chat_room_id: str,
     ) -> list[dict[str, Any]]:
-        """채팅방 멤버 목록"""
+        """대화방 멤버 목록"""
         cursor = await self.db.execute(
             """SELECT m.*, u.name as user_name, u.email as user_email
                FROM chat_room_members m
@@ -341,7 +341,7 @@ class ChatRepository:
         user_id: str,
         role: str,
     ) -> dict[str, Any] | None:
-        """채팅방 멤버 역할 변경"""
+        """대화방 멤버 역할 변경"""
         await self.db.execute(
             """UPDATE chat_room_members SET role = ?
                WHERE chat_room_id = ? AND user_id = ?""",
@@ -355,7 +355,7 @@ class ChatRepository:
         chat_room_id: str,
         user_id: str,
     ) -> bool:
-        """채팅방 멤버 제거"""
+        """대화방 멤버 제거"""
         cursor = await self.db.execute(
             """DELETE FROM chat_room_members
                WHERE chat_room_id = ? AND user_id = ?""",
@@ -377,8 +377,8 @@ class ChatRepository:
         self,
         user_id: str,
     ) -> list[dict[str, Any]]:
-        """사용자가 속한 채팅방 목록 (멤버 + 공유받은 채팅방)"""
-        # 1. 멤버로 속한 채팅방
+        """사용자가 속한 대화방 목록 (멤버 + 공유받은 대화방)"""
+        # 1. 멤버로 속한 대화방
         cursor = await self.db.execute(
             """SELECT r.*, m.role as member_role
                FROM chat_rooms r
@@ -388,7 +388,7 @@ class ChatRepository:
         )
         member_rows = await cursor.fetchall()
 
-        # 2. 공유받은 채팅방 (user 직접 공유)
+        # 2. 공유받은 대화방 (user 직접 공유)
         cursor = await self.db.execute(
             """SELECT r.*, s.role as share_role
                FROM chat_rooms r
@@ -400,7 +400,7 @@ class ChatRepository:
         )
         shared_user_rows = await cursor.fetchall()
 
-        # 3. 프로젝트 레벨 공유 (사용자가 속한 프로젝트에 공유된 채팅방)
+        # 3. 프로젝트 레벨 공유 (사용자가 속한 프로젝트에 공유된 대화방)
         cursor = await self.db.execute(
             """SELECT r.*, s.role as share_role
                FROM chat_rooms r
@@ -413,7 +413,7 @@ class ChatRepository:
         )
         shared_project_rows = await cursor.fetchall()
 
-        # 4. 부서 레벨 공유 (사용자의 부서에 공유된 채팅방)
+        # 4. 부서 레벨 공유 (사용자의 부서에 공유된 대화방)
         cursor = await self.db.execute(
             """SELECT r.*, s.role as share_role
                FROM chat_rooms r
@@ -426,11 +426,11 @@ class ChatRepository:
         )
         shared_dept_rows = await cursor.fetchall()
 
-        # 중복 제거 (멤버로 속한 채팅방이 우선)
+        # 중복 제거 (멤버로 속한 대화방이 우선)
         seen_ids = set()
         results = []
 
-        # 멤버 채팅방 먼저 추가 (share_role=None)
+        # 멤버 대화방 먼저 추가 (share_role=None)
         for row in member_rows:
             data = dict(row)
             data["share_role"] = None
@@ -439,7 +439,7 @@ class ChatRepository:
             results.append(data)
             seen_ids.add(data["id"])
 
-        # 공유받은 채팅방 추가 (중복 제외, 가장 높은 권한 적용)
+        # 공유받은 대화방 추가 (중복 제외, 가장 높은 권한 적용)
         role_priority = {"owner": 0, "member": 1, "viewer": 2}
         for rows in [shared_user_rows, shared_project_rows, shared_dept_rows]:
             for row in rows:

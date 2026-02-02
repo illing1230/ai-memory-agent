@@ -34,7 +34,7 @@ ai-memory-agent/
 │   ├── config.py                 # 설정 (pydantic-settings)
 │   ├── admin/                    # 관리자 API
 │   ├── auth/                     # 인증 (로그인/회원가입)
-│   ├── chat/                     # 채팅방 + AI 응답 생성
+│   ├── chat/                     # 대화방 + AI 응답 생성
 │   ├── document/                 # RAG 문서 업로드/관리
 │   ├── mchat/                    # Mattermost(Mchat) 연동
 │   ├── memory/                   # 메모리 CRUD + 검색
@@ -108,12 +108,12 @@ cd frontend && npm run lint
 ### AI 응답 컨텍스트 우선순위
 `src/chat/service.py`의 `_generate_ai_response()`에서:
 1. **대화 내용** (최우선) - 최근 20개 메시지
-2. **RAG 문서** (높은 우선순위) - 채팅방에 연결된 문서 청크
+2. **RAG 문서** (높은 우선순위) - 대화방에 연결된 문서 청크
 3. **저장된 메모리** (보조) - 컨텍스트 소스 설정 기반 검색
 
 ### 메모리 스코프
 - `personal` - 개인 메모리
-- `chatroom` - 채팅방 메모리
+- `chatroom` - 대화방 메모리
 - `project` - 프로젝트 메모리
 - `department` - 부서 메모리
 
@@ -128,11 +128,11 @@ cd frontend && npm run lint
 - `users` - 사용자 (role: user/admin)
 - `departments` - 부서
 - `projects` / `project_members` - 프로젝트 + 멤버
-- `chat_rooms` / `chat_room_members` - 채팅방 + 멤버
+- `chat_rooms` / `chat_room_members` - 대화방 + 멤버
 - `chat_messages` - 채팅 메시지 (user/assistant 역할)
 - `memories` - 메모리 (scope별 분류, vector_id로 Qdrant 연결)
 - `documents` / `document_chunks` - RAG 문서 + 청크
-- `document_chat_rooms` - 문서-채팅방 다대다 연결
+- `document_chat_rooms` - 문서-대화방 다대다 연결
 
 ## API 엔드포인트 (주요)
 
@@ -140,7 +140,7 @@ cd frontend && npm run lint
 |--------|------|------|
 | `/api/v1/auth` | auth | 로그인/회원가입/토큰검증 |
 | `/api/v1/users` | user | 사용자/부서/프로젝트 관리 |
-| `/api/v1/chat-rooms` | chat | 채팅방 CRUD + 메시지 |
+| `/api/v1/chat-rooms` | chat | 대화방 CRUD + 메시지 |
 | `/api/v1/memories` | memory | 메모리 CRUD + 검색 |
 | `/api/v1/documents` | document | 문서 업로드/목록/삭제/연결 |
 | `/api/v1/admin` | admin | 관리자 대시보드/관리 |

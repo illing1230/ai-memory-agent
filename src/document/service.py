@@ -136,7 +136,7 @@ class DocumentService:
         chat_room_id: str,
         limit: int = 5,
     ) -> list[dict[str, Any]]:
-        """채팅방 연결 문서에서 관련 청크 검색"""
+        """대화방 연결 문서에서 관련 청크 검색"""
         doc_ids = await self.repo.get_linked_document_ids(chat_room_id)
         if not doc_ids:
             return []

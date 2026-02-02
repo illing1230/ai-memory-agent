@@ -31,7 +31,7 @@ RECENCY_DECAY_DAYS = 30  # 30일 이상이면 recency = 0
 
 
 class ChatService:
-    """채팅방 관련 비즈니스 로직"""
+    """대화방 관련 비즈니스 로직"""
 
     def __init__(self, db: aiosqlite.Connection):
         self.repo = ChatRepository(db)
@@ -51,7 +51,7 @@ class ChatService:
         department_id: str | None = None,
         context_sources: dict | None = None,
     ) -> dict[str, Any]:
-        """채팅방 생성 + 생성자를 owner로 추가"""
+        """대화방 생성 + 생성자를 owner로 추가"""
         # 기본 context_sources 설정 (새 구조)
         if context_sources is None:
             context_sources = {
@@ -68,7 +68,7 @@ class ChatService:
                 }
             }
         
-        # 채팅방 생성
+        # 대화방 생성
         room = await self.repo.create_chat_room(
             name=name,
             owner_id=owner_id,
@@ -84,17 +84,17 @@ class ChatService:
         return room
 
     async def get_chat_room(self, room_id: str) -> dict[str, Any]:
-        """채팅방 조회"""
+        """대화방 조회"""
         room = await self.repo.get_chat_room(room_id)
         if not room:
-            raise NotFoundException("채팅방", room_id)
+            raise NotFoundException("대화방", room_id)
         return room
 
     async def list_chat_rooms(
         self,
         user_id: str,
     ) -> list[dict[str, Any]]:
-        """사용자가 속한 채팅방 목록"""
+        """사용자가 속한 대화방 목록"""
         return await self.repo.get_user_rooms(user_id)
 
     async def update_chat_room(
@@ -104,14 +104,14 @@ class ChatService:
         name: str | None = None,
         context_sources: dict | None = None,
     ) -> dict[str, Any]:
-        """채팅방 수정 (owner/admin만 가능)"""
+        """대화방 수정 (owner/admin만 가능)"""
         await self._check_admin_permission(room_id, user_id)
         
         # 변경 전 상태 확인
         old_room = await self.repo.get_chat_room(room_id)
         old_context_sources = old_room.get("context_sources", {})
         
-        # 채팅방 업데이트
+        # 대화방 업데이트
         updated_room = await self.repo.update_chat_room(room_id, name, context_sources)
         
         # 컨텍스트 소스가 변경된 경우 시스템 메시지 전송
@@ -143,7 +143,7 @@ class ChatService:
             if old_memory.get("include_this_room") != new_memory.get("include_this_room"):
                 old_val = "사용" if old_memory.get("include_this_room") else "사용 안 함"
                 new_val = "사용" if new_memory.get("include_this_room") else "사용 안 함"
-                changes.append(f"• 이 채팅방 메모리: {old_val} → {new_val}")
+                changes.append(f"• 이 대화방 메모리: {old_val} → {new_val}")
             
             # include_personal 변경 확인
             if old_memory.get("include_personal") != new_memory.get("include_personal"):
@@ -158,9 +158,9 @@ class ChatService:
                 added = new_rooms - old_rooms
                 removed = old_rooms - new_rooms
                 if added:
-                    changes.append(f"• 추가된 채팅방: {len(added)}개")
+                    changes.append(f"• 추가된 대화방: {len(added)}개")
                 if removed:
-                    changes.append(f"• 제거된 채팅방: {len(removed)}개")
+                    changes.append(f"• 제거된 대화방: {len(removed)}개")
             
             # projects 변경 확인
             old_projects = set(old_memory.get("projects", []))
@@ -202,14 +202,14 @@ class ChatService:
             print(f"컨텍스트 소스 변경 알림 전송 실패: {e}")
 
     async def delete_chat_room(self, room_id: str, user_id: str) -> bool:
-        """채팅방 삭제 (owner만 가능)"""
+        """대화방 삭제 (owner만 가능)"""
         await self._check_owner_permission(room_id, user_id)
         
-        # Vector DB에서 채팅방 메모리 삭제
+        # Vector DB에서 대화방 메모리 삭제
         try:
             from src.shared.vector_store import delete_vectors_by_filter
             await delete_vectors_by_filter({"chat_room_id": room_id})
-            print(f"채팅방 {room_id}의 Vector DB 데이터 삭제 완료")
+            print(f"대화방 {room_id}의 Vector DB 데이터 삭제 완료")
         except Exception as e:
             print(f"Vector DB 삭제 실패: {e}")
         
@@ -228,7 +228,7 @@ class ChatService:
         await self._check_admin_permission(room_id, user_id)
         
         if await self.repo.is_member(room_id, target_user_id):
-            raise ForbiddenException("이미 채팅방 멤버입니다")
+            raise ForbiddenException("이미 대화방 멤버입니다")
         
         return await self.repo.add_member(room_id, target_user_id, role)
 
@@ -252,7 +252,7 @@ class ChatService:
         
         member = await self.repo.get_member(room_id, target_user_id)
         if not member:
-            raise NotFoundException("채팅방 멤버", target_user_id)
+            raise NotFoundException("대화방 멤버", target_user_id)
         
         if member["role"] == "owner":
             raise ForbiddenException("owner의 역할은 변경할 수 없습니다")
@@ -268,11 +268,11 @@ class ChatService:
         """멤버 제거"""
         member = await self.repo.get_member(room_id, user_id)
         if not member:
-            raise ForbiddenException("채팅방 멤버가 아닙니다")
+            raise ForbiddenException("대화방 멤버가 아닙니다")
         
         if user_id == target_user_id:
             if member["role"] == "owner":
-                raise ForbiddenException("owner는 채팅방을 나갈 수 없습니다")
+                raise ForbiddenException("owner는 대화방을 나갈 수 없습니다")
             return await self.repo.remove_member(room_id, target_user_id)
         
         if member["role"] not in ["owner", "admin"]:
@@ -280,7 +280,7 @@ class ChatService:
         
         target_member = await self.repo.get_member(room_id, target_user_id)
         if not target_member:
-            raise NotFoundException("채팅방 멤버", target_user_id)
+            raise NotFoundException("대화방 멤버", target_user_id)
         
         if target_member["role"] == "owner":
             raise ForbiddenException("owner는 강퇴할 수 없습니다")
@@ -296,7 +296,7 @@ class ChatService:
         """멤버 권한 체크"""
         member = await self.repo.get_member(room_id, user_id)
         if not member:
-            raise ForbiddenException("채팅방 멤버가 아닙니다")
+            raise ForbiddenException("대화방 멤버가 아닙니다")
         return member
 
     async def _check_admin_permission(self, room_id: str, user_id: str) -> dict[str, Any]:
@@ -499,13 +499,13 @@ class ChatService:
     ) -> tuple[str, list[dict]]:
         """/remember - 메모리 저장
         
-        기본: 개인 메모리 + 채팅방 메모리 둘 다 저장
+        기본: 개인 메모리 + 대화방 메모리 둘 다 저장
         옵션:
-        - /remember <내용> : 개인 + 채팅방 메모리 저장 (기본)
-        - /remember -d <내용> : 개인 + 채팅방 + 부서 메모리 저장
-        - /remember --dept <내용> : 개인 + 채팅방 + 부서 메모리 저장
-        - /remember -p <프로젝트명> <내용> : 개인 + 채팅방 + 지정 프로젝트 메모리 저장
-        - /remember --proj <프로젝트명> <내용> : 개인 + 채팅방 + 지정 프로젝트 메모리 저장
+        - /remember <내용> : 개인 + 대화방 메모리 저장 (기본)
+        - /remember -d <내용> : 개인 + 대화방 + 부서 메모리 저장
+        - /remember --dept <내용> : 개인 + 대화방 + 부서 메모리 저장
+        - /remember -p <프로젝트명> <내용> : 개인 + 대화방 + 지정 프로젝트 메모리 저장
+        - /remember --proj <프로젝트명> <내용> : 개인 + 대화방 + 지정 프로젝트 메모리 저장
         """
         if not content:
             return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`\n예: `/remember -d 팀 회의는 매주 월요일 10시`\n예: `/remember -p AI프로젝트 마감일은 매월 말일`", []
@@ -617,7 +617,7 @@ class ChatService:
             saved_memories.append(memory_personal)
             saved_scopes.append("개인")
             
-            # 2. 채팅방 메모리 저장
+            # 2. 대화방 메모리 저장
             vector_id_chatroom = str(uuid.uuid4())
             memory_chatroom = await self.memory_repo.create_memory(
                 content=content,
@@ -636,7 +636,7 @@ class ChatService:
                 "chat_room_id": room["id"],
             })
             saved_memories.append(memory_chatroom)
-            saved_scopes.append("채팅방")
+            saved_scopes.append("대화방")
             
             # UPDATE인 경우 superseded_by 업데이트
             if relationship == "UPDATE" and superseded_memory:
@@ -715,7 +715,7 @@ class ChatService:
             embedding_provider = get_embedding_provider()
             query_vector = await embedding_provider.embed(query)
             
-            # 이 채팅방 메모리에서만 검색
+            # 이 대화방 메모리에서만 검색
             results = await search_vectors(
                 query_vector=query_vector,
                 limit=5,
@@ -760,7 +760,7 @@ class ChatService:
             for i, m in enumerate(memories, 1):
                 mem = m["memory"]
                 score = m["score"]
-                scope_label = "이 채팅방" if mem["scope"] == "chatroom" else mem["scope"]
+                scope_label = "이 대화방" if mem["scope"] == "chatroom" else mem["scope"]
                 response += f"{i}. {mem['content']}\n   _(유사도: {score:.0%}, 범위: {scope_label})_\n\n"
             
             return response
@@ -778,9 +778,9 @@ class ChatService:
             members = await self.repo.list_members(room["id"])
             
             if not members:
-                return "👥 채팅방 멤버가 없습니다."
+                return "👥 대화방 멤버가 없습니다."
             
-            response = f"👥 채팅방 멤버 ({len(members)}명)\n\n"
+            response = f"👥 대화방 멤버 ({len(members)}명)\n\n"
             role_emoji = {"owner": "👑", "admin": "⭐", "member": "👤"}
             
             for m in members:
@@ -815,11 +815,11 @@ class ChatService:
                 return f"❌ '{email}' 사용자를 찾을 수 없습니다."
             
             if await self.repo.is_member(room["id"], target_user["id"]):
-                return f"ℹ️ {target_user['name']}님은 이미 채팅방 멤버입니다."
+                return f"ℹ️ {target_user['name']}님은 이미 대화방 멤버입니다."
             
             await self.repo.add_member(room["id"], target_user["id"], "member")
             
-            return f"✅ {target_user['name']}님을 채팅방에 초대했습니다!"
+            return f"✅ {target_user['name']}님을 대화방에 초대했습니다!"
             
         except Exception as e:
             return f"❌ 멤버 초대 실패: {str(e)}"
@@ -829,13 +829,13 @@ class ChatService:
         return """📖 **사용 가능한 커맨드**
 
 **메모리 관리**
-• `/remember <내용>` - 개인 + 채팅방 메모리 저장
-• `/remember -d <내용>` - 개인 + 채팅방 + 부서 메모리 저장
-• `/remember -p <프로젝트명> <내용>` - 개인 + 채팅방 + 지정 프로젝트 메모리 저장
+• `/remember <내용>` - 개인 + 대화방 메모리 저장
+• `/remember -d <내용>` - 개인 + 대화방 + 부서 메모리 저장
+• `/remember -p <프로젝트명> <내용>` - 개인 + 대화방 + 지정 프로젝트 메모리 저장
 • `/forget <검색어>` - 메모리 삭제
 • `/search <검색어>` - 메모리 검색
 
-**채팅방 관리**
+**대화방 관리**
 • `/members` - 멤버 목록 보기
 • `/invite <이메일>` - 멤버 초대 (관리자만)
 
@@ -846,7 +846,7 @@ class ChatService:
 • `/help` - 이 도움말 표시
 
 **맞춤 설정**
-메모리 소스 설정에서 개인 메모리, 다른 채팅방, 부서 메모리, 프로젝트 메모리를 활성화하면
+메모리 소스 설정에서 개인 메모리, 다른 대화방, 부서 메모리, 프로젝트 메모리를 활성화하면
 AI가 해당 메모리들도 참조합니다."""
 
     async def get_messages(
@@ -856,7 +856,7 @@ AI가 해당 메모리들도 참조합니다."""
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """채팅방 메시지 목록 (멤버만)"""
+        """대화방 메시지 목록 (멤버만)"""
         await self.get_chat_room(chat_room_id)
         await self._check_member_permission(chat_room_id, user_id)
         return await self.repo.list_messages(chat_room_id, limit, offset)
@@ -906,13 +906,13 @@ AI가 해당 메모리들도 참조합니다."""
             max_tokens=1000,
         )
         
-        # AI 응답을 Vector DB에 저장 (채팅방 메모리)
+        # AI 응답을 Vector DB에 저장 (대화방 메모리)
         try:
             embedding_provider = get_embedding_provider()
             vector = await embedding_provider.embed(response)
             vector_id = str(uuid.uuid4())
             
-            # AI 응답을 채팅방 메모리로 저장
+            # AI 응답을 대화방 메모리로 저장
             memory = await self.memory_repo.create_memory(
                 content=response,
                 owner_id=user_id,
@@ -952,7 +952,7 @@ AI가 해당 메모리들도 참조합니다."""
         chat_room_id: str,
         limit: int = 5,
     ) -> list[dict[str, Any]]:
-        """채팅방에 연결된 문서에서 관련 청크 검색 (RAG)"""
+        """대화방에 연결된 문서에서 관련 청크 검색 (RAG)"""
         doc_ids = await self.document_repo.get_linked_document_ids(chat_room_id)
         if not doc_ids:
             return []
@@ -1041,7 +1041,7 @@ AI가 해당 메모리들도 참조합니다."""
         
         # 디버깅: context_sources 확인
         print(f"\n========== 메모리 검색 시작 ==========")
-        print(f"현재 채팅방 ID: {current_room_id}")
+        print(f"현재 대화방 ID: {current_room_id}")
         print(f"context_sources: {context_sources}")
         print(f"memory_config: {memory_config}")
         print(f"include_this_room: {memory_config.get('include_this_room', True)}")
@@ -1052,10 +1052,10 @@ AI가 해당 메모리들도 참조합니다."""
         
         all_memories = []
         
-        # 1. 이 채팅방 메모리 (기본)
+        # 1. 이 대화방 메모리 (기본)
         if memory_config.get("include_this_room", True):
             try:
-                print(f"\n[1] 이 채팅방({current_room_id}) 메모리 검색 중...")
+                print(f"\n[1] 이 대화방({current_room_id}) 메모리 검색 중...")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=5,
@@ -1074,12 +1074,12 @@ AI가 해당 메모리들도 참조합니다."""
             except Exception as e:
                 print(f"    실패: {e}")
         
-        # 2. 다른 채팅방 메모리
+        # 2. 다른 대화방 메모리
         other_rooms = memory_config.get("other_chat_rooms", [])
-        print(f"\n[2] 다른 채팅방 검색 대상: {other_rooms}")
+        print(f"\n[2] 다른 대화방 검색 대상: {other_rooms}")
         for room_id in other_rooms:
             try:
-                print(f"    채팅방({room_id}) 검색 중...")
+                print(f"    대화방({room_id}) 검색 중...")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=3,
@@ -1264,7 +1264,7 @@ AI가 해당 메모리들도 참조합니다."""
             if not content or len(content) < self.settings.min_message_length_for_extraction:
                 continue
             
-            # 채팅방 메모리로 저장
+            # 대화방 메모리로 저장
             scope = "chatroom"
             
             try:

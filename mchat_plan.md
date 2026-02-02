@@ -5,7 +5,7 @@
 Samsung Mchat은 Mattermost 기반의 사내 메신저로, Mattermost API v4를 활용하여 AI Memory Agent와 연동할 수 있습니다.
 
 ### 연동 목표
-- Mchat 채팅방의 메시지를 AI Memory Agent로 전달
+- Mchat 대화방의 메시지를 AI Memory Agent로 전달
 - AI가 메모리 기반으로 응답 생성
 - `/remember`, `/search`, `@ai` 등 커맨드 지원
 
@@ -111,7 +111,7 @@ https://mchat.samsung.com/hooks/xxx-generated-key-xxx
   "channel": "품질검사",
   "username": "AI Memory Bot",
   "icon_emoji": ":robot:",
-  "text": "#### 🧠 메모리 저장됨\n\n- **내용:** X부품 불량률 12%\n- **범위:** 이 채팅방\n- **카테고리:** fact"
+  "text": "#### 🧠 메모리 저장됨\n\n- **내용:** X부품 불량률 12%\n- **범위:** 이 대화방\n- **카테고리:** fact"
 }
 ```
 
@@ -422,7 +422,7 @@ class MchatClient:
 ### 7.1 채널 매핑 테이블
 
 ```sql
--- Mchat 채널 ↔ AI Memory Agent 채팅방 매핑
+-- Mchat 채널 ↔ AI Memory Agent 대화방 매핑
 CREATE TABLE mchat_channel_mapping (
     id TEXT PRIMARY KEY,
     mchat_channel_id TEXT UNIQUE NOT NULL,

@@ -207,7 +207,7 @@ type: "message:new"     // 새 메시지
 type: "member:join"     // 멤버 입장
 type: "member:leave"    // 멤버 퇴장
 type: "memory:extracted" // 메모리 추출됨
-type: "room:info"       // 채팅방 정보
+type: "room:info"       // 대화방 정보
 type: "typing:start"    // 타이핑 시작
 type: "typing:stop"     // 타이핑 종료
 type: "pong"            // 핑 응답
@@ -216,7 +216,7 @@ type: "pong"            // 핑 응답
 ## 🎨 주요 기능
 
 ### 채팅
-- 채팅방 목록/생성/관리
+- 대화방 목록/생성/관리
 - 실시간 메시지 전송 (WebSocket)
 - `@ai` 멘션으로 AI 응답
 - 타이핑 인디케이터
@@ -224,7 +224,7 @@ type: "pong"            // 핑 응답
 
 ### 메모리
 - 시맨틱 검색
-- Scope 필터링 (개인/채팅방/프로젝트/부서)
+- Scope 필터링 (개인/대화방/프로젝트/부서)
 - 메모리 생성/삭제
 
 ### UI/UX

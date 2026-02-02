@@ -77,14 +77,14 @@ export function CreateRoomModal({ open, onClose }: CreateRoomModalProps) {
       setSelectedProject('')
       navigate(`/chat/${room.id}`)
     } catch (error) {
-      console.error('채팅방 생성 실패:', error)
+      console.error('대화방 생성 실패:', error)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const roomTypes: { type: RoomType; label: string; icon: React.ElementType; desc: string }[] = [
-    { type: 'personal', label: '개인', icon: MessageSquare, desc: '나만 사용하는 채팅방' },
+    { type: 'personal', label: '개인', icon: MessageSquare, desc: '나만 사용하는 대화방' },
     { type: 'project', label: '프로젝트', icon: Briefcase, desc: '프로젝트 팀원과 공유' },
     { type: 'department', label: '부서', icon: Building2, desc: '부서 전체와 공유' },
   ]
@@ -98,13 +98,13 @@ export function CreateRoomModal({ open, onClose }: CreateRoomModalProps) {
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
         <div className="bg-background rounded-xl shadow-popup w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h2 className="text-lg font-semibold">새 채팅방 만들기</h2>
+            <h2 className="text-lg font-semibold">새 대화방 만들기</h2>
             <Button variant="ghost" size="icon-sm" onClick={onClose}><X className="h-4 w-4" /></Button>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">채팅방 이름</label>
+              <label className="text-sm font-medium text-foreground">대화방 이름</label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 품질검사팀 회의" autoFocus />
             </div>
 

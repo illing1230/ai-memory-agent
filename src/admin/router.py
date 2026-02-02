@@ -95,7 +95,7 @@ async def get_chat_rooms(
     admin_id: str = Depends(get_current_admin_user),
     db: aiosqlite.Connection = Depends(get_db),
 ):
-    """채팅방 목록"""
+    """대화방 목록"""
     service = AdminService(db)
     return await service.get_chat_rooms()
 
@@ -106,10 +106,10 @@ async def delete_chat_room(
     admin_id: str = Depends(get_current_admin_user),
     db: aiosqlite.Connection = Depends(get_db),
 ):
-    """채팅방 삭제"""
+    """대화방 삭제"""
     service = AdminService(db)
     await service.delete_chat_room(room_id)
-    return {"message": "채팅방이 삭제되었습니다"}
+    return {"message": "대화방이 삭제되었습니다"}
 
 
 @router.get("/memories", response_model=PaginatedMemories)

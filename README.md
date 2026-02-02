@@ -7,26 +7,26 @@
 ## 주요 기능
 
 ### 채팅 & AI 응답
-- 멀티 채팅방 지원 (개인/프로젝트/부서)
+- 멀티 대화방 지원 (개인/프로젝트/부서)
 - `@ai` 멘션으로 AI에게 질문
 - WebSocket 기반 실시간 메시지
 - 대화에서 자동 메모리 추출
 
 ### 메모리 관리
-- 4단계 스코프: 개인, 채팅방, 프로젝트, 부서
+- 4단계 스코프: 개인, 대화방, 프로젝트, 부서
 - 시맨틱 벡터 검색 (Qdrant)
 - 슬래시 커맨드: `/remember`, `/forget`, `/search`
-- 채팅방별 컨텍스트 소스 설정 (다른 채팅방, 프로젝트, 부서 메모리 참조)
+- 대화방별 컨텍스트 소스 설정 (다른 대화방, 프로젝트, 부서 메모리 참조)
 
 ### RAG 문서
 - PDF/TXT 파일 업로드
 - 자동 텍스트 추출 + 청킹(800자, 100자 오버랩) + 임베딩
-- 문서-채팅방 연결/해제 (다대다)
+- 문서-대화방 연결/해제 (다대다)
 - AI 응답 시 문서 컨텍스트 우선 참조
 
 ### 관리자
 - 대시보드 (전체 통계)
-- 사용자/채팅방/메모리/부서/프로젝트 관리
+- 사용자/대화방/메모리/부서/프로젝트 관리
 - 메모리 페이지네이션
 
 ## 기술 스택
@@ -128,7 +128,7 @@ ai-memory-agent/
 │   ├── config.py                 # 환경설정 (pydantic-settings)
 │   ├── admin/                    # 관리자 API (대시보드, CRUD)
 │   ├── auth/                     # 인증 (로그인/회원가입/토큰)
-│   ├── chat/                     # 채팅방 + AI 응답 + 슬래시 커맨드
+│   ├── chat/                     # 대화방 + AI 응답 + 슬래시 커맨드
 │   ├── document/                 # RAG 문서 (업로드/청킹/임베딩/연결)
 │   ├── mchat/                    # Mattermost(Mchat) 연동
 │   ├── memory/                   # 메모리 CRUD + 시맨틱 검색
@@ -190,11 +190,11 @@ Frontend                          Backend
 ### Chat Rooms
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| GET | `/api/v1/chat-rooms` | 채팅방 목록 |
-| POST | `/api/v1/chat-rooms` | 채팅방 생성 |
-| GET | `/api/v1/chat-rooms/{id}` | 채팅방 상세 |
-| PUT | `/api/v1/chat-rooms/{id}` | 채팅방 수정 |
-| DELETE | `/api/v1/chat-rooms/{id}` | 채팅방 삭제 |
+| GET | `/api/v1/chat-rooms` | 대화방 목록 |
+| POST | `/api/v1/chat-rooms` | 대화방 생성 |
+| GET | `/api/v1/chat-rooms/{id}` | 대화방 상세 |
+| PUT | `/api/v1/chat-rooms/{id}` | 대화방 수정 |
+| DELETE | `/api/v1/chat-rooms/{id}` | 대화방 삭제 |
 | GET | `/api/v1/chat-rooms/{id}/messages` | 메시지 목록 |
 | POST | `/api/v1/chat-rooms/{id}/messages` | 메시지 전송 |
 | GET | `/api/v1/chat-rooms/{id}/members` | 멤버 목록 |
@@ -218,15 +218,15 @@ Frontend                          Backend
 | GET | `/api/v1/documents` | 문서 목록 |
 | GET | `/api/v1/documents/{id}` | 문서 상세 (청크 포함) |
 | DELETE | `/api/v1/documents/{id}` | 문서 삭제 |
-| POST | `/api/v1/documents/{id}/link/{room_id}` | 문서-채팅방 연결 |
-| DELETE | `/api/v1/documents/{id}/link/{room_id}` | 문서-채팅방 해제 |
+| POST | `/api/v1/documents/{id}/link/{room_id}` | 문서-대화방 연결 |
+| DELETE | `/api/v1/documents/{id}/link/{room_id}` | 문서-대화방 해제 |
 
 ### Admin
 | Method | Endpoint | 설명 |
 |--------|----------|------|
 | GET | `/api/v1/admin/dashboard` | 대시보드 통계 |
 | GET | `/api/v1/admin/users` | 사용자 목록 |
-| GET | `/api/v1/admin/chat-rooms` | 채팅방 목록 |
+| GET | `/api/v1/admin/chat-rooms` | 대화방 목록 |
 | GET | `/api/v1/admin/memories` | 메모리 목록 (페이지네이션) |
 | GET | `/api/v1/admin/departments` | 부서 목록 |
 | GET | `/api/v1/admin/projects` | 프로젝트 목록 |
@@ -258,7 +258,7 @@ Frontend                          Backend
 AI가 응답할 때 다음 순서로 컨텍스트를 참조합니다:
 
 1. **대화 내용** (최우선) - 최근 20개 메시지
-2. **RAG 문서** (높은 우선순위) - 채팅방에 연결된 문서 청크
+2. **RAG 문서** (높은 우선순위) - 대화방에 연결된 문서 청크
 3. **저장된 메모리** (보조) - 설정된 컨텍스트 소스 기반
 
 ## 권한 체계
@@ -266,7 +266,7 @@ AI가 응답할 때 다음 순서로 컨텍스트를 참조합니다:
 | Scope | 설명 | 접근 조건 |
 |-------|------|----------|
 | `personal` | 개인 메모리 | 소유자만 접근 |
-| `chatroom` | 채팅방 메모리 | 채팅방 멤버만 접근 |
+| `chatroom` | 대화방 메모리 | 대화방 멤버만 접근 |
 | `project` | 프로젝트 메모리 | 프로젝트 멤버만 접근 |
 | `department` | 부서 메모리 | 같은 부서원만 접근 |
 
@@ -274,7 +274,7 @@ AI가 응답할 때 다음 순서로 컨텍스트를 참조합니다:
 
 | 커맨드 | 설명 |
 |--------|------|
-| `/remember <내용>` | 개인 + 채팅방 메모리 저장 |
+| `/remember <내용>` | 개인 + 대화방 메모리 저장 |
 | `/remember -d <내용>` | + 부서 메모리 저장 |
 | `/remember -p <프로젝트명> <내용>` | + 프로젝트 메모리 저장 |
 | `/forget <검색어>` | 메모리 삭제 |

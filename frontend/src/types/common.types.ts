@@ -40,7 +40,7 @@ export interface Project {
   updated_at: string
 }
 
-// 채팅방
+// 대화방
 export interface ChatRoom {
   id: string
   name: string
@@ -69,7 +69,7 @@ export interface ContextSources {
   }
 }
 
-// 채팅방 멤버
+// 대화방 멤버
 export interface ChatRoomMember {
   id: string
   chat_room_id: string

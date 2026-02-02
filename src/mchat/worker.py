@@ -17,7 +17,7 @@ from src.config import get_settings
 from src.shared.database import init_database, SCHEMA_SQL
 
 
-# Mchat 채널 → Agent 채팅방 매핑 (임시 - 추후 DB로 관리)
+# Mchat 채널 → Agent 대화방 매핑 (임시 - 추후 DB로 관리)
 CHANNEL_MAPPING = {}
 
 
@@ -28,7 +28,7 @@ async def get_or_create_agent_room(
     mchat_user_id: str,
     agent_user_id: str,
 ) -> str:
-    """Mchat 채널에 매핑된 Agent 채팅방 ID 반환 (없으면 생성)"""
+    """Mchat 채널에 매핑된 Agent 대화방 ID 반환 (없으면 생성)"""
     
     # 캐시 확인
     if mchat_channel_id in CHANNEL_MAPPING:
@@ -45,7 +45,7 @@ async def get_or_create_agent_room(
         CHANNEL_MAPPING[mchat_channel_id] = row[0]
         return row[0]
     
-    # 없으면 새 채팅방 생성
+    # 없으면 새 대화방 생성
     chat_repo = ChatRepository(db)
     room = await chat_repo.create_chat_room(
         name=f"Mchat: {mchat_channel_name or mchat_channel_id[:8]}",
@@ -199,7 +199,7 @@ async def main():
         print(f"\n[새 메시지] @{sender_name}: {message[:50]}...")
         
         try:
-            # Agent 사용자/채팅방 매핑
+            # Agent 사용자/대화방 매핑
             agent_user_id = await get_or_create_agent_user(db, user_id, sender_name)
             agent_room_id = await get_or_create_agent_room(db, channel_id, channel_name, user_id, agent_user_id)
             

@@ -43,8 +43,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('access_token')
         localStorage.removeItem('user_id')
-        // persist 스토리지도 완전히 초기화
-        localStorage.removeItem('auth-storage')
+        // persist 스토리지는 삭제하지 않고 상태만 초기화
         set({ user: null, token: null, isAuthenticated: false })
       },
       

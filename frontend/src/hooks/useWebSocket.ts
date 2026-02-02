@@ -126,7 +126,7 @@ export function useWebSocket({
         break
 
       case 'room:info':
-        // 채팅방 정보 (접속자 목록 등)
+        // 대화방 정보 (접속자 목록 등)
         console.log('Room info:', message.data)
         break
 

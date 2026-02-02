@@ -107,7 +107,7 @@ export function Sidebar() {
             </Button>
           </Tooltip>
 
-          <Tooltip content="채팅방 관리" side="right">
+          <Tooltip content="대화방 관리" side="right">
             <Button
               variant="ghost"
               size="icon"
@@ -182,7 +182,7 @@ export function Sidebar() {
         <nav className="space-y-1 py-2">
           {/* Chat Rooms Section */}
           <SidebarSection
-            title="채팅방"
+            title="대화방"
             icon={MessageSquare}
             expanded={expandedSections.chatRooms}
             onToggle={() => toggleSection('chatRooms')}
@@ -203,7 +203,7 @@ export function Sidebar() {
             {isLoading ? (
               <div className="px-2 py-1 text-xs text-foreground-muted">로딩 중...</div>
             ) : chatRooms.length === 0 ? (
-              <div className="px-2 py-1 text-xs text-foreground-muted">채팅방이 없습니다</div>
+              <div className="px-2 py-1 text-xs text-foreground-muted">대화방이 없습니다</div>
             ) : (
               chatRooms
                 .filter((room: ChatRoom) => room.share_role !== 'viewer') // viewer 공유 방은 제외 (입장 불가)
@@ -260,7 +260,7 @@ export function Sidebar() {
           <SidebarItem
             to="/chatrooms"
             icon={MessageSquare}
-            label="채팅방 관리"
+            label="대화방 관리"
             active={isActive('/chatrooms')}
           />
 

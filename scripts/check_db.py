@@ -21,15 +21,15 @@ async def check_db():
     for row in rows:
         print(f"  - {row['name']} ({row['email']}) | id: {row['id'][:8]}...")
     
-    # 2. 채팅방 목록
-    print("\n[채팅방 목록]")
+    # 2. 대화방 목록
+    print("\n[대화방 목록]")
     cursor = await db.execute("SELECT id, name, room_type, owner_id FROM chat_rooms")
     rows = await cursor.fetchall()
     for row in rows:
         print(f"  - {row['name']} ({row['room_type']}) | id: {row['id'][:8]}...")
     
-    # 3. 채팅방 멤버
-    print("\n[채팅방 멤버]")
+    # 3. 대화방 멤버
+    print("\n[대화방 멤버]")
     cursor = await db.execute("""
         SELECT crm.chat_room_id, crm.user_id, crm.role, u.name as user_name, cr.name as room_name
         FROM chat_room_members crm

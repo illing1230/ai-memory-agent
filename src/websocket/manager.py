@@ -98,7 +98,7 @@ class ConnectionManager:
         message: dict,
         exclude_user: Optional[str] = None,
     ):
-        """채팅방 전체에 메시지 브로드캐스트"""
+        """대화방 전체에 메시지 브로드캐스트"""
         connections = dict(self.room_connections.get(room_id, {}))
 
         disconnected = []
@@ -129,7 +129,7 @@ class ConnectionManager:
                 pass
     
     def get_room_users(self, room_id: str) -> list[dict]:
-        """채팅방 접속 사용자 목록"""
+        """대화방 접속 사용자 목록"""
         connections = self.room_connections.get(room_id, {})
         return [
             {
@@ -141,7 +141,7 @@ class ConnectionManager:
         ]
 
     def get_room_user_count(self, room_id: str) -> int:
-        """채팅방 접속 인원 수"""
+        """대화방 접속 인원 수"""
         return len(self.room_connections.get(room_id, {}))
 
 

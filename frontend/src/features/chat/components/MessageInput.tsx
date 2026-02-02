@@ -12,10 +12,10 @@ interface MessageInputProps {
 }
 
 const SLASH_COMMANDS: SlashCommand[] = [
-  { command: 'remember', label: '메모리 저장', description: '이 채팅방에 메모리 저장', icon: '📝' },
+  { command: 'remember', label: '메모리 저장', description: '이 대화방에 메모리 저장', icon: '📝' },
   { command: 'search', label: '메모리 검색', description: '저장된 메모리에서 검색', icon: '🔍' },
   { command: 'forget', label: '메모리 삭제', description: '메모리 삭제', icon: '🗑️' },
-  { command: 'members', label: '멤버 목록', description: '채팅방 멤버 보기', icon: '👥' },
+  { command: 'members', label: '멤버 목록', description: '대화방 멤버 보기', icon: '👥' },
   { command: 'invite', label: '멤버 초대', description: '새 멤버 초대', icon: '➕' },
   { command: 'help', label: '도움말', description: '사용 가능한 명령어 보기', icon: '❓' },
 ]

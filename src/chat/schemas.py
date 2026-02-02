@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 class MemorySources(BaseModel):
     """메모리 소스 설정"""
-    include_this_room: bool = True  # 이 채팅방 메모리 (기본 true)
-    other_chat_rooms: list[str] = []  # 다른 채팅방 ID 목록
+    include_this_room: bool = True  # 이 대화방 메모리 (기본 true)
+    other_chat_rooms: list[str] = []  # 다른 대화방 ID 목록
     include_personal: bool = False  # 내 개인 메모리 전체 (주의 필요)
     projects: list[str] = []  # 프로젝트 ID 목록
     departments: list[str] = []  # 부서 ID 목록
@@ -35,7 +35,7 @@ class ChatRoomCreate(ChatRoomBase):
 
 
 class ChatRoomUpdate(BaseModel):
-    """채팅방 수정 요청"""
+    """대화방 수정 요청"""
     name: str | None = None
     context_sources: ContextSources | None = None
 
@@ -86,13 +86,13 @@ class ChatResponse(BaseModel):
 
 
 class ChatRoomMemberCreate(BaseModel):
-    """채팅방 멤버 추가"""
+    """대화방 멤버 추가"""
     user_id: str
     role: Literal["admin", "member"] = "member"
 
 
 class ChatRoomMemberResponse(BaseModel):
-    """채팅방 멤버 응답"""
+    """대화방 멤버 응답"""
     id: str
     chat_room_id: str
     user_id: str

@@ -45,7 +45,7 @@ class DocumentRepository:
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         if chat_room_id:
-            # 채팅방에 연결된 문서 + 직접 업로드된 문서
+            # 대화방에 연결된 문서 + 직접 업로드된 문서
             cursor = await self.db.execute(
                 """SELECT DISTINCT d.* FROM documents d
                    LEFT JOIN document_chat_rooms dcr ON d.id = dcr.document_id
@@ -148,7 +148,7 @@ class DocumentRepository:
         return True
 
     async def get_linked_document_ids(self, chat_room_id: str) -> list[str]:
-        """채팅방에 연결된 문서 ID 목록 (직접 업로드 + 링크)"""
+        """대화방에 연결된 문서 ID 목록 (직접 업로드 + 링크)"""
         cursor = await self.db.execute(
             """SELECT DISTINCT d.id FROM documents d
                LEFT JOIN document_chat_rooms dcr ON d.id = dcr.document_id

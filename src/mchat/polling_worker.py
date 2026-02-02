@@ -60,7 +60,7 @@ async def get_or_create_agent_user(db, mchat_user_id: str, mchat_username: str) 
 
 
 async def get_or_create_agent_room(db, mchat_channel_id: str, mchat_channel_name: str, agent_user_id: str) -> str:
-    """Mchat 채널 → Agent 채팅방 매핑"""
+    """Mchat 채널 → Agent 대화방 매핑"""
     cursor = await db.execute(
         "SELECT agent_room_id FROM mchat_channel_mapping WHERE mchat_channel_id = ?",
         (mchat_channel_id,)

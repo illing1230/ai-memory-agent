@@ -311,7 +311,7 @@ export function ShareModal({
           <div className="p-4 border-t border-border bg-background-secondary">
             <p className="text-xs text-foreground-muted">
               <strong>조회자:</strong> 메모리 지식만 활용 가능 |{' '}
-              <strong>멤버:</strong> 채팅방 입장 및 메시지 전송 가능 |{' '}
+              <strong>멤버:</strong> 대화방 입장 및 메시지 전송 가능 |{' '}
               <strong>소유자:</strong> 모든 권한
             </p>
           </div>

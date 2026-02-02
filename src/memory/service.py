@@ -115,7 +115,7 @@ class MemoryService:
             )
             all_memories.extend(personal)
 
-        # 2. 채팅방 메모리 (scope=chatroom 또는 chat_room_id가 있는 것 중 owner가 나인 것)
+        # 2. 대화방 메모리 (scope=chatroom 또는 chat_room_id가 있는 것 중 owner가 나인 것)
         if scope is None or scope == "chatroom":
             chatroom_memories = await self.repo.list_memories(
                 owner_id=user_id,
@@ -328,7 +328,7 @@ class MemoryService:
                 raise PermissionDeniedException()
             return True
 
-        # 채팅방 메모리: 소유자만
+        # 대화방 메모리: 소유자만
         if scope == "chatroom":
             if memory["owner_id"] != user_id:
                 raise PermissionDeniedException()

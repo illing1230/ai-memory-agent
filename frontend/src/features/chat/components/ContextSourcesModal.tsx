@@ -67,7 +67,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
     const loadData = async () => {
       setIsLoading(true)
       try {
-        // 채팅방 목록
+        // 대화방 목록
         const rooms = await get<ChatRoom[]>('/chat-rooms')
         setMyChatRooms(rooms.filter(r => r.id !== room.id))
 
@@ -237,7 +237,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
               </div>
             ) : (
               <div className="space-y-6">
-                {/* 기본: 이 채팅방 */}
+                {/* 기본: 이 대화방 */}
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">기본 메모리</h3>
                   <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-background-hover cursor-pointer">
@@ -248,9 +248,9 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                       className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
                     />
                     <div>
-                      <p className="text-sm font-medium">이 채팅방 메모리</p>
+                      <p className="text-sm font-medium">이 대화방 메모리</p>
                       <p className="text-xs text-foreground-muted">
-                        현재 채팅방에서 저장된 메모리
+                        현재 대화방에서 저장된 메모리
                       </p>
                     </div>
                   </label>
@@ -286,10 +286,10 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                   </label>
                 </div>
 
-                {/* 다른 채팅방 */}
+                {/* 다른 대화방 */}
                 {myChatRooms.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium">다른 채팅방 메모리</h3>
+                    <h3 className="text-sm font-medium">다른 대화방 메모리</h3>
                     <div className="space-y-1">
                       {myChatRooms.map((r) => (
                         <label

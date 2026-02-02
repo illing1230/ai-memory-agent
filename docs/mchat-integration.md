@@ -83,10 +83,10 @@ async def handle_posted(event):
             await send_response(channel_id, response)
 ```
 
-### 3.2 채널-채팅방 매핑
+### 3.2 채널-대화방 매핑
 
 ```sql
--- Mchat 채널 ↔ AI Memory Agent 채팅방 매핑
+-- Mchat 채널 ↔ AI Memory Agent 대화방 매핑
 CREATE TABLE mchat_channel_mapping (
     id TEXT PRIMARY KEY,
     mchat_channel_id TEXT UNIQUE NOT NULL,

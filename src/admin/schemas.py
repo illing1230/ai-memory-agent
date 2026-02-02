@@ -31,7 +31,7 @@ class UpdateRoleRequest(BaseModel):
 
 
 class AdminChatRoom(BaseModel):
-    """관리자용 채팅방 정보"""
+    """관리자용 대화방 정보"""
     id: str
     name: str
     room_type: str

@@ -16,7 +16,7 @@ const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'users', label: '사용자', icon: Users },
   { id: 'departments', label: '부서', icon: Building2 },
   { id: 'projects', label: '프로젝트', icon: Briefcase },
-  { id: 'chatrooms', label: '채팅방', icon: MessageSquare },
+  { id: 'chatrooms', label: '대화방', icon: MessageSquare },
   { id: 'memories', label: '메모리', icon: Brain },
 ]
 

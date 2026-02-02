@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS project_members (
     UNIQUE (project_id, user_id)
 );
 
--- 채팅방 테이블
+-- 대화방 테이블
 CREATE TABLE IF NOT EXISTS chat_rooms (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
     FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 
--- 채팅방 멤버 테이블
+-- 대화방 멤버 테이블
 CREATE TABLE IF NOT EXISTS chat_room_members (
     id TEXT PRIMARY KEY,
     chat_room_id TEXT NOT NULL,
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 );
 
--- 문서-채팅방 연결 테이블
+-- 문서-대화방 연결 테이블
 CREATE TABLE IF NOT EXISTS document_chat_rooms (
     id TEXT PRIMARY KEY,
     document_id TEXT NOT NULL,

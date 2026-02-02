@@ -19,11 +19,11 @@ export function ChatRoomsTab() {
   }
 
   if (!rooms || rooms.length === 0) {
-    return <p className="text-foreground-secondary py-4">채팅방이 없습니다.</p>
+    return <p className="text-foreground-secondary py-4">대화방이 없습니다.</p>
   }
 
   const handleDelete = (roomId: string, roomName: string) => {
-    if (confirm(`"${roomName}" 채팅방을 삭제하시겠습니까?`)) {
+    if (confirm(`"${roomName}" 대화방을 삭제하시겠습니까?`)) {
       deleteRoom.mutate(roomId)
     }
   }

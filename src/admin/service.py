@@ -79,7 +79,7 @@ class AdminService:
         return [dict(row) for row in rows]
 
     async def get_chat_rooms(self) -> list[dict]:
-        """채팅방 목록 + 멤버/메시지 수"""
+        """대화방 목록 + 멤버/메시지 수"""
         cursor = await self.db.execute(
             """SELECT cr.id, cr.name, cr.room_type, cr.owner_id, cr.created_at,
                       u.name as owner_name,
@@ -93,7 +93,7 @@ class AdminService:
         return [dict(row) for row in rows]
 
     async def delete_chat_room(self, room_id: str) -> None:
-        """채팅방 삭제"""
+        """대화방 삭제"""
         await self.db.execute("DELETE FROM chat_rooms WHERE id = ?", (room_id,))
         await self.db.commit()
 

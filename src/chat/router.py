@@ -34,7 +34,7 @@ async def create_chat_room(
     user_id: str = Depends(get_current_user_id),
     service: ChatService = Depends(get_chat_service),
 ):
-    """채팅방 생성 (생성자가 자동으로 owner가 됨)"""
+    """대화방 생성 (생성자가 자동으로 owner가 됨)"""
     context_sources = data.context_sources.model_dump() if data.context_sources else None
     return await service.create_chat_room(
         name=data.name,
@@ -51,7 +51,7 @@ async def list_chat_rooms(
     user_id: str = Depends(get_current_user_id),
     service: ChatService = Depends(get_chat_service),
 ):
-    """내가 속한 채팅방 목록"""
+    """내가 속한 대화방 목록"""
     return await service.list_chat_rooms(user_id=user_id)
 
 
@@ -60,7 +60,7 @@ async def get_chat_room(
     room_id: str,
     service: ChatService = Depends(get_chat_service),
 ):
-    """채팅방 조회"""
+    """대화방 조회"""
     try:
         return await service.get_chat_room(room_id)
     except NotFoundException as e:
@@ -74,7 +74,7 @@ async def update_chat_room(
     user_id: str = Depends(get_current_user_id),
     service: ChatService = Depends(get_chat_service),
 ):
-    """채팅방 수정 (owner/admin만)"""
+    """대화방 수정 (owner/admin만)"""
     try:
         cs = data.context_sources.model_dump() if data.context_sources else None
         return await service.update_chat_room(room_id, user_id, data.name, cs)
@@ -90,10 +90,10 @@ async def delete_chat_room(
     user_id: str = Depends(get_current_user_id),
     service: ChatService = Depends(get_chat_service),
 ):
-    """채팅방 삭제 (owner만)"""
+    """대화방 삭제 (owner만)"""
     try:
         await service.delete_chat_room(room_id, user_id)
-        return {"message": "채팅방이 삭제되었습니다"}
+        return {"message": "대화방이 삭제되었습니다"}
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=e.message)
     except ForbiddenException as e:
@@ -177,7 +177,7 @@ async def get_messages(
     user_id: str = Depends(get_current_user_id),
     service: ChatService = Depends(get_chat_service),
 ):
-    """채팅방 메시지 목록 (멤버만)"""
+    """대화방 메시지 목록 (멤버만)"""
     try:
         return await service.get_messages(room_id, user_id, limit, offset)
     except NotFoundException as e:

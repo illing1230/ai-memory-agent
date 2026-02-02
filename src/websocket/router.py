@@ -24,7 +24,7 @@ async def websocket_chat(
     token: Optional[str] = Query(None),
     user_id: Optional[str] = Query(None),  # 개발용 user_id 직접 전달
 ):
-    """채팅방 WebSocket 엔드포인트"""
+    """대화방 WebSocket 엔드포인트"""
     from src.config import get_settings
     settings = get_settings()
 
@@ -74,7 +74,7 @@ async def websocket_chat(
         
         user_name = user.get("name", "Unknown")
         
-        # 채팅방 멤버 확인
+        # 대화방 멤버 확인
         chat_repo = ChatRepository(db)
         member = await chat_repo.get_member(room_id, user_id)
         if not member:

@@ -67,7 +67,7 @@ export function ChatRoomManagement() {
 
   const userId = localStorage.getItem('user_id')
 
-  // 채팅방 목록 로드
+  // 대화방 목록 로드
   const loadChatRooms = async () => {
     if (!userId) {
       setError('로그인이 필요합니다')
@@ -79,14 +79,14 @@ export function ChatRoomManagement() {
     setError(null)
     try {
       const data = await get<ChatRoom[]>('/chat-rooms')
-      // owner/admin 권한이 있는 채팅방만 표시
+      // owner/admin 권한이 있는 대화방만 표시
       const manageableRooms = data.filter(room => 
         room.member_role === 'owner' || room.member_role === 'admin'
       )
       setChatRooms(manageableRooms)
     } catch (e) {
-      console.error('채팅방 로드 실패:', e)
-      setError('채팅방을 불러오는데 실패했습니다')
+      console.error('대화방 로드 실패:', e)
+      setError('대화방을 불러오는데 실패했습니다')
     } finally {
       setIsLoading(false)
     }
@@ -131,18 +131,18 @@ export function ChatRoomManagement() {
     }
   }, [selectedRoom])
 
-  // 채팅방 삭제
+  // 대화방 삭제
   const handleDeleteChatRoom = async () => {
     if (!selectedRoom) return
-    if (!confirm(`"${selectedRoom.name}" 채팅방을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
+    if (!confirm(`"${selectedRoom.name}" 대화방을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
     
     try {
       await del(`/chat-rooms/${selectedRoom.id}`)
       setChatRooms(prev => prev.filter(r => r.id !== selectedRoom.id))
       setSelectedRoom(null)
     } catch (e) {
-      console.error('채팅방 삭제 실패:', e)
-      alert('채팅방 삭제에 실패했습니다')
+      console.error('대화방 삭제 실패:', e)
+      alert('대화방 삭제에 실패했습니다')
     }
   }
 
@@ -192,7 +192,7 @@ export function ChatRoomManagement() {
         <EmptyState
           icon={User}
           title="로그인이 필요합니다"
-          description="채팅방을 관리하려면 로그인해주세요"
+          description="대화방을 관리하려면 로그인해주세요"
         />
       </div>
     )
@@ -200,13 +200,13 @@ export function ChatRoomManagement() {
 
   return (
     <div className="flex h-full bg-background">
-      {/* 왼쪽: 채팅방 목록 */}
+      {/* 왼쪽: 대화방 목록 */}
       <div className="w-80 border-r border-border flex flex-col">
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-semibold flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-accent" />
-              채팅방
+              대화방
             </h1>
             <Button variant="ghost" size="icon-sm" onClick={loadChatRooms}>
               <RefreshCw className="h-4 w-4" />
@@ -231,7 +231,7 @@ export function ChatRoomManagement() {
             </div>
           ) : chatRooms.length === 0 ? (
             <div className="p-4 text-center text-sm text-foreground-muted">
-              채팅방이 없습니다
+              대화방이 없습니다
             </div>
           ) : (
             <div className="p-2 space-y-1">
@@ -261,7 +261,7 @@ export function ChatRoomManagement() {
         </ScrollArea>
       </div>
 
-      {/* 오른쪽: 채팅방 상세 */}
+      {/* 오른쪽: 대화방 상세 */}
       <div className="flex-1 flex flex-col">
         {selectedRoom ? (
           <>
@@ -357,8 +357,8 @@ export function ChatRoomManagement() {
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
               icon={MessageSquare}
-              title="채팅방을 선택하세요"
-              description="왼쪽에서 채팅방을 선택하세요"
+              title="대화방을 선택하세요"
+              description="왼쪽에서 대화방을 선택하세요"
             />
           </div>
         )}

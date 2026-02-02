@@ -69,7 +69,7 @@ export function MemorySearch() {
               >
                 {scope === 'all' && '전체'}
                 {scope === 'personal' && '개인'}
-                {scope === 'chatroom' && '채팅방'}
+                {scope === 'chatroom' && '대화방'}
                 {scope === 'project' && '프로젝트'}
                 {scope === 'department' && '부서'}
               </Button>
@@ -109,7 +109,7 @@ interface MemoryCardProps {
 
 function MemoryCard({ result, onDelete }: MemoryCardProps) {
   const { memory, score } = result
-  const scopeLabel: Record<string, string> = { personal: '개인', chatroom: '채팅방', project: '프로젝트', department: '부서' }
+  const scopeLabel: Record<string, string> = { personal: '개인', chatroom: '대화방', project: '프로젝트', department: '부서' }
 
   return (
     <div className="group card p-4 hover:shadow-medium transition-shadow">

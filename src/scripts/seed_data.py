@@ -58,22 +58,22 @@ PROJECT_MEMBERS = {
 }
 
 CHAT_ROOMS = [
-    # 개인 채팅방
+    # 개인 대화방
     {"name": "개발자의 메모", "room_type": "personal", "owner_idx": 0},
     {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 1},
     {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 4},
     {"name": "한기획의 메모", "room_type": "personal", "owner_idx": 8},
-    # 프로젝트 채팅방
+    # 프로젝트 대화방
     {"name": "PLM 개발 채팅", "room_type": "project", "owner_idx": 1, "project_idx": 0},
     {"name": "MemGate 개발 채팅", "room_type": "project", "owner_idx": 0, "project_idx": 1},
     {"name": "RAG 논의", "room_type": "project", "owner_idx": 5, "project_idx": 2},
-    # 부서 채팅방
+    # 부서 대화방
     {"name": "품질팀 공유", "room_type": "department", "owner_idx": 1, "dept_idx": 0},
     {"name": "개발팀 공유", "room_type": "department", "owner_idx": 0, "dept_idx": 1},
     {"name": "기획팀 공유", "room_type": "department", "owner_idx": 8, "dept_idx": 2},
 ]
 
-# 채팅방 멤버 매핑 (chat_room_idx -> user_idx 리스트)
+# 대화방 멤버 매핑 (chat_room_idx -> user_idx 리스트)
 # 인덱스: 0=개발자, 1=김품질, 2=이검사, 3=박관리, 4=최개발, 5=정백엔드, 6=강프론트, 7=윤데이터, 8=한기획, 9=서전략, 10=임분석
 CHAT_ROOM_MEMBERS = {
     0: [0],  # 개발자의 메모 - 개발자만
@@ -246,7 +246,7 @@ SHARES = [
     {"resource_type": "project", "resource_idx": 2, "target_type": "project", "target_idx": 1, "role": "member", "created_by_idx": 5},  # RAG 시스템 -> MemGate
     {"resource_type": "project", "resource_idx": 3, "target_type": "department", "target_idx": 1, "role": "viewer", "created_by_idx": 1},  # 품질 대시보드 -> 개발팀
     
-    # 채팅방 공유
+    # 대화방 공유
     {"resource_type": "chat_room", "resource_idx": 4, "target_type": "user", "target_idx": 4, "role": "member", "created_by_idx": 1},  # PLM 개발 채팅 -> 최개발
     {"resource_type": "chat_room", "resource_idx": 5, "target_type": "user", "target_idx": 1, "role": "viewer", "created_by_idx": 0},  # MemGate 개발 채팅 -> 김품질
     {"resource_type": "chat_room", "resource_idx": 6, "target_type": "project", "target_idx": 1, "role": "member", "created_by_idx": 5},  # RAG 논의 -> MemGate
@@ -350,8 +350,8 @@ async def seed_data():
                 )
             print(f"  ✓ {PROJECTS[proj_idx]['name']}: {len(member_indices)}명")
 
-        # 5. 채팅방 생성
-        print("\n💬 채팅방 생성...")
+        # 5. 대화방 생성
+        print("\n💬 대화방 생성...")
         chat_room_ids = []
         for room in CHAT_ROOMS:
             room_id = str(uuid.uuid4())
@@ -366,8 +366,8 @@ async def seed_data():
             chat_room_ids.append(room_id)
             print(f"  ✓ {room['name']} ({room['room_type']})")
 
-        # 6. 채팅방 멤버 추가
-        print("\n👥 채팅방 멤버 추가...")
+        # 6. 대화방 멤버 추가
+        print("\n👥 대화방 멤버 추가...")
         for room_idx, member_indices in CHAT_ROOM_MEMBERS.items():
             for i, user_idx in enumerate(member_indices):
                 member_id = str(uuid.uuid4())
@@ -495,7 +495,7 @@ async def seed_data():
         print(f"  📁 부서: {len(DEPARTMENTS)}개")
         print(f"  👤 사용자: {len(USERS)}명")
         print(f"  📋 프로젝트: {len(PROJECTS)}개")
-        print(f"  💬 채팅방: {len(CHAT_ROOMS)}개")
+        print(f"  💬 대화방: {len(CHAT_ROOMS)}개")
         print(f"  🧠 메모리: {len(MEMORIES)}개")
         print(f"  🔗 공유 설정: {len(SHARES)}개")
         print("=" * 50)

@@ -54,7 +54,7 @@ async def list_documents(
     user_id: str = Depends(get_current_user_id),
     service: DocumentService = Depends(get_document_service),
 ):
-    """문서 목록 (내 문서 또는 채팅방별)"""
+    """문서 목록 (내 문서 또는 대화방별)"""
     return await service.list_documents(
         owner_id=user_id, chat_room_id=chat_room_id
     )
@@ -95,7 +95,7 @@ async def link_document_to_room(
     user_id: str = Depends(get_current_user_id),
     service: DocumentService = Depends(get_document_service),
 ):
-    """문서를 채팅방에 연결"""
+    """문서를 대화방에 연결"""
     try:
         return await service.link_to_room(doc_id, room_id, user_id)
     except ValueError as e:
@@ -108,6 +108,6 @@ async def unlink_document_from_room(
     room_id: str,
     service: DocumentService = Depends(get_document_service),
 ):
-    """문서-채팅방 연결 해제"""
+    """문서-대화방 연결 해제"""
     await service.unlink_from_room(doc_id, room_id)
     return {"message": "연결이 해제되었습니다"}

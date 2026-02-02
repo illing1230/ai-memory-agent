@@ -32,7 +32,7 @@ export function MemoryList() {
 
   const scopeLabel: Record<string, string> = {
     personal: '개인',
-    chatroom: '채팅방',
+    chatroom: '대화방',
     project: '프로젝트',
     department: '부서',
   }

@@ -78,13 +78,13 @@ export function useDeleteChatRoom() {
   return useMutation({
     mutationFn: (roomId: string) => deleteChatRoom(roomId),
     onSuccess: (_, roomId) => {
-      // 채팅방 목록 캐시 무효화
+      // 대화방 목록 캐시 무효화
       queryClient.invalidateQueries({ queryKey: chatKeys.rooms() })
-      // 삭제된 채팅방 캐시 제거
+      // 삭제된 대화방 캐시 제거
       queryClient.removeQueries({ queryKey: chatKeys.room(roomId) })
-      // 삭제된 채팅방 메시지 캐시 제거
+      // 삭제된 대화방 메시지 캐시 제거
       queryClient.removeQueries({ queryKey: chatKeys.messages(roomId) })
-      // 삭제된 채팅방 멤버 캐시 제거
+      // 삭제된 대화방 멤버 캐시 제거
       queryClient.removeQueries({ queryKey: chatKeys.members(roomId) })
     },
   })

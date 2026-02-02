@@ -13,7 +13,7 @@ export function DashboardTab() {
 
   const cards = [
     { label: '사용자', value: stats.total_users, icon: Users, color: 'text-accent' },
-    { label: '채팅방', value: stats.total_chat_rooms, icon: MessageSquare, color: 'text-success' },
+    { label: '대화방', value: stats.total_chat_rooms, icon: MessageSquare, color: 'text-success' },
     { label: '메모리', value: stats.total_memories, icon: Brain, color: 'text-warning' },
     { label: '메시지', value: stats.total_messages, icon: MessagesSquare, color: 'text-info' },
     { label: '부서', value: stats.total_departments, icon: Building2, color: 'text-error' },

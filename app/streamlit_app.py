@@ -101,12 +101,12 @@ def load_my_department():
 
 
 def load_chat_rooms():
-    """내가 속한 채팅방 목록"""
+    """내가 속한 대화방 목록"""
     return api_request("GET", "/chat-rooms", user_id=st.session_state.user_id) or []
 
 
 def load_messages(room_id: str):
-    """채팅방 메시지 로드"""
+    """대화방 메시지 로드"""
     return api_request("GET", f"/chat-rooms/{room_id}/messages", user_id=st.session_state.user_id) or []
 
 
@@ -213,29 +213,29 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # 채팅방 섹션
+    # 대화방 섹션
     st.markdown("""
     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
-        <span style="font-weight: 600; font-size: 0.875rem;">채팅방</span>
+        <span style="font-weight: 600; font-size: 0.875rem;">대화방</span>
     </div>
     """, unsafe_allow_html=True)
     
     if st.session_state.page == "chat" and st.session_state.user_id:
-        # 새 채팅방 생성
-        with st.expander("새 채팅방"):
-            room_name = st.text_input("채팅방 이름", key="new_room_name")
+        # 새 대화방 생성
+        with st.expander("새 대화방"):
+            room_name = st.text_input("대화방 이름", key="new_room_name")
             
             st.markdown("**메모리 소스**")
-            st.caption("이 채팅방 메모리는 기본 포함됩니다")
+            st.caption("이 대화방 메모리는 기본 포함됩니다")
             
-            # 내가 속한 다른 채팅방
+            # 내가 속한 다른 대화방
             my_rooms = load_chat_rooms()
             other_rooms = []
             if my_rooms:
-                st.markdown("다른 채팅방:")
+                st.markdown("다른 대화방:")
                 for r in my_rooms:
                     if st.checkbox(r["name"], key=f"other_room_{r['id']}"):
                         other_rooms.append(r["id"])
@@ -262,7 +262,7 @@ with st.sidebar:
                 if st.checkbox(my_dept["name"], key=f"dept_{my_dept['id']}"):
                     selected_depts.append(my_dept["id"])
             
-            if st.button("채팅방 생성", type="primary"):
+            if st.button("대화방 생성", type="primary"):
                 if room_name:
                     context_sources = {
                         "memory": {
@@ -280,11 +280,11 @@ with st.sidebar:
                         "context_sources": context_sources,
                     }, st.session_state.user_id)
                     if result:
-                        st.success("채팅방 생성됨!")
+                        st.success("대화방 생성됨!")
                         st.session_state.current_room = result
                         st.rerun()
         
-        # 채팅방 목록
+        # 대화방 목록
         rooms = load_chat_rooms()
         if rooms:
             for room in rooms:
@@ -337,7 +337,7 @@ with st.sidebar:
                     st.session_state.messages = load_messages(room["id"])
                     st.rerun()
         else:
-            st.info("채팅방이 없습니다")
+            st.info("대화방이 없습니다")
     
     st.markdown("---")
     
@@ -394,7 +394,7 @@ with st.sidebar:
         - `/search <검색어>` - 검색
         - `/forget <검색어>` - 삭제
         
-        **채팅방**
+        **대화방**
         - `/members` - 멤버 목록
         - `/invite <이메일>` - 초대
         
@@ -432,7 +432,7 @@ if st.session_state.page == "chat":
         # 메모리 소스 표시
         context = room.get("context_sources", {})
         memory_config = context.get("memory", {})
-        sources = ["이 채팅방"]
+        sources = ["이 대화방"]
         if memory_config.get("other_chat_rooms"):
             sources.append(f"다른방({len(memory_config['other_chat_rooms'])})")
         if memory_config.get("include_personal"):
@@ -467,7 +467,7 @@ if st.session_state.page == "chat":
                         st.session_state.memory_toast = result["extracted_memories"]
                     st.rerun()
     else:
-        st.info("사이드바에서 채팅방을 선택하거나 새로 만드세요.")
+        st.info("사이드바에서 대화방을 선택하거나 새로 만드세요.")
 
 # ==================== 프로젝트 페이지 ====================
 elif st.session_state.page == "project":
@@ -634,7 +634,7 @@ elif st.session_state.page == "search":
                         col1, col2 = st.columns([4, 1])
                         with col1:
                             st.markdown(f"**{memory['content']}**")
-                            scope_label = "채팅방" if memory['scope'] == 'chatroom' else memory['scope']
+                            scope_label = "대화방" if memory['scope'] == 'chatroom' else memory['scope']
                             st.caption(f"{scope_label} | {memory.get('category', '-')}")
                         with col2:
                             st.metric("유사도", f"{score:.0%}")
@@ -669,7 +669,7 @@ elif st.session_state.page == "list":
             
             for memory in memories:
                 content_preview = memory['content'][:50] + ('...' if len(memory['content']) > 50 else '')
-                scope_label = "채팅방" if memory['scope'] == 'chatroom' else memory['scope']
+                scope_label = "대화방" if memory['scope'] == 'chatroom' else memory['scope']
                 
                 with st.expander(f"{content_preview}"):
                     st.markdown(f"**내용:** {memory['content']}")
@@ -682,4 +682,4 @@ elif st.session_state.page == "list":
 
 # 푸터
 st.markdown("---")
-st.caption("AI Memory Agent v0.2.0 | 채팅방 + 프로젝트 기반 메모리 관리")
+st.caption("AI Memory Agent v0.2.0 | 대화방 + 프로젝트 기반 메모리 관리")

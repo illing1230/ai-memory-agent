@@ -61,7 +61,7 @@ class PermissionRepository:
                 return {"allowed": True, "reason": "같은 부서"}
             return {"allowed": False, "reason": "같은 부서가 아닙니다"}
 
-        # 채팅방 메모리
+        # 대화방 메모리
         if scope == "chatroom":
             chat_room_id = memory.get("chat_room_id")
             if chat_room_id:
@@ -71,11 +71,11 @@ class PermissionRepository:
                     (chat_room_id, user_id),
                 )
                 if await cursor.fetchone():
-                    return {"allowed": True, "reason": "채팅방 멤버"}
-                # 채팅방 공유 확인 (viewer/member 모두 메모리 접근 가능)
+                    return {"allowed": True, "reason": "대화방 멤버"}
+                # 대화방 공유 확인 (viewer/member 모두 메모리 접근 가능)
                 if await self._check_share_access("chat_room", chat_room_id, user_id):
-                    return {"allowed": True, "reason": "채팅방 공유"}
-            return {"allowed": False, "reason": "채팅방 멤버가 아닙니다"}
+                    return {"allowed": True, "reason": "대화방 공유"}
+            return {"allowed": False, "reason": "대화방 멤버가 아닙니다"}
 
         return {"allowed": False, "reason": "알 수 없는 권한 범위"}
 

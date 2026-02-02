@@ -34,7 +34,7 @@ class DocumentDetailResponse(DocumentResponse):
 
 
 class DocumentLinkResponse(BaseModel):
-    """문서-채팅방 연결 응답"""
+    """문서-대화방 연결 응답"""
     document_id: str
     chat_room_id: str
     linked_at: Optional[str] = None

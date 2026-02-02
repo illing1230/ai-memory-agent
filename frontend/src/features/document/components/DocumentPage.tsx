@@ -55,7 +55,7 @@ export function DocumentPage() {
       <div className="border-b border-border px-6 py-4">
         <h1 className="text-lg font-semibold">문서 관리</h1>
         <p className="text-sm text-foreground-muted mt-1">
-          PDF, TXT 파일을 업로드하여 채팅방에서 AI 컨텍스트로 활용할 수 있습니다.
+          PDF, TXT 파일을 업로드하여 대화방에서 AI 컨텍스트로 활용할 수 있습니다.
         </p>
       </div>
 
