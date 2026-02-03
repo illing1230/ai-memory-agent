@@ -11,11 +11,11 @@ export function MainLayout() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
       <Sidebar />
-      <main className={cn('flex-1 flex flex-col overflow-hidden', 'transition-all duration-200')}>
+      <main className={cn('flex-1 flex flex-col overflow-hidden', 'transition-all duration-200', guidePanelOpen && 'pr-[700px]')}>
         <Outlet />
       </main>
-      <CreateRoomModal open={createRoomModalOpen} onClose={() => setCreateRoomModalOpen(false)} />
       <GuidePanel isOpen={guidePanelOpen} onClose={() => setGuidePanelOpen(false)} />
+      <CreateRoomModal open={createRoomModalOpen} onClose={() => setCreateRoomModalOpen(false)} />
     </div>
   )
 }
