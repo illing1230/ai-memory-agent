@@ -134,7 +134,7 @@ LLM_PROVIDER=ollama python tests/chatbot/test_chatbot.py
 전송된 데이터는 웹 UI에서 확인할 수 있습니다:
 
 1. 웹 UI 접속: http://localhost:3030
-2. 사이드바 → 지식 관리 → 대화방
+2. 사이드바 → 지식 센터 → 대화방
 3. 전송된 메모리 확인
 
 ## 오류 처리

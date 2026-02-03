@@ -8,6 +8,10 @@ import asyncio
 import os
 import sys
 from typing import Optional
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 # 프로젝트 루트 경로 추가 (tests/chatbot/에서 실행할 때)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -69,14 +73,32 @@ class SimpleChatbot:
             data_type: 데이터 타입 (memory, message, log)
         """
         try:
-            result = self.agent_client.send_memory(
-                content=content,
-                metadata={
-                    "source": "test_chatbot",
-                    "data_type": data_type,
-                }
-            )
-            print(f"✅ 메모리 전송 성공: {result['id']}")
+            # data_type에 따라 적절한 메서드 호출
+            if data_type == "memory":
+                result = self.agent_client.send_memory(
+                    content=content,
+                    metadata={
+                        "source": "test_chatbot",
+                        "data_type": data_type,
+                    }
+                )
+            elif data_type == "message":
+                result = self.agent_client.send_message(
+                    content=content,
+                    metadata={
+                        "source": "test_chatbot",
+                        "data_type": data_type,
+                    }
+                )
+            else:  # log
+                result = self.agent_client.send_log(
+                    content=content,
+                    metadata={
+                        "source": "test_chatbot",
+                        "data_type": data_type,
+                    }
+                )
+            print(f"✅ {data_type} 전송 성공: {result['id']}")
         except AuthenticationError as e:
             print(f"❌ 인증 오류: {e}")
         except APIError as e:
@@ -246,7 +268,7 @@ class SimpleChatbot:
 async def main():
     """메인 함수"""
     # 환경 변수에서 API Key 가져오기
-    api_key = os.getenv("AI_MEMORY_AGENT_API_KEY","sk_49ab5d01bc934f818cde6e68a55d7bb7")
+    api_key = os.getenv("AI_MEMORY_AGENT_API_KEY")
     
     if not api_key:
         print("❌ AI_MEMORY_AGENT_API_KEY 환경 변수가 설정되지 않았습니다.")

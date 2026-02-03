@@ -18,7 +18,7 @@ class MemoryRepository:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "project", "department", "chatroom"] = "personal",
+        scope: Literal["personal", "project", "department", "chatroom", "agent"] = "personal",
         vector_id: str | None = None,
         project_id: str | None = None,
         department_id: str | None = None,
@@ -85,6 +85,7 @@ class MemoryRepository:
         project_id: str | None = None,
         department_id: str | None = None,
         chat_room_id: str | None = None,
+        agent_instance_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
@@ -125,6 +126,16 @@ class MemoryRepository:
             if data.get("metadata"):
                 data["metadata"] = json.loads(data["metadata"])
             results.append(data)
+        
+        # agent_instance_id 필터링 (Python 레벨)
+        if agent_instance_id:
+            results = [
+                r for r in results
+                if r.get("metadata") and 
+                   r["metadata"].get("source") == "agent" and
+                   r["metadata"].get("agent_instance_id") == agent_instance_id
+            ]
+        
         return results
 
     async def update_memory(

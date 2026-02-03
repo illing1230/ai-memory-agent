@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     vector_id TEXT,
-    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom')),
+    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')),
     owner_id TEXT NOT NULL,
     project_id TEXT,
     department_id TEXT,
@@ -403,6 +403,17 @@ async def init_database() -> None:
         await _db_connection.commit()
     except Exception:
         pass
+
+    # agent scope 추가 (memories) - CHECK 제약조건 재생성
+    try:
+        # 기존 CHECK 제약조건 삭제
+        await _db_connection.execute("CREATE TABLE memories_new (id TEXT PRIMARY KEY, content TEXT NOT NULL, vector_id TEXT, scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')), owner_id TEXT NOT NULL, project_id TEXT, department_id TEXT, chat_room_id TEXT, source_message_id TEXT, category TEXT, importance TEXT DEFAULT 'medium', metadata TEXT, topic_key TEXT, superseded BOOLEAN DEFAULT 0, superseded_by TEXT, superseded_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(id), FOREIGN KEY (project_id) REFERENCES projects(id), FOREIGN KEY (department_id) REFERENCES departments(id), FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id))")
+        await _db_connection.execute("INSERT INTO memories_new SELECT * FROM memories")
+        await _db_connection.execute("DROP TABLE memories")
+        await _db_connection.execute("ALTER TABLE memories_new RENAME TO memories")
+        await _db_connection.commit()
+    except Exception:
+        pass  # 이미 존재하면 무시
 
     print(f"✅ SQLite 데이터베이스 초기화 완료: {db_path}")
 

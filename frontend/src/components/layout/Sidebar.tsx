@@ -222,7 +222,7 @@ export function Sidebar() {
 
           {/* Memory Section */}
           <SidebarSection
-            title="지식 관리"
+            title="지식 센터"
             icon={Brain}
             expanded={expandedSections.memory}
             onToggle={() => toggleSection('memory')}
@@ -235,8 +235,8 @@ export function Sidebar() {
             />
             <SidebarItem
               to="/memory/list"
-              icon={MessageSquare}
-              label="대화방"
+              icon={List}
+              label="지식 목록"
               active={isActive('/memory/list')}
             />
             <SidebarItem

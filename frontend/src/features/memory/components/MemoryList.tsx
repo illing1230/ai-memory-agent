@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -7,8 +7,11 @@ import { useMemories, useDeleteMemory } from '../hooks/useMemory'
 import { formatDate, cn } from '@/lib/utils'
 import type { MemoryListResult, Memory } from '@/types'
 
+type TabType = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent'
+
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab] = useState<TabType>('all')
   const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
 
@@ -35,6 +38,7 @@ export function MemoryList() {
     chatroom: '대화방',
     project: '프로젝트',
     department: '부서',
+    agent: '에이전트',
   }
 
   const importanceColor: Record<string, string> = {
@@ -43,14 +47,43 @@ export function MemoryList() {
     low: 'bg-foreground-muted/10 text-foreground-muted',
   }
 
-  // 그룹화: scope별로
-  const groupedMemories = memories?.reduce((acc, memoryResult) => {
+  // 탭별 필터링
+  const filteredMemories = memories?.filter(memoryResult => {
     const memory = memoryResult.memory
-    const scope = memory.scope
-    if (!acc[scope]) acc[scope] = []
-    acc[scope].push(memoryResult)
+    if (activeTab === 'all') return true
+    if (activeTab === 'agent') {
+      return memory.scope === 'agent'
+    }
+    return memory.scope === activeTab
+  }) || []
+
+  // 그룹화: scope별로 또는 agent_instance별로
+  const groupedMemories = filteredMemories.reduce((acc, memoryResult) => {
+    const memory = memoryResult.memory
+    const sourceInfo = memoryResult.source_info
+    
+    let key: string
+    if (activeTab === 'agent') {
+      // 에이전트 탭: agent_instance_name으로 그룹화
+      key = sourceInfo?.agent_instance_name || '알 수 없는 에이전트'
+    } else {
+      // 다른 탭: scope로 그룹화
+      key = memory.scope
+    }
+    
+    if (!acc[key]) acc[key] = []
+    acc[key].push(memoryResult)
     return acc
-  }, {} as Record<string, MemoryListResult[]>) || {}
+  }, {} as Record<string, MemoryListResult[]>)
+
+  const tabs: { id: TabType; label: string; icon: any }[] = [
+    { id: 'all', label: '전체', icon: Brain },
+    { id: 'personal', label: '개인', icon: Brain },
+    { id: 'chatroom', label: '대화방', icon: Brain },
+    { id: 'project', label: '프로젝트', icon: Brain },
+    { id: 'department', label: '부서', icon: Brain },
+    { id: 'agent', label: '에이전트', icon: Bot },
+  ]
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -60,7 +93,7 @@ export function MemoryList() {
           <div>
             <h1 className="text-xl font-semibold flex items-center gap-2">
               <Brain className="h-5 w-5 text-accent" />
-              내 메모리 목록
+              내 지식 목록
             </h1>
             <p className="text-sm text-foreground-secondary mt-1">
               저장된 모든 메모리를 확인하고 관리하세요
@@ -81,6 +114,25 @@ export function MemoryList() {
       {/* Content */}
       <ScrollArea className="flex-1">
         <div className="px-6 py-4">
+          {/* 탭 */}
+          <div className="flex gap-2 mb-6 border-b border-border pb-4">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                  activeTab === tab.id
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-foreground-secondary hover:text-foreground hover:bg-background-secondary'
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {isLoading ? (
             <div className="flex justify-center py-12">
               <Loading size="lg" />
@@ -144,6 +196,12 @@ export function MemoryList() {
                               </p>
 
                               <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
+                                {sourceInfo?.agent_instance_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
+                                    <Bot className="h-3 w-3" />
+                                    {sourceInfo.agent_instance_name}
+                                  </span>
+                                )}
                                 {sourceInfo?.chat_room_name && (
                                   <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
                                     {sourceInfo.chat_room_name}

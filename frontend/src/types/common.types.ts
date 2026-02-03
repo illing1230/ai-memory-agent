@@ -96,13 +96,18 @@ export interface Message {
 export interface Memory {
   id: string
   content: string
-  scope: 'personal' | 'chatroom' | 'project' | 'department'
+  scope: 'personal' | 'chatroom' | 'project' | 'department' | 'agent'
   owner_id: string
   project_id?: string
   department_id?: string
   chat_room_id?: string
   category?: string
   importance?: 'high' | 'medium' | 'low'
+  metadata?: {
+    source?: string
+    agent_instance_id?: string
+    [key: string]: unknown
+  }
   created_at: string
   updated_at: string
 }
@@ -112,6 +117,7 @@ export interface MemoryListResult {
   source_info?: {
     chat_room_name?: string
     project_name?: string
+    agent_instance_name?: string
   }
 }
 
@@ -121,6 +127,7 @@ export interface MemorySearchResult {
   source_info?: {
     chat_room_name?: string
     project_name?: string
+    agent_instance_name?: string
   }
 }
 

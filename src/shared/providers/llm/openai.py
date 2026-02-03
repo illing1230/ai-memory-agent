@@ -106,7 +106,12 @@ class OpenAILLMProvider(BaseLLMProvider):
                 
                 content = data["choices"][0]["message"]["content"]
                 
-                # <think>...</think> 태그 제거 (Qwen3 등)
+                # content가 None인 경우 처리
+                if content is None:
+                    print(f"[LLM] 응답 content가 None입니다")
+                    raise ProviderException("OpenAI LLM", "LLM 응답이 비어있습니다")
+                
+                # <think> 태그 제거 (Qwen3 등)
                 content = re.sub(r"<think>[\s\S]*?</think>", "", content)
                 content = content.strip()
                 

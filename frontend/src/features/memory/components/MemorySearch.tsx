@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, Filter, Trash2, Brain, Clock, Tag, FileText } from 'lucide-react'
+import { Search, Filter, Trash2, Brain, Clock, Tag, FileText, Bot } from 'lucide-react'
 import { Button, Input, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -8,7 +8,7 @@ import { searchDocuments, type DocumentSearchResult } from '@/features/document/
 import { formatDate, cn } from '@/lib/utils'
 import type { MemorySearchResult } from '@/types'
 
-type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'document'
+type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent' | 'document'
 
 export function MemorySearch() {
   const [query, setQuery] = useState('')
@@ -20,7 +20,11 @@ export function MemorySearch() {
     setTimeout(() => setDebouncedQuery(value), 300)
   }
 
-  const { data: searchResults, isLoading, isError, error } = useMemorySearch({ query: debouncedQuery, limit: 20 })
+  const { data: searchResults, isLoading, isError, error } = useMemorySearch({ 
+    query: debouncedQuery, 
+    limit: 20,
+    scope: scopeFilter === 'agent' ? 'agent' : undefined,
+  })
   const deleteMemory = useDeleteMemory()
   const [documentResults, setDocumentResults] = useState<DocumentSearchResult[]>([])
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
@@ -49,6 +53,9 @@ export function MemorySearch() {
   const filteredResults = useMemo(() => {
     if (!searchResults) return []
     if (scopeFilter === 'all') return searchResults
+    if (scopeFilter === 'agent') {
+      return searchResults.filter((r) => r.memory.metadata?.source === 'agent')
+    }
     return searchResults.filter((r) => r.memory.scope === scopeFilter)
   }, [searchResults, scopeFilter])
 
@@ -83,7 +90,7 @@ export function MemorySearch() {
             <Filter className="h-4 w-4 text-foreground-muted" />
             <span className="text-sm text-foreground-secondary">범위:</span>
             <div className="flex gap-1">
-              {(['all', 'personal', 'chatroom', 'project', 'department', 'document'] as ScopeFilter[]).map((scope) => (
+              {(['all', 'personal', 'chatroom', 'project', 'department', 'agent', 'document'] as ScopeFilter[]).map((scope) => (
               <Button
                 key={scope}
                 variant={scopeFilter === scope ? 'default' : 'ghost'}
@@ -96,6 +103,7 @@ export function MemorySearch() {
                 {scope === 'chatroom' && '대화방'}
                 {scope === 'project' && '프로젝트'}
                 {scope === 'department' && '부서'}
+                {scope === 'agent' && '에이전트'}
                 {scope === 'document' && '문서'}
               </Button>
             ))}
@@ -194,6 +202,12 @@ function MemoryCard({ result, onDelete }: MemoryCardProps) {
               <Tag className="h-3 w-3" />
               {scopeLabel[memory.scope] || memory.scope}
             </span>
+            {source_info?.agent_instance_name && (
+              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
+                <Bot className="h-3 w-3" />
+                {source_info.agent_instance_name}
+              </span>
+            )}
             {source_info?.chat_room_name && (
               <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
                 {source_info.chat_room_name}

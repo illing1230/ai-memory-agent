@@ -312,11 +312,11 @@ class AgentService:
         embedding_provider = get_embedding_provider()
         vector = await embedding_provider.embed(content)
         
-        # 메모리 생성
+        # 메모리 생성 (scope를 'agent'로 설정)
         memory = await self.memory_repo.create_memory(
             content=content,
             owner_id=owner_id,
-            scope="personal",
+            scope="agent",
             category=metadata.get("category") if metadata else None,
             importance=metadata.get("importance", "medium") if metadata else "medium",
             metadata={
@@ -333,7 +333,7 @@ class AgentService:
                 vector=vector,
                 payload={
                     "memory_id": memory["id"],
-                    "scope": "personal",
+                    "scope": "agent",
                     "owner_id": owner_id,
                 },
             )
