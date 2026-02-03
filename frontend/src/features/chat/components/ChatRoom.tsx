@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Users, Settings, Trash2, Plus, Wifi, WifiOff } from 'lucide-react'
+import { Users, Settings, Trash2, Plus, Wifi, WifiOff, LogOut } from 'lucide-react'
 import { Button, Tooltip } from '@/components/ui'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
@@ -8,7 +8,7 @@ import { MembersPanel } from './MembersPanel'
 import { ContextSourcesModal } from './ContextSourcesModal'
 import { LoadingScreen } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
-import { useChatRoom, useMessages, useSendMessage, useChatRooms, useDeleteChatRoom } from '../hooks/useChat'
+import { useChatRoom, useMessages, useSendMessage, useChatRooms, useDeleteChatRoom, useRemoveChatRoomMember } from '../hooks/useChat'
 import { useAuthStore } from '@/features/auth/store/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -32,6 +32,7 @@ export function ChatRoom() {
   const { data: messages = [], isLoading: messagesLoading } = useMessages(roomId)
   const sendMessageMutation = useSendMessage(roomId || '')
   const deleteRoomMutation = useDeleteChatRoom()
+  const removeMemberMutation = useRemoveChatRoomMember()
 
   // WebSocket 연결
   const effectiveToken = token || localStorage.getItem('access_token') || 'dev-token'
@@ -74,6 +75,17 @@ export function ChatRoom() {
       console.error('대화방 삭제 실패:', error)
     }
   }, [roomId, deleteRoomMutation, navigate])
+
+  const handleLeaveRoom = useCallback(async () => {
+    if (!roomId || !user) return
+    if (!confirm('이 대화방에서 나가시겠습니까?')) return
+    try {
+      await removeMemberMutation.mutateAsync({ roomId, userId: user.id })
+      navigate('/chat')
+    } catch (error) {
+      console.error('대화방 나가기 실패:', error)
+    }
+  }, [roomId, user, removeMemberMutation, navigate])
 
   const handleSend = useCallback(async (content: string) => {
     if (!content.trim() || isSending) return
@@ -203,7 +215,7 @@ export function ChatRoom() {
               <Settings className="h-4 w-4" />
             </Button>
           </Tooltip>
-          {user?.id === room.owner_id && (
+          {user?.id === room.owner_id ? (
             <Tooltip content="대화방 삭제" side="bottom">
               <Button
                 variant="ghost"
@@ -212,6 +224,17 @@ export function ChatRoom() {
                 className="text-foreground-muted hover:text-error"
               >
                 <Trash2 className="h-4 w-4" />
+              </Button>
+            </Tooltip>
+          ) : (
+            <Tooltip content="대화방 나가기" side="bottom">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleLeaveRoom}
+                className="text-foreground-muted hover:text-error"
+              >
+                <LogOut className="h-4 w-4" />
               </Button>
             </Tooltip>
           )}

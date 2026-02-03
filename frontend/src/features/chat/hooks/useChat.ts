@@ -7,6 +7,7 @@ import {
   getMessages,
   sendMessage,
   getChatRoomMembers,
+  removeChatRoomMember,
   type CreateChatRoomParams,
   type SendMessageParams,
 } from '../api/chatApi'
@@ -95,5 +96,17 @@ export function useChatRoomMembers(roomId: string | undefined) {
     queryKey: chatKeys.members(roomId!),
     queryFn: () => getChatRoomMembers(roomId!),
     enabled: !!roomId,
+  })
+}
+
+export function useRemoveChatRoomMember() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ roomId, userId }: { roomId: string; userId: string }) => 
+      removeChatRoomMember(roomId, userId),
+    onSuccess: (_, { roomId }) => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.rooms() })
+      queryClient.invalidateQueries({ queryKey: chatKeys.members(roomId) })
+    },
   })
 }
