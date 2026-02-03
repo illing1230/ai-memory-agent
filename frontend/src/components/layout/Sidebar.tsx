@@ -16,6 +16,7 @@ import {
   PanelLeft,
   LogOut,
   Shield,
+  Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
@@ -35,6 +36,7 @@ export function Sidebar() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     chatRooms: true,
     memory: true,
+    agents: true,
   })
 
   const toggleSection = (section: string) => {
@@ -96,6 +98,16 @@ export function Sidebar() {
             </Button>
           </Tooltip>
 
+          <Tooltip content="Agent" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActivePrefix('/agents') && 'bg-background-active')}
+              onClick={() => navigate('/agents/marketplace')}
+            >
+              <Bot className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="대화방 권한 관리" side="right">
             <Button
               variant="ghost"
@@ -256,6 +268,32 @@ export function Sidebar() {
             />
           </SidebarSection>
 
+          {/* Agent Section */}
+          <SidebarSection
+            title="Agent"
+            icon={Bot}
+            expanded={expandedSections.agents}
+            onToggle={() => toggleSection('agents')}
+          >
+            <SidebarItem
+              to="/agents/marketplace"
+              icon={Bot}
+              label="Marketplace"
+              active={isActive('/agents/marketplace')}
+            />
+            <SidebarItem
+              to="/agents/my-instances"
+              icon={List}
+              label="내 Instances"
+              active={isActive('/agents/my-instances')}
+            />
+            <SidebarItem
+              to="/agents/types"
+              icon={Settings}
+              label="Agent 등록"
+              active={isActive('/agents/types')}
+            />
+          </SidebarSection>
           {/* Admin - admin role만 표시 */}
           {user?.role === 'admin' && (
             <SidebarItem

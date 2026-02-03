@@ -8,6 +8,7 @@ import { AdminPage } from '@/features/admin/components/AdminPage'
 import { DocumentPage } from '@/features/document/components/DocumentPage'
 import { ChatRoomManagement } from '@/features/chatroom/components/ChatRoomManagement'
 import { LoginForm } from '@/features/auth/components/LoginForm'
+import { AgentMarketplace, MyAgentInstances, AgentTypeManagement } from '@/features/agent/components'
 import { useAuthStore } from '@/features/auth/store/authStore'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -44,6 +45,10 @@ function App() {
           <Route path="documents" element={<DocumentPage />} />
           <Route path="chatrooms" element={<ChatRoomManagement />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="agents" element={<Navigate to="/agents/marketplace" replace />} />
+          <Route path="agents/marketplace" element={<AgentMarketplace />} />
+          <Route path="agents/my-instances" element={<MyAgentInstances />} />
+          <Route path="agents/types" element={<AgentTypeManagement />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/chat" replace />} />
