@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Memory Agent SDK 연동 가이드</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        
+        h2 {
+            color: #1e40af;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        h3 {
+            color: #1e3a8a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+        
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 30px;
+        }
+        
+        li {
+            margin-bottom: 10px;
+        }
+        
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        
+        .feature-box {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .tip-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .warning-box {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .step {
+            background: #f9fafb;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .step-number {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            border-radius: 50%;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background: #f3f4f6;
+            font-weight: bold;
+        }
+        
+        .toc {
+            background: #f9fafb;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .toc h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            margin-bottom: 8px;
+        }
+        
+        .toc a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 AI Memory Agent SDK 연동 가이드</h1>
+        <p class="subtitle">외부 AI 에이전트에 메모리 기능 통합하기</p>
+        
+        <div class="toc">
+            <h3>📋 목차</h3>
+            <ul>
+                <li><a href="#intro">1. 소개</a></li>
+                <li><a href="#prerequisites">2. 사전 준비</a></li>
+                <li><a href="#installation">3. SDK 설치</a></li>
+                <li><a href="#setup">4. Agent Instance 생성</a></li>
+                <li><a href="#integration">5. SDK 연동</a></li>
+                <li><a href="#examples">6. 사용 예시</a></li>
+                <li><a href="#advanced">7. 고급 기능</a></li>
+                <li><a href="#troubleshooting">8. 문제 해결</a></li>
+            </ul>
+        </div>
+        
+        <h2 id="intro">1. 소개</h2>
+        <p>AI Memory Agent SDK를 사용하면 외부 AI 에이전트(챗봇, 가상 비서전트 등)에 지능적인 메모리 관리 기능을 쉽게 통합할 수 있습니다. SDK를 통해 대화 내용을 자동으로 메모리로 저장하고, 필요할 때 검색하여 활용할 수 있습니다.</p>
+        
+        <div class="feature-box">
+            <strong>SDK 주요 기능:</strong>
+            <ul>
+                <li>메모리, 메시지, 로그 데이터 전송</li>
+                <li>동기 및 비동기 클라이언트 지원</li>
+                <li>자동 재시도 및 에러 처리</li>
+                <li>타입 안전한 API</li>
+                <li>간편한 사용자 매핑</li>
+            </ul>
+        </div>
+        
+        <h2 id="prerequisites">2. 사전 준비</h2>
+        
+        <h3>2.1 필수 요구사항</h3>
+        <ul>
+            <li>Python 3.8+</li>
+            <li>AI Memory Agent 서버 접속 가능</li>
+            <li>Agent Instance API Key</li>
+        </ul>
+        
+        <h3>2.2 Agent Instance 생성</h3>
+        
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>AI Memory Agent 웹 대시보드 접속</strong>
+            <p>브라우저에서 AI Memory Agent 대시보드에 접속합니다.</p>
+        </div>
+        
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>Agent Marketplace 이동</strong>
+            <p>사이드바에서 "Agent" → "Marketplace"를 클릭합니다.</p>
+        </div>
+        
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Agent Instance 생성</strong>
+            <p>원하는 Agent Type을 선택하고 "Instance 생성" 버튼을 클릭합니다.</p>
+        </div>
+        
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>API Key 확인</strong>
+            <p>생성된 Agent Instance의 API Key를 복사합니다. 이 API Key는 SDK 연동에 필요합니다.</p>
+        </div>
+        
+        <div class="warning-box">
+            <strong>⚠️ 중요:</strong> API Key는 안전하게 보관하세요. 유출 시 타인이 귀하의 Agent Instance에 접근할 수 있습니다.
+        </div>
+        
+        <h2 id="installation">3. SDK 설치</h2>
+        
+        <h3>3.1 pip로 설치</h3>
+        <pre><code>pip install ai-memory-agent-sdk</code></pre>
+        
+        <h3>3.2 개발 모드로 설치 (소스 코드에서)</h3>
+        <pre><code>cd ai-memory-agent
+pip install -e ai_memory_agent_sdk</code></pre>
+        
+        <h2 id="setup">4. 기본 설정</h2>
+        
+        <h3>4.1 환경 변수 설정</h3>
+        <pre><code>export AI_MEMORY_AGENT_API_KEY="your_api_key_here"
+export AI_MEMORY_AGENT_BASE_URL="http://localhost:8000"</code></pre>
+        
+        <h3>4.2 .env 파일 사용</h3>
+        <pre><code># .env
+AI_MEMORY_AGENT_API_KEY=sk_your_api_key_here
+AI_MEMORY_AGENT_BASE_URL=http://localhost:8000</code></pre>
+        
+        <h2 id="integration">5. SDK 연동</h2>
+        
+        <h3>5.1 동기 클라이언트 사용</h3>
+        <pre><code>from ai_memory_agent_sdk import AIMemoryAgentSyncClient
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
+
+# 클라이언트 초기화
+client = AIMemoryAgentSyncClient(
+    api_key="your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="your_agent_id"
+)
+
+# 메모리 전송
+result = client.send_memory(
+    content="사용자가 커피를 좋아합니다",
+    metadata={
+        "source": "chatbot",
+        "category": "preference"
+    }
+)
+
+print(f"메모리 ID: {result['id']}")</code></pre>
+        
+        <h3>5.2 비동기 클라이언트 사용</h3>
+        <pre><code>import asyncio
+from ai_memory_agent_sdk import AIMemoryAgentClient
+
+async def main():
+    # 클라이언트 초기화
+    async with AIMemoryAgentClient(
+        api_key="your_api_key",
+        base_url="http://localhost:8000",
+        agent_id="your_agent_id"
+    ) as client:
+        # 메모리 전송
+        result = await client.send_memory(
+            content="프로젝트 마감일은 3월 15일입니다",
+            metadata={
+                "source": "chatbot",
+                "category": "fact",
+                "importance": "high"
+            }
+        )
+        print(f"메모리 ID: {result['id']}")
+
+asyncio.run(main())</code></pre>
+        
+        <h3>5.3 데이터 타입</h3>
+        <p>SDK는 세 가지 데이터 타입을 지원합니다:</p>
+        
+        <table>
+            <tr>
+                <th>데이터 타입</th>
+                <th>메서드</th>
+                <th>용도</th>
+            </tr>
+            <tr>
+                <td>memory</td>
+                <td><code>send_memory()</code></td>
+                <td>중요한 정보 저장 (벡터화됨)</td>
+            </tr>
+            <tr>
+                <td>message</td>
+                <td><code>send_message()</code></td>
+                <td>대화 기록 저장</td>
+            </tr>
+            <tr>
+                <td>log</td>
+                <td><code>send_log()</code></td>
+                <td>시스템 로그 저장</td>
+            </tr>
+        </table>
+        
+        <h2 id="examples">6. 사용 예시</h2>
+        
+        <h3>6.1 챗봇에 메모리 기능 추가</h3>
+        <pre><code>from ai_memory_agent_sdk import AIMemoryAgentSyncClient
+
+class Chatbot:
+    def __init__(self, api_key: str, base_url: str, agent_id: str):
+        self.client = AIMemoryAgentSyncClient(
+            api_key=api_key,
+            base_url=base_url,
+            agent_id=agent_id
+        )
+    
+    def process_message(self, user_input: str) -> str:
+        # 사용자 메시지를 메시지로 저장
+        self.client.send_message(
+            content=user_input,
+            metadata={"source": "chatbot"}
+        )
+        
+        # AI 응답 생성
+        ai_response = self.generate_response(user_input)
+        
+        # AI 응답을 메시지로 저장
+        self.client.send_message(
+            content=ai_response,
+            metadata={"source": "chatbot"}
+        )
+        
+        return ai_response
+    
+    def extract_memory(self, conversation: str) -> str:
+        # 대화에서 중요한 정보 추출
+        memory = self.analyze_conversation(conversation)
+        
+        # 추출된 메모리를 저장
+        self.client.send_memory(
+            content=memory,
+            metadata={
+                "source": "chatbot",
+                "category": "preference",
+                "importance": "medium"
+            }
+        )
+        
+        return memory</code></pre>
+        
+        <h3>6.2 사용자 매핑</h3>
+        <p>외부 시스템의 사용자 ID를 AI Memory Agent의 내부 사용자 ID와 매핑할 수 있습니다.</p>
+        
+        <pre><code># 외부 사용자 ID로 메모리 전송
+client.send_memory(
+    content="사용자의 선호도 정보",
+    external_user_id="user_12345",  # 외부 시스템의 사용자 ID
+    metadata={
+        "source": "external_system",
+        "category": "preference"
+    }
+)</code></pre>
+        
+        <h3>6.3 에러 처리</h3>
+        <pre><code>from ai_memory_agent_sdk import (
+    AIMemoryAgentSyncClient,
+    AuthenticationError,
+    APIError,
+    ConnectionError
+)
+
+try:
+    client = AIMemoryAgentSyncClient(
+        api_key="your_api_key",
+        base_url="http://localhost:8000",
+        agent_id="your_agent_id"
+    )
+    
+    result = client.send_memory(
+        content="테스트 메모리",
+        metadata={"source": "test"}
+    )
+    
+except AuthenticationError as e:
+    print(f"인증 오류: {e}")
+    
+except APIError as e:
+    print(f"API 오류: {e}")
+    
+except ConnectionError as e:
+    print(f"연결 오류: {e}")
+    
+except Exception as e:
+    print(f"알 수 없는 오류: {e}")</code></pre>
+        
+        <h2 id="advanced">7. 고급 기능</h2>
+        
+        <h3>7.1 헬스 체크</h3>
+        <pre><code># 서버 연결 상태 확인
+if client.health_check():
+    print("✅ 서버 연결 성공")
+else:
+    print("❌ 서버 연결 실패")</code></pre>
+        
+        <h3>7.2 메타데이터 활용</h3>
+        <p>메타데이터를 활용하여 메모리를 분류하고 검색할 수 있습니다.</p>
+        
+        <pre><code>client.send_memory(
+    content="프로젝트 기술 스택: Python, FastAPI, React",
+    metadata={
+        "source": "chatbot",
+        "category": "fact",
+        "importance": "high",
+        "project": "ai-memory-agent",
+        "tags": ["tech-stack", "project"]
+    }
+)</code></pre>
+        
+        <h3>7.3 배치 처리</h3>
+        <pre><code>import asyncio
+from ai_memory_agent_sdk import AIMemoryAgentClient
+
+async def batch_send_memories(memories: list[str]):
+    async with AIMemoryAgentClient(
+        api_key="your_api_key",
+        base_url="http://localhost:8000",
+        agent_id="your_agent_id"
+    ) as client:
+        tasks = [
+            client.send_memory(content=memory)
+            for memory in memories
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"메모리 {i} 전송 실패: {result}")
+            else:
+                print(f"메모리 {i} 전송 성공: {result['id']}")
+
+# 사용 예시
+memories = [
+    "사용자는 Python을 선호합니다",
+    "프로젝트 마감일은 3월 15일입니다",
+    "팀 규모는 5명입니다"
+]
+
+asyncio.run(batch_send_memories(memories))</code></pre>
+        
+        <h2 id="troubleshooting">8. 문제 해결</h2>
+        
+        <h3>8.1 일반적인 문제</h3>
+        
+        <div class="warning-box">
+            <strong>문제: 인증 오류 (401)</strong>
+            <ul>
+                <li>API Key가 올바른지 확인하세요</li>
+                <li>Agent Instance가 활성화되어 있는지 확인하세요</li>
+            </ul>
+        </div>
+        
+        <div class="warning-box">
+            <strong>문제: 연결 오류</strong>
+            <ul>
+                <li>서버 URL이 올바른지 확인하세요</li>
+                <li>서버가 실행 중인지 확인하세요</li>
+                <li>방화벽 설정을 확인하세요</li>
+            </ul>
+        </div>
+        
+        <div class="warning-box">
+            <strong>문제: 타임아웃</strong>
+            <ul>
+                <li>기본 타임아웃은 30초입니다</li>
+                <li>클라이언트 초기화 시 <code>timeout</code> 파라미터로 조정 가능합니다</li>
+            </ul>
+        </div>
+        
+        <h3>8.2 디버깅 팁</h3>
+        
+        <div class="tip-box">
+            <strong>💡 디버깅 팁:</strong>
+            <ol>
+                <li><strong>상세 로그 활성화:</strong> SDK 내부 로그를 확인하여 문제 진단</li>
+                <li><strong>헬스 체크:</strong> <code>health_check()</code>로 서버 상태 확인</li>
+                <li><strong>네트워크 테스트:</strong> <code>curl</code>로 API 직접 호출 테스트</li>
+                <li><strong>메타데이터 검증:</strong> 메타데이터가 올바른 형식인지 확인</li>
+            </ol>
+        </div>
+        
+        <h3>8.3 API 직접 테스트</h3>
+        <pre><code># curl로 API 테스트
+curl -X POST http://localhost:8000/api/v1/agents/your_agent_id/data \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "data_type": "memory",
+    "content": "테스트 메모리",
+    "metadata": {"source": "test"}
+  }'</code></pre>
+        
+        <h2>📞 지원</h2>
+        <p>문제가 발생하거나 도움이 필요하시면 다음을 확인하세요:</p>
+        <ul>
+            <li>SDK 문서: <code>ai_memory_agent_sdk/README.md</code></li>
+            <li>API 문서: AI Memory Agent 대시보드</li>
+            <li>개발팀에 문의</li>
+        </ul>
+        
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e7eb;">
+        
+        <p style="text-align: center; color: #666; font-size: 0.9em;">
+            © 2026 AI Memory Agent. All rights reserved.
+        </p>
+    </div>
+</body>
+</html>

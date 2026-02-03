@@ -245,15 +245,6 @@ export function Sidebar() {
               label="문서 업로드"
               active={isActive('/documents')}
             />
-            <a
-              href="/guide.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="sidebar-item"
-            >
-              <FileText className="h-4 w-4 shrink-0" />
-              <span className="truncate">사용 가이드</span>
-            </a>
           </SidebarSection>
 
           {/* Permission Management Section */}
