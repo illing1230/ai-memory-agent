@@ -1,19 +1,58 @@
-import { useState } from 'react'
-import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useMemories, useDeleteMemory } from '../hooks/useMemory'
-import { formatDate, cn } from '@/lib/utils'
-import type { MemoryListResult, Memory } from '@/types'
+import { getDocuments, deleteDocument } from '@/features/document/api/documentApi'
+import { formatDate, cn, formatFileSize } from '@/lib/utils'
+import type { MemoryListResult, Memory, Document } from '@/types'
 
-type TabType = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent'
+type TabType = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent' | 'document'
 
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<TabType>('all')
   const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
+  
+  // 문서 관련 상태
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+  const [documentsError, setDocumentsError] = useState<string | null>(null)
+  
+  // 문서 목록 로드
+  const loadDocuments = async () => {
+    setDocumentsLoading(true)
+    setDocumentsError(null)
+    try {
+      const docs = await getDocuments()
+      setDocuments(docs)
+    } catch (err) {
+      setDocumentsError(err instanceof Error ? err.message : '문서를 불러오는 중 오류가 발생했습니다')
+    } finally {
+      setDocumentsLoading(false)
+    }
+  }
+  
+  // 탭이 변경될 때 문서 로드
+  useEffect(() => {
+    if (activeTab === 'document') {
+      loadDocuments()
+    }
+  }, [activeTab])
+  
+  // 문서 삭제
+  const handleDeleteDocument = async (docId: string) => {
+    if (confirm('이 문서를 삭제하시겠습니까?')) {
+      try {
+        await deleteDocument(docId)
+        setDocuments(prev => prev.filter(doc => doc.id !== docId))
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '문서 삭제 중 오류가 발생했습니다')
+      }
+    }
+  }
 
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => {
@@ -83,6 +122,7 @@ export function MemoryList() {
     { id: 'project', label: '프로젝트', icon: Brain },
     { id: 'department', label: '부서', icon: Brain },
     { id: 'agent', label: '에이전트', icon: Bot },
+    { id: 'document', label: '문서', icon: FileText },
   ]
 
   return (
@@ -133,7 +173,86 @@ export function MemoryList() {
             ))}
           </div>
 
-          {isLoading ? (
+          {activeTab === 'document' ? (
+            // 문서 탭
+            documentsLoading ? (
+              <div className="flex justify-center py-12">
+                <Loading size="lg" />
+              </div>
+            ) : documentsError ? (
+              <EmptyState
+                icon={FileText}
+                title="문서를 불러오는 중 오류가 발생했습니다"
+                description={documentsError}
+                action={<Button variant="secondary" size="sm" onClick={loadDocuments}>다시 시도</Button>}
+              />
+            ) : !documents || documents.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="저장된 문서가 없습니다"
+                description="문서를 업로드하여 지식 베이스를 구축하세요"
+              />
+            ) : (
+              <div className="space-y-6">
+                <p className="text-sm text-foreground-secondary">
+                  총 {documents.length}개의 문서
+                </p>
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="card p-4 hover:shadow-medium transition-shadow">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <FileText className="h-8 w-8 text-accent" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-foreground mb-1">
+                            {doc.name}
+                          </h3>
+                          <div className="flex items-center gap-3 text-xs text-foreground-tertiary">
+                            <span className="px-1.5 py-0.5 rounded bg-background-secondary">
+                              {doc.file_type.toUpperCase()}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Tag className="h-3 w-3" />
+                              {formatFileSize(doc.file_size)}
+                            </span>
+                            {doc.chunk_count > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Brain className="h-3 w-3" />
+                                {doc.chunk_count}개 청크
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDate(doc.created_at)}
+                            </span>
+                          </div>
+                          {doc.status === 'processing' && (
+                            <div className="mt-2 text-xs text-warning">
+                              처리 중...
+                            </div>
+                          )}
+                          {doc.status === 'failed' && (
+                            <div className="mt-2 text-xs text-error">
+                              처리 실패
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-foreground-muted hover:text-error shrink-0"
+                          onClick={() => handleDeleteDocument(doc.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          ) : isLoading ? (
             <div className="flex justify-center py-12">
               <Loading size="lg" />
             </div>

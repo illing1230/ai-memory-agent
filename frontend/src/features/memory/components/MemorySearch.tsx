@@ -162,13 +162,15 @@ function DocumentCard({ result }: DocumentCardProps) {
   const { content, score, document_name, chunk_index, file_type } = result
 
   return (
-    <div className="card p-4 hover:shadow-medium transition-shadow">
-      <div className="flex items-start gap-3">
-        <FileText className="h-5 w-5 text-accent mt-0.5 shrink-0" />
+    <div className="group card p-4 hover:shadow-medium transition-shadow">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground mb-1">{document_name}</p>
-          <p className="text-sm text-foreground-secondary leading-relaxed line-clamp-3">{content}</p>
+          <p className="text-sm text-foreground leading-relaxed">{content}</p>
           <div className="flex items-center gap-3 mt-3 text-xs text-foreground-tertiary">
+            <span className="flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              {document_name}
+            </span>
             <span className="px-1.5 py-0.5 rounded bg-background-secondary">
               {file_type.toUpperCase()}
             </span>

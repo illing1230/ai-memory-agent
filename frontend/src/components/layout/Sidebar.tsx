@@ -242,7 +242,7 @@ export function Sidebar() {
             <SidebarItem
               to="/documents"
               icon={FileText}
-              label="문서"
+              label="문서 업로드"
               active={isActive('/documents')}
             />
           </SidebarSection>
