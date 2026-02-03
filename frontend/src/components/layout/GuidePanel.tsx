@@ -152,8 +152,6 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
                     <a
                       key={index}
                       href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="block p-3 rounded-lg border border-border hover:bg-background-hover transition-colors group"
                     >
                       <div className="flex items-start gap-2">
@@ -182,8 +180,6 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
           자세한 내용은{' '}
           <a
             href="/docs/agent-integration-guide.html"
-            target="_blank"
-            rel="noopener noreferrer"
             className="text-accent hover:underline"
           >
             전체 가이드 문서
