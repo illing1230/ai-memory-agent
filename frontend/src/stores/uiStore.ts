@@ -7,6 +7,7 @@ interface UIState {
   theme: 'light' | 'dark' | 'system'
   createRoomModalOpen: boolean
   settingsModalOpen: boolean
+  guidePanelOpen: boolean
   
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
@@ -14,6 +15,7 @@ interface UIState {
   setTheme: (theme: 'light' | 'dark' | 'system') => void
   setCreateRoomModalOpen: (open: boolean) => void
   setSettingsModalOpen: (open: boolean) => void
+  setGuidePanelOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -24,6 +26,7 @@ export const useUIStore = create<UIState>()(
       theme: 'light',
       createRoomModalOpen: false,
       settingsModalOpen: false,
+      guidePanelOpen: false,
       
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
@@ -46,6 +49,7 @@ export const useUIStore = create<UIState>()(
       },
       setCreateRoomModalOpen: (createRoomModalOpen) => set({ createRoomModalOpen }),
       setSettingsModalOpen: (settingsModalOpen) => set({ settingsModalOpen }),
+      setGuidePanelOpen: (guidePanelOpen) => set({ guidePanelOpen }),
     }),
     {
       name: 'ui-storage',

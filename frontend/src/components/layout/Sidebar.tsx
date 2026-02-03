@@ -18,6 +18,7 @@ import {
   Shield,
   Bot,
   Book,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
@@ -35,9 +36,10 @@ export function Sidebar() {
   const { data: chatRooms = [], isLoading } = useChatRooms()
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    chatRooms: true,
-    memory: true,
-    agents: true,
+    chatRooms: false,
+    memory: false,
+    agents: false,
+    guide: false,
   })
 
   const toggleSection = (section: string) => {
@@ -295,6 +297,22 @@ export function Sidebar() {
               active={isActive('/agents/types')}
             />
           </SidebarSection>
+          {/* Guide Section */}
+          <SidebarSection
+            title="사용 가이드"
+            icon={HelpCircle}
+            expanded={expandedSections.guide}
+            onToggle={() => toggleSection('guide')}
+          >
+            <div
+              className="sidebar-item cursor-pointer"
+              onClick={() => useUIStore.getState().setGuidePanelOpen(true)}
+            >
+              <Book className="h-4 w-4 shrink-0" />
+              <span className="truncate">가이드 보기</span>
+            </div>
+          </SidebarSection>
+
           {/* Admin - admin role만 표시 */}
           {user?.role === 'admin' && (
             <SidebarItem
