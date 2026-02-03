@@ -17,6 +17,7 @@ import {
   LogOut,
   Shield,
   Bot,
+  Book,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
@@ -319,7 +320,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Settings & Logout */}
+        {/* Settings, Guide & Logout */}
         <div className="flex gap-1">
           <Button
             variant="ghost"
@@ -329,6 +330,15 @@ export function Sidebar() {
             <Settings className="h-4 w-4" />
             <span className="text-sm">설정</span>
           </Button>
+          <Tooltip content="SDK 통합 가이드" side="top">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+            >
+              <Book className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="로그아웃" side="top">
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
