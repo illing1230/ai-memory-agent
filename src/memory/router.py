@@ -14,6 +14,7 @@ from src.memory.schemas import (
     MemorySearchRequest,
     MemorySearchResponse,
     MemorySearchResult,
+    MemoryListResult,
     MemoryExtractRequest,
 )
 
@@ -45,7 +46,7 @@ async def create_memory(
     )
 
 
-@router.get("", response_model=list[MemoryResponse])
+@router.get("", response_model=list[MemoryListResult])
 async def list_memories(
     scope: str | None = None,
     project_id: str | None = None,
@@ -57,7 +58,7 @@ async def list_memories(
 ):
     """메모리 목록 조회 (권한 기반 필터링)"""
     try:
-        return await service.list_memories(
+        results = await service.list_memories(
             user_id=user_id,
             scope=scope,
             project_id=project_id,
@@ -65,6 +66,13 @@ async def list_memories(
             limit=limit,
             offset=offset,
         )
+        return [
+            MemoryListResult(
+                memory=r["memory"],
+                source_info=r.get("source_info")
+            )
+            for r in results
+        ]
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=e.message)
 

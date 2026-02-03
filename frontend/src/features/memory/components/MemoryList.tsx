@@ -5,7 +5,7 @@ import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useMemories, useDeleteMemory } from '../hooks/useMemory'
 import { formatDate, cn } from '@/lib/utils'
-import type { Memory } from '@/types'
+import type { MemoryListResult, Memory } from '@/types'
 
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -44,12 +44,13 @@ export function MemoryList() {
   }
 
   // 그룹화: scope별로
-  const groupedMemories = memories?.reduce((acc, memory) => {
+  const groupedMemories = memories?.reduce((acc, memoryResult) => {
+    const memory = memoryResult.memory
     const scope = memory.scope
     if (!acc[scope]) acc[scope] = []
-    acc[scope].push(memory)
+    acc[scope].push(memoryResult)
     return acc
-  }, {} as Record<string, Memory[]>) || {}
+  }, {} as Record<string, MemoryListResult[]>) || {}
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -112,7 +113,9 @@ export function MemoryList() {
                   </h2>
 
                   <div className="space-y-2">
-                    {items.map((memory) => {
+                    {items.map((memoryResult) => {
+                      const memory = memoryResult.memory
+                      const sourceInfo = memoryResult.source_info
                       const isExpanded = expandedIds.has(memory.id)
                       const preview = memory.content.length > 80
                         ? memory.content.slice(0, 80) + '...'
@@ -141,6 +144,16 @@ export function MemoryList() {
                               </p>
 
                               <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
+                                {sourceInfo?.chat_room_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
+                                    {sourceInfo.chat_room_name}
+                                  </span>
+                                )}
+                                {sourceInfo?.project_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
+                                    {sourceInfo.project_name}
+                                  </span>
+                                )}
                                 {memory.category && (
                                   <span className="px-1.5 py-0.5 rounded bg-background-secondary">
                                     {memory.category}

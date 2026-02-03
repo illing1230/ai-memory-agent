@@ -1,14 +1,15 @@
 import { get, post, del } from '@/lib/api'
-import type { Memory, MemorySearchResult } from '@/types'
+import type { Memory, MemoryListResult, MemorySearchResult } from '@/types'
 
 export interface GetMemoriesParams {
   limit?: number
   offset?: number
   scope?: string
+  [key: string]: unknown
 }
 
-export async function getMemories(params?: GetMemoriesParams): Promise<Memory[]> {
-  return get<Memory[]>('/memories', params)
+export async function getMemories(params?: GetMemoriesParams): Promise<MemoryListResult[]> {
+  return get<MemoryListResult[]>('/memories', params)
 }
 
 export async function getMemory(memoryId: string): Promise<Memory> {

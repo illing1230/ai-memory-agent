@@ -160,7 +160,29 @@ class MemoryService:
         # 최신순 정렬
         unique_memories.sort(key=lambda x: x["created_at"], reverse=True)
 
-        return unique_memories[:limit]
+        # 출처 정보 추가
+        memories_with_source = []
+        for memory in unique_memories[:limit]:
+            source_info = {}
+            if memory["scope"] == "chatroom" and memory.get("chat_room_id"):
+                from src.chat.repository import ChatRepository
+                chat_repo = ChatRepository(self.repo.db)
+                room = await chat_repo.get_chat_room(memory["chat_room_id"])
+                if room:
+                    source_info["chat_room_name"] = room["name"]
+            elif memory["scope"] == "project" and memory.get("project_id"):
+                from src.user.repository import UserRepository
+                user_repo = UserRepository(self.repo.db)
+                project = await user_repo.get_project(memory["project_id"])
+                if project:
+                    source_info["project_name"] = project["name"]
+            
+            memories_with_source.append({
+                "memory": memory,
+                "source_info": source_info,
+            })
+
+        return memories_with_source
 
     async def search_memories(
         self,

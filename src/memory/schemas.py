@@ -60,6 +60,10 @@ class SourceInfo(BaseModel):
     chat_room_name: str | None = None
     project_name: str | None = None
 
+class MemoryListResult(BaseModel):
+    memory: MemoryResponse
+    source_info: SourceInfo | None = None
+
 class MemorySearchResult(BaseModel):
     memory: MemoryResponse
     score: float

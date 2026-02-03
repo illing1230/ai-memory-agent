@@ -107,6 +107,14 @@ export interface Memory {
   updated_at: string
 }
 
+export interface MemoryListResult {
+  memory: Memory
+  source_info?: {
+    chat_room_name?: string
+    project_name?: string
+  }
+}
+
 export interface MemorySearchResult {
   memory: Memory
   score: number

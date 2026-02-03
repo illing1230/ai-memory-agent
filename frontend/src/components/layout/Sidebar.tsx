@@ -144,7 +144,7 @@ export function Sidebar() {
           <div className="flex items-center justify-center w-6 h-6 rounded bg-accent text-white">
             <Brain className="h-3.5 w-3.5" />
           </div>
-          <span className="font-semibold text-sm">Memory Agent</span>
+          <span className="font-semibold text-sm">AI Memory Agent</span>
         </Button>
         <Tooltip content="사이드바 접기" side="bottom">
           <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
@@ -223,8 +223,8 @@ export function Sidebar() {
             />
             <SidebarItem
               to="/memory/list"
-              icon={List}
-              label="목록"
+              icon={MessageSquare}
+              label="대화방"
               active={isActive('/memory/list')}
             />
             <SidebarItem
@@ -245,13 +245,13 @@ export function Sidebar() {
             <SidebarItem
               to="/chatrooms"
               icon={Shield}
-              label="대화방 권한 관리"
+              label="지식 권한"
               active={isActive('/chatrooms')}
             />
             <SidebarItem
               to="/projects"
               icon={Briefcase}
-              label="프로젝트 멤버 관리"
+              label="프로젝트"
               active={isActive('/projects')}
             />
           </SidebarSection>
@@ -261,7 +261,7 @@ export function Sidebar() {
             <SidebarItem
               to="/admin"
               icon={Shield}
-              label="관리자"
+              label="관리자 메뉴"
               active={isActive('/admin')}
             />
           )}
