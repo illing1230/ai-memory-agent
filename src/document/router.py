@@ -60,6 +60,20 @@ async def list_documents(
     )
 
 
+@router.get("/search")
+async def search_documents(
+    query: str,
+    limit: int = 10,
+    user_id: str = Depends(get_current_user_id),
+    service: DocumentService = Depends(get_document_service),
+):
+    """문서 검색 (Vector DB)"""
+    try:
+        return await service.search_documents(query, user_id, limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"검색 실패: {str(e)}")
+
+
 @router.get("/{doc_id}", response_model=DocumentDetailResponse)
 async def get_document(
     doc_id: str,

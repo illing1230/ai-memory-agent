@@ -142,7 +142,11 @@ async def search_memories(
 
     return MemorySearchResponse(
         results=[
-            MemorySearchResult(memory=r["memory"], score=r["score"])
+            MemorySearchResult(
+                memory=r["memory"],
+                score=r["score"],
+                source_info=r.get("source_info")
+            )
             for r in results
         ],
         total=len(results),

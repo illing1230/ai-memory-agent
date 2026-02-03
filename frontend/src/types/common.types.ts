@@ -110,6 +110,10 @@ export interface Memory {
 export interface MemorySearchResult {
   memory: Memory
   score: number
+  source_info?: {
+    chat_room_name?: string
+    project_name?: string
+  }
 }
 
 // 관리자 타입

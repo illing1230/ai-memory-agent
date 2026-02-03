@@ -59,3 +59,16 @@ export async function linkDocumentToRoom(docId: string, roomId: string): Promise
 export async function unlinkDocumentFromRoom(docId: string, roomId: string): Promise<void> {
   return del(`/documents/${docId}/link/${roomId}`)
 }
+
+export interface DocumentSearchResult {
+  content: string
+  score: number
+  document_name: string
+  document_id: string
+  chunk_index: number
+  file_type: string
+}
+
+export async function searchDocuments(query: string, limit: number = 10): Promise<DocumentSearchResult[]> {
+  return get<DocumentSearchResult[]>('/documents/search', { query, limit })
+}

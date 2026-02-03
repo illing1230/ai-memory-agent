@@ -96,25 +96,14 @@ export function Sidebar() {
             </Button>
           </Tooltip>
 
-          <Tooltip content="문서 관리" side="right">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(isActive('/documents') && 'bg-background-active')}
-              onClick={() => navigate('/documents')}
-            >
-              <FileText className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip content="대화방 관리" side="right">
+          <Tooltip content="대화방 권한 관리" side="right">
             <Button
               variant="ghost"
               size="icon"
               className={cn(isActive('/chatrooms') && 'bg-background-active')}
               onClick={() => navigate('/chatrooms')}
             >
-              <MessageSquare className="h-4 w-4" />
+              <Shield className="h-4 w-4" />
             </Button>
           </Tooltip>
 
@@ -172,7 +161,7 @@ export function Sidebar() {
           onClick={() => navigate('/memory/search')}
         >
           <Search className="h-4 w-4" />
-          <span className="text-sm">메모리 검색...</span>
+          <span className="text-sm">지식 검색...</span>
           <kbd className="ml-auto text-xs bg-background-tertiary px-1.5 py-0.5 rounded">⌘K</kbd>
         </Button>
       </div>
@@ -221,7 +210,7 @@ export function Sidebar() {
 
           {/* Memory Section */}
           <SidebarSection
-            title="메모리"
+            title="지식 관리"
             icon={Brain}
             expanded={expandedSections.memory}
             onToggle={() => toggleSection('memory')}
@@ -238,31 +227,34 @@ export function Sidebar() {
               label="목록"
               active={isActive('/memory/list')}
             />
+            <SidebarItem
+              to="/documents"
+              icon={FileText}
+              label="문서"
+              active={isActive('/documents')}
+            />
           </SidebarSection>
 
-          {/* Projects - 단일 항목 */}
-          <SidebarItem
-            to="/projects"
-            icon={Briefcase}
-            label="프로젝트 관리"
-            active={isActive('/projects')}
-          />
-
-          {/* Documents - 단일 항목 */}
-          <SidebarItem
-            to="/documents"
-            icon={FileText}
-            label="문서 관리"
-            active={isActive('/documents')}
-          />
-
-          {/* Chat Room Management - 단일 항목 */}
-          <SidebarItem
-            to="/chatrooms"
-            icon={MessageSquare}
-            label="대화방 관리"
-            active={isActive('/chatrooms')}
-          />
+          {/* Permission Management Section */}
+          <SidebarSection
+            title="권한 관리"
+            icon={Shield}
+            expanded={expandedSections.permission}
+            onToggle={() => toggleSection('permission')}
+          >
+            <SidebarItem
+              to="/chatrooms"
+              icon={Shield}
+              label="대화방 권한 관리"
+              active={isActive('/chatrooms')}
+            />
+            <SidebarItem
+              to="/projects"
+              icon={Briefcase}
+              label="프로젝트 멤버 관리"
+              active={isActive('/projects')}
+            />
+          </SidebarSection>
 
           {/* Admin - admin role만 표시 */}
           {user?.role === 'admin' && (

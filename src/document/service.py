@@ -130,6 +130,59 @@ class DocumentService:
     ) -> bool:
         return await self.repo.unlink_document_from_room(doc_id, room_id)
 
+    async def search_documents(
+        self, query: str, user_id: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """사용자의 모든 문서에서 검색"""
+        # 사용자의 문서 목록 조회
+        documents = await self.repo.list_documents(owner_id=user_id)
+        if not documents:
+            return []
+
+        doc_ids = [doc["id"] for doc in documents]
+
+        try:
+            from src.shared.providers import get_embedding_provider
+            embedding_provider = get_embedding_provider()
+            query_vector = await embedding_provider.embed(query)
+        except Exception as e:
+            print(f"임베딩 실패: {e}")
+            return []
+
+        results = await search_vectors(
+            query_vector=query_vector,
+            limit=limit,
+            filter_conditions={
+                "scope": "document",
+                "document_id": doc_ids,
+            },
+        )
+
+        enriched = []
+        for r in results:
+            doc_id = r["payload"].get("document_id")
+            chunk_idx = r["payload"].get("chunk_index")
+            doc = await self.repo.get_document(doc_id)
+
+            # 청크 내용 조회
+            chunks = await self.repo.get_chunks(doc_id)
+            chunk_content = ""
+            for c in chunks:
+                if c["chunk_index"] == chunk_idx:
+                    chunk_content = c["content"]
+                    break
+
+            enriched.append({
+                "content": chunk_content,
+                "score": r["score"],
+                "document_name": doc["name"] if doc else "Unknown",
+                "document_id": doc_id,
+                "chunk_index": chunk_idx,
+                "file_type": doc["file_type"] if doc else "unknown",
+            })
+
+        return enriched
+
     async def search_document_chunks(
         self,
         query: str,

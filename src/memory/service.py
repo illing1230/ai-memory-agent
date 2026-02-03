@@ -197,9 +197,25 @@ class MemoryService:
             if memory_id:
                 memory = await self.repo.get_memory(memory_id)
                 if memory:
+                    # 출처 정보 조회
+                    source_info = {}
+                    if memory["scope"] == "chatroom" and memory.get("chat_room_id"):
+                        from src.chat.repository import ChatRepository
+                        chat_repo = ChatRepository(self.repo.db)
+                        room = await chat_repo.get_chat_room(memory["chat_room_id"])
+                        if room:
+                            source_info["chat_room_name"] = room["name"]
+                    elif memory["scope"] == "project" and memory.get("project_id"):
+                        from src.user.repository import UserRepository
+                        user_repo = UserRepository(self.repo.db)
+                        project = await user_repo.get_project(memory["project_id"])
+                        if project:
+                            source_info["project_name"] = project["name"]
+                    
                     search_results.append({
                         "memory": memory,
                         "score": result["score"],
+                        "source_info": source_info,
                     })
 
         return search_results[:limit]

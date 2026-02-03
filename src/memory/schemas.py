@@ -56,9 +56,14 @@ class MemorySearchRequest(BaseModel):
     chat_room_id: str | None = None
 
 
+class SourceInfo(BaseModel):
+    chat_room_name: str | None = None
+    project_name: str | None = None
+
 class MemorySearchResult(BaseModel):
     memory: MemoryResponse
     score: float
+    source_info: SourceInfo | None = None
 
 
 class MemorySearchResponse(BaseModel):
