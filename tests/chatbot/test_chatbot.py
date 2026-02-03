@@ -60,7 +60,7 @@ class SimpleChatbot:
         
         self.conversation_history = []
     
-    def send_to_memory(self, content: str, data_type: str = "message"):
+    def send_to_memory(self, content: str, data_type: str = "memory"):
         """
         AI Memory Agent로 데이터 전송
         
