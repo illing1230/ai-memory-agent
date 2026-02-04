@@ -16,6 +16,9 @@ import {
   PanelLeft,
   LogOut,
   Shield,
+  Bot,
+  Book,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
@@ -33,8 +36,10 @@ export function Sidebar() {
   const { data: chatRooms = [], isLoading } = useChatRooms()
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    chatRooms: true,
-    memory: true,
+    chatRooms: false,
+    memory: false,
+    agents: false,
+    guide: false,
   })
 
   const toggleSection = (section: string) => {
@@ -96,6 +101,16 @@ export function Sidebar() {
             </Button>
           </Tooltip>
 
+          <Tooltip content="Agent" side="right">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isActivePrefix('/agents') && 'bg-background-active')}
+              onClick={() => navigate('/agents/marketplace')}
+            >
+              <Bot className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="대화방 권한 관리" side="right">
             <Button
               variant="ghost"
@@ -208,9 +223,36 @@ export function Sidebar() {
             )}
           </SidebarSection>
 
+          {/* Agent Section */}
+          <SidebarSection
+            title="Agent"
+            icon={Bot}
+            expanded={expandedSections.agents}
+            onToggle={() => toggleSection('agents')}
+          >
+            <SidebarItem
+              to="/agents/marketplace"
+              icon={Bot}
+              label="Marketplace"
+              active={isActive('/agents/marketplace')}
+            />
+            <SidebarItem
+              to="/agents/my-instances"
+              icon={List}
+              label="내 Instances"
+              active={isActive('/agents/my-instances')}
+            />
+            <SidebarItem
+              to="/agents/types"
+              icon={Settings}
+              label="Agent 등록"
+              active={isActive('/agents/types')}
+            />
+          </SidebarSection>
+
           {/* Memory Section */}
           <SidebarSection
-            title="지식 관리"
+            title="지식 센터"
             icon={Brain}
             expanded={expandedSections.memory}
             onToggle={() => toggleSection('memory')}
@@ -223,14 +265,14 @@ export function Sidebar() {
             />
             <SidebarItem
               to="/memory/list"
-              icon={MessageSquare}
-              label="대화방"
+              icon={List}
+              label="지식 목록"
               active={isActive('/memory/list')}
             />
             <SidebarItem
               to="/documents"
               icon={FileText}
-              label="문서"
+              label="문서 업로드"
               active={isActive('/documents')}
             />
           </SidebarSection>
@@ -254,6 +296,21 @@ export function Sidebar() {
               label="프로젝트"
               active={isActive('/projects')}
             />
+          </SidebarSection>
+          {/* Guide Section */}
+          <SidebarSection
+            title="사용 가이드"
+            icon={HelpCircle}
+            expanded={expandedSections.guide}
+            onToggle={() => toggleSection('guide')}
+          >
+            <div
+              className="sidebar-item cursor-pointer"
+              onClick={() => useUIStore.getState().setGuidePanelOpen(true)}
+            >
+              <Book className="h-4 w-4 shrink-0" />
+              <span className="truncate">가이드 보기</span>
+            </div>
           </SidebarSection>
 
           {/* Admin - admin role만 표시 */}
@@ -281,7 +338,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Settings & Logout */}
+        {/* Settings, Guide & Logout */}
         <div className="flex gap-1">
           <Button
             variant="ghost"
@@ -291,6 +348,15 @@ export function Sidebar() {
             <Settings className="h-4 w-4" />
             <span className="text-sm">설정</span>
           </Button>
+          <Tooltip content="Agent 연동 가이드" side="top">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+            >
+              <Book className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="로그아웃" side="top">
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />

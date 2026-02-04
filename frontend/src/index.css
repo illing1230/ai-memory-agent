@@ -147,4 +147,40 @@
       transform: translateY(-4px);
     }
   }
+  
+  /* Guide Panel Styles */
+  .step {
+    @apply bg-background-secondary p-4 rounded-lg border border-border;
+  }
+  
+  .step-number {
+    @apply inline-flex items-center justify-center w-6 h-6 rounded-full bg-accent text-white text-xs font-bold mr-2;
+  }
+  
+  .feature-box {
+    @apply bg-blue-50 dark:bg-blue-950/20 border-l-4 border-blue-500 p-4 rounded-r-lg;
+  }
+  
+  .tip-box {
+    @apply bg-yellow-50 dark:bg-yellow-950/20 border-l-4 border-yellow-500 p-4 rounded-r-lg;
+  }
+  
+  .warning-box {
+    @apply bg-red-50 dark:bg-red-950/20 border-l-4 border-red-500 p-4 rounded-r-lg;
+  }
+  
+  .step pre,
+  .guide-content pre {
+    @apply bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm leading-relaxed my-3;
+  }
+
+  .step code,
+  .guide-content code {
+    @apply bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-1.5 py-0.5 rounded text-sm;
+  }
+
+  .step pre code,
+  .guide-content pre code {
+    @apply bg-transparent p-0 text-gray-100;
+  }
 }

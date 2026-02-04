@@ -5,6 +5,7 @@ export interface GetMemoriesParams {
   limit?: number
   offset?: number
   scope?: string
+  agent_instance_id?: string
   [key: string]: unknown
 }
 
@@ -20,6 +21,7 @@ export interface SearchMemoriesParams {
   query: string
   limit?: number
   scope?: string
+  agent_instance_id?: string
 }
 
 interface MemorySearchResponse {

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Users, Settings, Trash2, Plus, Wifi, WifiOff, LogOut } from 'lucide-react'
+import { Users, Settings, Trash2, Plus, Wifi, WifiOff, LogOut, Book } from 'lucide-react'
 import { Button, Tooltip } from '@/components/ui'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
@@ -205,6 +205,15 @@ export function ChatRoom() {
         </div>
         
         <div className="flex items-center gap-1 shrink-0">
+          <Tooltip content="Agent 연동 가이드" side="bottom">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+            >
+              <Book className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="멤버 관리" side="bottom">
             <Button variant="ghost" size="icon" onClick={() => setShowMembersPanel(true)}>
               <Users className="h-4 w-4" />

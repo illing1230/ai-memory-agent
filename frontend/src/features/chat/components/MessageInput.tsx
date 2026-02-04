@@ -13,6 +13,7 @@ interface MessageInputProps {
 
 const SLASH_COMMANDS: SlashCommand[] = [
   { command: 'remember', label: '메모리 저장', description: '이 대화방에 메모리 저장', icon: '📝' },
+  { command: 'memory', label: '메모리 추출', description: '최근 대화에서 메모리 자동 추출', icon: '🧠' },
   { command: 'search', label: '메모리 검색', description: '저장된 메모리에서 검색', icon: '🔍' },
   { command: 'forget', label: '메모리 삭제', description: '메모리 삭제', icon: '🗑️' },
   { command: 'members', label: '멤버 목록', description: '대화방 멤버 보기', icon: '👥' },

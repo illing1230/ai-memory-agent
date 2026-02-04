@@ -86,3 +86,16 @@ export function formatTime(date: string | Date): string {
     minute: '2-digit',
   })
 }
+
+/**
+ * 파일 크기 포맷팅 유틸리티
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes'
+  
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
+}

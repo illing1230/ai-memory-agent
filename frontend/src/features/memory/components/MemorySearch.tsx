@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, Filter, Trash2, Brain, Clock, Tag, FileText } from 'lucide-react'
+import { Search, Filter, Trash2, Brain, Clock, Tag, FileText, Bot } from 'lucide-react'
 import { Button, Input, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -8,7 +8,7 @@ import { searchDocuments, type DocumentSearchResult } from '@/features/document/
 import { formatDate, cn } from '@/lib/utils'
 import type { MemorySearchResult } from '@/types'
 
-type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'document'
+type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent' | 'document'
 
 export function MemorySearch() {
   const [query, setQuery] = useState('')
@@ -20,7 +20,11 @@ export function MemorySearch() {
     setTimeout(() => setDebouncedQuery(value), 300)
   }
 
-  const { data: searchResults, isLoading, isError, error } = useMemorySearch({ query: debouncedQuery, limit: 20 })
+  const { data: searchResults, isLoading, isError, error } = useMemorySearch({ 
+    query: debouncedQuery, 
+    limit: 20,
+    scope: scopeFilter === 'agent' ? 'agent' : undefined,
+  })
   const deleteMemory = useDeleteMemory()
   const [documentResults, setDocumentResults] = useState<DocumentSearchResult[]>([])
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false)
@@ -49,6 +53,9 @@ export function MemorySearch() {
   const filteredResults = useMemo(() => {
     if (!searchResults) return []
     if (scopeFilter === 'all') return searchResults
+    if (scopeFilter === 'agent') {
+      return searchResults.filter((r) => r.memory.metadata?.source === 'agent')
+    }
     return searchResults.filter((r) => r.memory.scope === scopeFilter)
   }, [searchResults, scopeFilter])
 
@@ -83,7 +90,7 @@ export function MemorySearch() {
             <Filter className="h-4 w-4 text-foreground-muted" />
             <span className="text-sm text-foreground-secondary">범위:</span>
             <div className="flex gap-1">
-              {(['all', 'personal', 'chatroom', 'project', 'department', 'document'] as ScopeFilter[]).map((scope) => (
+              {(['all', 'personal', 'chatroom', 'project', 'department', 'agent', 'document'] as ScopeFilter[]).map((scope) => (
               <Button
                 key={scope}
                 variant={scopeFilter === scope ? 'default' : 'ghost'}
@@ -96,6 +103,7 @@ export function MemorySearch() {
                 {scope === 'chatroom' && '대화방'}
                 {scope === 'project' && '프로젝트'}
                 {scope === 'department' && '부서'}
+                {scope === 'agent' && '에이전트'}
                 {scope === 'document' && '문서'}
               </Button>
             ))}
@@ -154,13 +162,15 @@ function DocumentCard({ result }: DocumentCardProps) {
   const { content, score, document_name, chunk_index, file_type } = result
 
   return (
-    <div className="card p-4 hover:shadow-medium transition-shadow">
-      <div className="flex items-start gap-3">
-        <FileText className="h-5 w-5 text-accent mt-0.5 shrink-0" />
+    <div className="group card p-4 hover:shadow-medium transition-shadow">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground mb-1">{document_name}</p>
-          <p className="text-sm text-foreground-secondary leading-relaxed line-clamp-3">{content}</p>
+          <p className="text-sm text-foreground leading-relaxed">{content}</p>
           <div className="flex items-center gap-3 mt-3 text-xs text-foreground-tertiary">
+            <span className="flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              {document_name}
+            </span>
             <span className="px-1.5 py-0.5 rounded bg-background-secondary">
               {file_type.toUpperCase()}
             </span>
@@ -194,6 +204,12 @@ function MemoryCard({ result, onDelete }: MemoryCardProps) {
               <Tag className="h-3 w-3" />
               {scopeLabel[memory.scope] || memory.scope}
             </span>
+            {source_info?.agent_instance_name && (
+              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
+                <Bot className="h-3 w-3" />
+                {source_info.agent_instance_name}
+              </span>
+            )}
             {source_info?.chat_room_name && (
               <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
                 {source_info.chat_room_name}

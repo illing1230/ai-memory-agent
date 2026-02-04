@@ -51,6 +51,7 @@ async def list_memories(
     scope: str | None = None,
     project_id: str | None = None,
     department_id: str | None = None,
+    agent_instance_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
     user_id: str = Depends(get_current_user_id),
@@ -63,6 +64,7 @@ async def list_memories(
             scope=scope,
             project_id=project_id,
             department_id=department_id,
+            agent_instance_id=agent_instance_id,
             limit=limit,
             offset=offset,
         )
@@ -146,6 +148,7 @@ async def search_memories(
         scope=data.scope,
         project_id=data.project_id,
         department_id=data.department_id,
+        agent_instance_id=data.agent_instance_id,
     )
 
     return MemorySearchResponse(

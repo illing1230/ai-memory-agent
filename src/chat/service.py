@@ -59,8 +59,6 @@ class ChatService:
                     "include_this_room": True,
                     "other_chat_rooms": [],
                     "include_personal": False,
-                    "projects": [],
-                    "departments": []
                 },
                 "rag": {
                     "collections": [],
@@ -187,28 +185,6 @@ class ChatService:
                     changes.append(f"• 추가된 대화방: {len(added)}개")
                 if removed:
                     changes.append(f"• 제거된 대화방: {len(removed)}개")
-            
-            # projects 변경 확인
-            old_projects = set(old_memory.get("projects", []))
-            new_projects = set(new_memory.get("projects", []))
-            if old_projects != new_projects:
-                added = new_projects - old_projects
-                removed = old_projects - new_projects
-                if added:
-                    changes.append(f"• 추가된 프로젝트: {len(added)}개")
-                if removed:
-                    changes.append(f"• 제거된 프로젝트: {len(removed)}개")
-            
-            # departments 변경 확인
-            old_depts = set(old_memory.get("departments", []))
-            new_depts = set(new_memory.get("departments", []))
-            if old_depts != new_depts:
-                added = new_depts - old_depts
-                removed = old_depts - new_depts
-                if added:
-                    changes.append(f"• 추가된 부서: {len(added)}개")
-                if removed:
-                    changes.append(f"• 제거된 부서: {len(removed)}개")
             
             if changes:
                 message = f"🔧 **컨텍스트 소스 설정이 변경되었습니다**\n\n"
@@ -428,6 +404,9 @@ class ChatService:
             response = await self._cmd_members(room, user_id)
         elif command == "invite":
             response = await self._cmd_invite(room, user_id, args)
+        elif command == "memory":
+            response, memories = await self._cmd_memory(room, user_id)
+            result["extracted_memories"] = memories
         else:
             response = f"❌ 알 수 없는 커맨드: /{command}\n\n/help 로 확인하세요."
         
@@ -523,72 +502,9 @@ class ChatService:
         user_id: str,
         content: str,
     ) -> tuple[str, list[dict]]:
-        """/remember - 메모리 저장
-        
-        기본: 개인 메모리 + 대화방 메모리 둘 다 저장
-        옵션:
-        - /remember <내용> : 개인 + 대화방 메모리 저장 (기본)
-        - /remember -d <내용> : 개인 + 대화방 + 부서 메모리 저장
-        - /remember --dept <내용> : 개인 + 대화방 + 부서 메모리 저장
-        - /remember -p <프로젝트명> <내용> : 개인 + 대화방 + 지정 프로젝트 메모리 저장
-        - /remember --proj <프로젝트명> <내용> : 개인 + 대화방 + 지정 프로젝트 메모리 저장
-        """
+        """/remember - 메모리 저장 (개인 + 대화방)"""
         if not content:
-            return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`\n예: `/remember -d 팀 회의는 매주 월요일 10시`\n예: `/remember -p AI프로젝트 마감일은 매월 말일`", []
-        
-        # 옵션 파싱
-        include_dept = False
-        include_proj = False
-        project_name = None
-        
-        if content.startswith('--dept '):
-            include_dept = True
-            content = content[len('--dept '):].strip()
-        elif content.startswith('-d '):
-            include_dept = True
-            content = content[len('-d '):].strip()
-        elif content.startswith('--proj '):
-            include_proj = True
-            content = content[len('--proj '):].strip()
-        elif content.startswith('-p '):
-            include_proj = True
-            content = content[len('-p '):].strip()
-        
-        if not content:
-            return "❌ 저장할 내용을 입력하세요.", []
-        
-        # 사용자 부서 정보 조회 (부서 메모리 저장 시 필요)
-        user_dept_id = None
-        if include_dept:
-            user = await self.user_repo.get_user(user_id)
-            if user:
-                user_dept_id = user.get("department_id")
-            if not user_dept_id:
-                return "❌ 부서 정보가 없어 부서 메모리를 저장할 수 없습니다.", []
-        
-        # 사용자 프로젝트 정보 조회 (프로젝트 메모리 저장 시 필요)
-        user_proj_id = None
-        if include_proj:
-            # 프로젝트 이름 추출 (첫 단어)
-            parts = content.split(maxsplit=1)
-            if len(parts) >= 2:
-                project_name = parts[0]
-                content = parts[1]
-            else:
-                return "❌ 프로젝트명과 내용을 입력하세요.\n\n예: `/remember -p AI프로젝트 마감일은 매월 말일`", []
-            
-            # 프로젝트 이름으로 검색
-            user_projects = await self.user_repo.get_user_projects(user_id)
-            found_project = None
-            for proj in user_projects:
-                if proj["name"] == project_name:
-                    found_project = proj
-                    break
-            
-            if not found_project:
-                return f"❌ '{project_name}' 프로젝트를 찾을 수 없습니다.\n\n내 프로젝트 목록: {', '.join([p['name'] for p in user_projects])}", []
-            
-            user_proj_id = found_project["id"]
+            return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`", []
         
         try:
             # 1. topic_key 추출
@@ -670,50 +586,6 @@ class ChatService:
                     memory_id=superseded_memory["id"],
                     superseded_by=memory_chatroom["id"],
                 )
-            
-            # 3. 부서 메모리 저장 (옵션)
-            if include_dept and user_dept_id:
-                vector_id_dept = str(uuid.uuid4())
-                memory_dept = await self.memory_repo.create_memory(
-                    content=content,
-                    owner_id=user_id,
-                    scope="department",
-                    vector_id=vector_id_dept,
-                    department_id=user_dept_id,
-                    category="fact",
-                    importance="medium",
-                    topic_key=topic_key,
-                )
-                await upsert_vector(vector_id_dept, vector, {
-                    "memory_id": memory_dept["id"],
-                    "scope": "department",
-                    "owner_id": user_id,
-                    "department_id": user_dept_id,
-                })
-                saved_memories.append(memory_dept)
-                saved_scopes.append("부서")
-            
-            # 4. 프로젝트 메모리 저장 (옵션)
-            if include_proj and user_proj_id:
-                vector_id_proj = str(uuid.uuid4())
-                memory_proj = await self.memory_repo.create_memory(
-                    content=content,
-                    owner_id=user_id,
-                    scope="project",
-                    vector_id=vector_id_proj,
-                    project_id=user_proj_id,
-                    category="fact",
-                    importance="medium",
-                    topic_key=topic_key,
-                )
-                await upsert_vector(vector_id_proj, vector, {
-                    "memory_id": memory_proj["id"],
-                    "scope": "project",
-                    "owner_id": user_id,
-                    "project_id": user_proj_id,
-                })
-                saved_memories.append(memory_proj)
-                saved_scopes.append("프로젝트")
             
             scope_label = " + ".join(saved_scopes)
             response = f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: {scope_label}"
@@ -856,8 +728,7 @@ class ChatService:
 
 **메모리 관리**
 • `/remember <내용>` - 개인 + 대화방 메모리 저장
-• `/remember -d <내용>` - 개인 + 대화방 + 부서 메모리 저장
-• `/remember -p <프로젝트명> <내용>` - 개인 + 대화방 + 지정 프로젝트 메모리 저장
+• `/memory` - 최근 대화에서 메모리 자동 추출
 • `/forget <검색어>` - 메모리 삭제
 • `/search <검색어>` - 메모리 검색
 
@@ -872,7 +743,7 @@ class ChatService:
 • `/help` - 이 도움말 표시
 
 **맞춤 설정**
-메모리 소스 설정에서 개인 메모리, 다른 대화방, 부서 메모리, 프로젝트 메모리를 활성화하면
+메모리 소스 설정에서 개인 메모리, 다른 대화방 메모리를 활성화하면
 AI가 해당 메모리들도 참조합니다."""
 
     async def get_messages(
@@ -1145,40 +1016,6 @@ AI가 해당 메모리들도 참조합니다."""
             except Exception as e:
                 print(f"    실패: {e}")
         
-        # 4. 프로젝트 메모리
-        for project_id in memory_config.get("projects", []):
-            try:
-                results = await search_vectors(
-                    query_vector=query_vector,
-                    limit=3,
-                    filter_conditions={"project_id": project_id, "scope": "project"},
-                )
-                for r in results:
-                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
-                    if memory:
-                        # superseded된 메모리 필터링
-                        if not memory.get("superseded", False):
-                            all_memories.append({"memory": memory, "score": r["score"]})
-            except Exception as e:
-                print(f"프로젝트 메모리 검색 실패: {e}")
-        
-        # 5. 부서 메모리
-        for dept_id in memory_config.get("departments", []):
-            try:
-                results = await search_vectors(
-                    query_vector=query_vector,
-                    limit=3,
-                    filter_conditions={"department_id": dept_id, "scope": "department"},
-                )
-                for r in results:
-                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
-                    if memory:
-                        # superseded된 메모리 필터링
-                        if not memory.get("superseded", False):
-                            all_memories.append({"memory": memory, "score": r["score"]})
-            except Exception as e:
-                print(f"부서 메모리 검색 실패: {e}")
-        
         # Re-ranking: similarity × α + recency × β
         for m in all_memories:
             similarity_score = m["score"]
@@ -1263,6 +1100,91 @@ AI가 해당 메모리들도 참조합니다."""
                 conv_text += f"{name}: {content}\n"
         
         return conv_text.strip()
+
+    async def _cmd_memory(
+        self,
+        room: dict[str, Any],
+        user_id: str,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """/memory - 최근 대화에서 메모리 추출"""
+        messages = await self.repo.get_recent_messages(room["id"], limit=20)
+        if len(messages) < 2:
+            return "💬 대화가 부족합니다. 메모리를 추출하려면 최소 2개 이상의 메시지가 필요합니다.", []
+
+        try:
+            llm_provider = get_llm_provider()
+            conv_for_extraction = [
+                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
+                for msg in messages
+            ]
+            extracted = await llm_provider.extract_memories(conv_for_extraction)
+        except Exception as e:
+            return f"❌ 메모리 추출 실패: {e}", []
+
+        if not extracted:
+            return "ℹ️ 추출할 메모리가 없습니다.", []
+
+        saved_memories = []
+        skipped_count = 0
+
+        for item in extracted:
+            content = item.get("content", "")
+            if not content or len(content) < self.settings.min_message_length_for_extraction:
+                continue
+
+            # 중복 체크: 벡터 유사도 검색
+            try:
+                embedding_provider = get_embedding_provider()
+                vector = await embedding_provider.embed(content)
+
+                duplicates = await search_vectors(
+                    query_vector=vector,
+                    limit=1,
+                    score_threshold=self.settings.duplicate_threshold,
+                    filter_conditions={
+                        "owner_id": user_id,
+                        "chat_room_id": room["id"],
+                    },
+                )
+                if duplicates:
+                    skipped_count += 1
+                    continue
+
+                # 신규 메모리 저장
+                vector_id = str(uuid.uuid4())
+                memory = await self.memory_repo.create_memory(
+                    content=content,
+                    owner_id=user_id,
+                    scope="chatroom",
+                    vector_id=vector_id,
+                    chat_room_id=room["id"],
+                    category=item.get("category"),
+                    importance=item.get("importance", "medium"),
+                )
+                await upsert_vector(vector_id, vector, {
+                    "memory_id": memory["id"],
+                    "scope": "chatroom",
+                    "owner_id": user_id,
+                    "chat_room_id": room["id"],
+                })
+                saved_memories.append(memory)
+            except Exception as e:
+                print(f"메모리 저장 실패: {e}")
+                continue
+
+        # 결과 메시지 생성
+        if not saved_memories and skipped_count == 0:
+            return "ℹ️ 추출할 메모리가 없습니다.", []
+
+        lines = []
+        if saved_memories:
+            lines.append(f"🧠 {len(saved_memories)}개의 메모리가 추출되었습니다!\n")
+            for m in saved_memories:
+                lines.append(f"• {m['content']}")
+        if skipped_count > 0:
+            lines.append(f"\nℹ️ 이미 저장된 메모리 {skipped_count}건은 건너뛰었습니다.")
+
+        return "\n".join(lines), saved_memories
 
     async def _extract_and_save_memories(
         self,

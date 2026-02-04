@@ -13,24 +13,11 @@ interface ContextSourcesModalProps {
   onSave: () => void
 }
 
-interface Project {
-  id: string
-  name: string
-  description?: string
-}
-
-interface Department {
-  id: string
-  name: string
-}
-
 interface ContextSources {
   memory?: {
     include_this_room?: boolean
     other_chat_rooms?: string[]
     include_personal?: boolean
-    projects?: string[]
-    departments?: string[]
   }
   rag?: {
     collections?: string[]
@@ -44,8 +31,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   
   // 데이터
   const [myChatRooms, setMyChatRooms] = useState<ChatRoom[]>([])
-  const [myProjects, setMyProjects] = useState<Project[]>([])
-  const [myDepartment, setMyDepartment] = useState<Department | null>(null)
+
   
   // 문서 데이터
   const [linkedDocuments, setLinkedDocuments] = useState<Document[]>([])
@@ -57,8 +43,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   const [includeThisRoom, setIncludeThisRoom] = useState(true)
   const [selectedRooms, setSelectedRooms] = useState<string[]>([])
   const [includePersonal, setIncludePersonal] = useState(false)
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
 
   // 데이터 로드
   useEffect(() => {
@@ -70,25 +54,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
         // 대화방 목록
         const rooms = await get<ChatRoom[]>('/chat-rooms')
         setMyChatRooms(rooms.filter(r => r.id !== room.id))
-
-        // 프로젝트 목록
-        const userId = localStorage.getItem('user_id')
-        if (userId) {
-          try {
-            const projects = await get<Project[]>(`/users/${userId}/projects`)
-            setMyProjects(projects)
-          } catch {
-            setMyProjects([])
-          }
-
-          // 부서 정보
-          try {
-            const dept = await get<Department>(`/users/${userId}/department`)
-            setMyDepartment(dept)
-          } catch {
-            setMyDepartment(null)
-          }
-        }
 
         // 문서 목록 로드
         try {
@@ -111,8 +76,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           setIncludeThisRoom(ctx.include_this_room ?? true)
           setSelectedRooms(ctx.other_chat_rooms || [])
           setIncludePersonal(ctx.include_personal ?? false)
-          setSelectedProjects(ctx.projects || [])
-          setSelectedDepartments(ctx.departments || [])
         }
       } catch (e) {
         console.error('데이터 로드 실패:', e)
@@ -133,8 +96,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           include_this_room: includeThisRoom,
           other_chat_rooms: selectedRooms,
           include_personal: includePersonal,
-          projects: selectedProjects,
-          departments: selectedDepartments,
         },
         rag: room.context_sources?.rag || { collections: [], filters: {} },
       }
@@ -153,18 +114,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   const toggleRoom = (roomId: string) => {
     setSelectedRooms(prev =>
       prev.includes(roomId) ? prev.filter(id => id !== roomId) : [...prev, roomId]
-    )
-  }
-
-  const toggleProject = (projectId: string) => {
-    setSelectedProjects(prev =>
-      prev.includes(projectId) ? prev.filter(id => id !== projectId) : [...prev, projectId]
-    )
-  }
-
-  const toggleDepartment = (deptId: string) => {
-    setSelectedDepartments(prev =>
-      prev.includes(deptId) ? prev.filter(id => id !== deptId) : [...prev, deptId]
     )
   }
 
@@ -312,50 +261,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                         </label>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* 프로젝트 */}
-                {myProjects.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">프로젝트 메모리</h3>
-                    <div className="space-y-1">
-                      {myProjects.map((proj) => (
-                        <label
-                          key={proj.id}
-                          className="flex items-center gap-3 p-2 rounded-md hover:bg-background-hover cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedProjects.includes(proj.id)}
-                            onChange={() => toggleProject(proj.id)}
-                            className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
-                          />
-                          <div>
-                            <p className="text-sm">{proj.name}</p>
-                            {proj.description && (
-                              <p className="text-xs text-foreground-muted">{proj.description}</p>
-                            )}
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 부서 */}
-                {myDepartment && (
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium">부서 메모리</h3>
-                    <label className="flex items-center gap-3 p-2 rounded-md hover:bg-background-hover cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedDepartments.includes(myDepartment.id)}
-                        onChange={() => toggleDepartment(myDepartment.id)}
-                        className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
-                      />
-                      <span className="text-sm">{myDepartment.name}</span>
-                    </label>
                   </div>
                 )}
 

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { FileText, Trash2, Eye, Loader2, Share2 } from 'lucide-react'
-import { Button, Tooltip } from '@/components/ui'
+import { FileText, Trash2, Eye, Loader2, Share2, X, ChevronRight } from 'lucide-react'
+import { Button, Tooltip, ScrollArea } from '@/components/ui'
 import { useDocuments, useDeleteDocument } from '../hooks/useDocument'
 import { DocumentUpload } from './DocumentUpload'
 import { ShareModal } from '@/features/share/components/ShareModal'
-import type { Document } from '@/types'
+import { getDocument } from '../api/documentApi'
+import type { Document, DocumentDetail } from '@/types'
 
 export function DocumentPage() {
   const { data: documents = [], isLoading } = useDocuments()
@@ -14,6 +15,10 @@ export function DocumentPage() {
   // 공유 모달
   const [showShareModal, setShowShareModal] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
+  
+  // 문서 미리보기
+  const [previewDoc, setPreviewDoc] = useState<DocumentDetail | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   const handleDelete = async (docId: string) => {
     if (!confirm('이 문서를 삭제하시겠습니까?')) return
@@ -23,6 +28,22 @@ export function DocumentPage() {
   const handleShare = (doc: Document) => {
     setSelectedDocument(doc)
     setShowShareModal(true)
+  }
+  
+  const handlePreview = async (doc: Document) => {
+    setPreviewLoading(true)
+    try {
+      const detail = await getDocument(doc.id)
+      setPreviewDoc(detail)
+    } catch (error) {
+      console.error('문서 미리보기 실패:', error)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+  
+  const closePreview = () => {
+    setPreviewDoc(null)
   }
 
   const formatSize = (bytes: number) => {
@@ -89,7 +110,8 @@ export function DocumentPage() {
                 return (
                   <div
                     key={doc.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors cursor-pointer"
+                    onClick={() => handlePreview(doc)}
                   >
                     <FileText className="h-5 w-5 text-accent shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -111,11 +133,26 @@ export function DocumentPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <Tooltip content="미리보기">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handlePreview(doc)
+                          }}
+                        >
+                          <Eye className="h-4 w-4 text-accent" />
+                        </Button>
+                      </Tooltip>
                       <Tooltip content="공유">
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleShare(doc)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleShare(doc)
+                          }}
                         >
                           <Share2 className="h-4 w-4 text-accent" />
                         </Button>
@@ -124,7 +161,10 @@ export function DocumentPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleDelete(doc.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(doc.id)
+                          }}
                           disabled={deleteMutation.isPending}
                         >
                           <Trash2 className="h-4 w-4 text-red-500" />
@@ -151,6 +191,69 @@ export function DocumentPage() {
           resourceId={selectedDocument.id}
           resourceName={selectedDocument.name}
         />
+      )}
+      
+      {/* 문서 미리보기 패널 */}
+      {previewDoc && (
+        <div className="fixed inset-y-0 right-0 w-[600px] bg-background border-l border-border shadow-xl flex flex-col z-50">
+          {/* 헤더 */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <FileText className="h-5 w-5 text-accent shrink-0" />
+              <h2 className="font-semibold truncate">{previewDoc.name}</h2>
+            </div>
+            <Button variant="ghost" size="icon" onClick={closePreview}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          
+          {/* 문서 정보 */}
+          <div className="px-4 py-3 border-b border-border bg-background-secondary">
+            <div className="flex items-center gap-4 text-sm text-foreground-muted">
+              <span>{previewDoc.file_type.toUpperCase()}</span>
+              <span>·</span>
+              <span>{formatSize(previewDoc.file_size)}</span>
+              <span>·</span>
+              <span>{previewDoc.chunk_count} chunks</span>
+              <span>·</span>
+              <span>{formatDate(previewDoc.created_at || '')}</span>
+            </div>
+          </div>
+          
+          {/* 문서 내용 */}
+          <ScrollArea className="flex-1">
+            <div className="p-4">
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-accent" />
+                </div>
+              ) : previewDoc.chunks.length === 0 ? (
+                <div className="text-center py-8 text-foreground-muted">
+                  <p className="text-sm">문서 내용이 없습니다</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {previewDoc.chunks.map((chunk, index) => (
+                    <div
+                      key={chunk.id}
+                      className="p-4 rounded-lg border border-border bg-background-secondary"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <ChevronRight className="h-4 w-4 text-accent" />
+                        <span className="text-xs font-medium text-foreground-muted">
+                          Chunk {chunk.chunk_index + 1}
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                        {chunk.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
       )}
     </div>
   )

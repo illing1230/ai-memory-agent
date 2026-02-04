@@ -12,6 +12,11 @@ from src.shared.exceptions import ProviderException
 
 MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가치가 있는 정보를 추출하세요.
 
+중요 규칙:
+- 대화에 명시적으로 언급된 정보만 추출하세요.
+- 대화에 없는 내용을 추론하거나 가정하지 마세요.
+- 불확실한 정보는 추출하지 마세요.
+
 추출 기준:
 - 사용자의 선호도, 습관, 특성
 - 중요한 사실이나 결정 사항
@@ -106,7 +111,12 @@ class OpenAILLMProvider(BaseLLMProvider):
                 
                 content = data["choices"][0]["message"]["content"]
                 
-                # <think>...</think> 태그 제거 (Qwen3 등)
+                # content가 None인 경우 처리
+                if content is None:
+                    print(f"[LLM] 응답 content가 None입니다")
+                    raise ProviderException("OpenAI LLM", "LLM 응답이 비어있습니다")
+                
+                # <think> 태그 제거 (Qwen3 등)
                 content = re.sub(r"<think>[\s\S]*?</think>", "", content)
                 content = content.strip()
                 
@@ -154,7 +164,7 @@ class OpenAILLMProvider(BaseLLMProvider):
             response = await self.generate(
                 prompt=prompt,
                 system_prompt="당신은 대화에서 중요한 정보를 추출하는 AI입니다. 반드시 유효한 JSON 배열만 응답하세요. 다른 텍스트는 포함하지 마세요.",
-                temperature=0.3,
+                temperature=0.1,
                 max_tokens=2000,
             )
         except Exception as e:

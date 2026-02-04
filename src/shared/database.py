@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     vector_id TEXT,
-    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom')),
+    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')),
     owner_id TEXT NOT NULL,
     project_id TEXT,
     department_id TEXT,
@@ -212,6 +212,98 @@ CREATE INDEX IF NOT EXISTS idx_document_chat_rooms_room ON document_chat_rooms(c
 CREATE INDEX IF NOT EXISTS idx_shares_resource ON shares(resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_shares_target ON shares(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_shares_created_by ON shares(created_by);
+
+-- Agent Type (에이전트 유형/템플릿)
+CREATE TABLE IF NOT EXISTS agent_types (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    developer_id TEXT NOT NULL,
+    version TEXT DEFAULT '1.0.0',
+    config_schema TEXT,
+    capabilities TEXT,
+    public_scope TEXT DEFAULT 'private' CHECK (public_scope IN ('private', 'project', 'department', 'public')),
+    project_id TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (developer_id) REFERENCES users(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+-- Agent Instance (사용자가 생성한 에이전트 인스턴스)
+CREATE TABLE IF NOT EXISTS agent_instances (
+    id TEXT PRIMARY KEY,
+    agent_type_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    api_key TEXT UNIQUE NOT NULL,
+    config TEXT,
+    webhook_url TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_type_id) REFERENCES agent_types(id),
+    FOREIGN KEY (owner_id) REFERENCES users(id)
+);
+
+-- Agent 데이터 수신 테이블
+CREATE TABLE IF NOT EXISTS agent_data (
+    id TEXT PRIMARY KEY,
+    agent_instance_id TEXT NOT NULL,
+    external_user_id TEXT,
+    internal_user_id TEXT NOT NULL,
+    data_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id),
+    FOREIGN KEY (internal_user_id) REFERENCES users(id)
+);
+
+-- 외부 시스템 사용자 매핑
+CREATE TABLE IF NOT EXISTS external_user_mappings (
+    id TEXT PRIMARY KEY,
+    agent_instance_id TEXT NOT NULL,
+    external_user_id TEXT NOT NULL,
+    internal_user_id TEXT NOT NULL,
+    external_system_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id),
+    FOREIGN KEY (internal_user_id) REFERENCES users(id),
+    UNIQUE(agent_instance_id, external_user_id)
+);
+
+-- Agent Instance 공유
+CREATE TABLE IF NOT EXISTS agent_instance_shares (
+    id TEXT PRIMARY KEY,
+    agent_instance_id TEXT NOT NULL,
+    shared_with_user_id TEXT,
+    shared_with_project_id TEXT,
+    shared_with_department_id TEXT,
+    role TEXT DEFAULT 'viewer',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id),
+    FOREIGN KEY (shared_with_user_id) REFERENCES users(id),
+    FOREIGN KEY (shared_with_project_id) REFERENCES projects(id),
+    FOREIGN KEY (shared_with_department_id) REFERENCES departments(id)
+);
+
+-- Agent 인덱스
+CREATE INDEX IF NOT EXISTS idx_agent_types_developer ON agent_types(developer_id);
+CREATE INDEX IF NOT EXISTS idx_agent_types_status ON agent_types(status);
+CREATE INDEX IF NOT EXISTS idx_agent_instances_owner ON agent_instances(owner_id);
+CREATE INDEX IF NOT EXISTS idx_agent_instances_type ON agent_instances(agent_type_id);
+CREATE INDEX IF NOT EXISTS idx_agent_instances_api_key ON agent_instances(api_key);
+CREATE INDEX IF NOT EXISTS idx_agent_data_instance ON agent_data(agent_instance_id);
+CREATE INDEX IF NOT EXISTS idx_agent_data_user ON agent_data(internal_user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_data_created ON agent_data(created_at);
+CREATE INDEX IF NOT EXISTS idx_external_mappings_instance ON external_user_mappings(agent_instance_id);
+CREATE INDEX IF NOT EXISTS idx_external_mappings_external ON external_user_mappings(external_user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_shares_instance ON agent_instance_shares(agent_instance_id);
+CREATE INDEX IF NOT EXISTS idx_agent_shares_user ON agent_instance_shares(shared_with_user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_shares_project ON agent_instance_shares(shared_with_project_id);
+CREATE INDEX IF NOT EXISTS idx_agent_shares_department ON agent_instance_shares(shared_with_department_id);
 """
 
 
@@ -297,6 +389,31 @@ async def init_database() -> None:
         await _db_connection.commit()
     except Exception:
         pass
+
+    # public_scope 컬럼 추가 (agent_types)
+    try:
+        await _db_connection.execute("ALTER TABLE agent_types ADD COLUMN public_scope TEXT DEFAULT 'public'")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # project_id 컬럼 추가 (agent_types)
+    try:
+        await _db_connection.execute("ALTER TABLE agent_types ADD COLUMN project_id TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # agent scope 추가 (memories) - CHECK 제약조건 재생성
+    try:
+        # 기존 CHECK 제약조건 삭제
+        await _db_connection.execute("CREATE TABLE memories_new (id TEXT PRIMARY KEY, content TEXT NOT NULL, vector_id TEXT, scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')), owner_id TEXT NOT NULL, project_id TEXT, department_id TEXT, chat_room_id TEXT, source_message_id TEXT, category TEXT, importance TEXT DEFAULT 'medium', metadata TEXT, topic_key TEXT, superseded BOOLEAN DEFAULT 0, superseded_by TEXT, superseded_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(id), FOREIGN KEY (project_id) REFERENCES projects(id), FOREIGN KEY (department_id) REFERENCES departments(id), FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id))")
+        await _db_connection.execute("INSERT INTO memories_new SELECT * FROM memories")
+        await _db_connection.execute("DROP TABLE memories")
+        await _db_connection.execute("ALTER TABLE memories_new RENAME TO memories")
+        await _db_connection.commit()
+    except Exception:
+        pass  # 이미 존재하면 무시
 
     print(f"✅ SQLite 데이터베이스 초기화 완료: {db_path}")
 

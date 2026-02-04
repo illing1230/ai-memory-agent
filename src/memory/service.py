@@ -25,7 +25,7 @@ class MemoryService:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "project", "department", "chatroom"] = "personal",
+        scope: Literal["personal", "project", "department", "chatroom", "agent"] = "personal",
         project_id: str | None = None,
         department_id: str | None = None,
         chat_room_id: str | None = None,
@@ -94,7 +94,7 @@ class MemoryService:
         scope: str | None = None,
         project_id: str | None = None,
         department_id: str | None = None,
-        chat_room_id: str | None = None,
+        agent_instance_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
@@ -111,6 +111,7 @@ class MemoryService:
             personal = await self.repo.list_memories(
                 owner_id=user_id,
                 scope="personal",
+                agent_instance_id=agent_instance_id,
                 limit=limit,
             )
             all_memories.extend(personal)
@@ -120,6 +121,7 @@ class MemoryService:
             chatroom_memories = await self.repo.list_memories(
                 owner_id=user_id,
                 scope="chatroom",
+                agent_instance_id=agent_instance_id,
                 limit=limit,
             )
             all_memories.extend(chatroom_memories)
@@ -133,6 +135,7 @@ class MemoryService:
                 project_memories = await self.repo.list_memories(
                     scope="project",
                     project_id=project["id"],
+                    agent_instance_id=agent_instance_id,
                     limit=limit,
                 )
                 all_memories.extend(project_memories)
@@ -145,9 +148,20 @@ class MemoryService:
                     dept_memories = await self.repo.list_memories(
                         scope="department",
                         department_id=user_dept_id,
+                        agent_instance_id=agent_instance_id,
                         limit=limit,
                     )
                     all_memories.extend(dept_memories)
+        
+        # 5. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
+        if scope is None or scope == "agent":
+            agent_memories = await self.repo.list_memories(
+                owner_id=user_id,
+                scope="agent",
+                agent_instance_id=agent_instance_id,
+                limit=limit,
+            )
+            all_memories.extend(agent_memories)
 
         # 중복 제거 및 정렬
         seen = set()
@@ -177,6 +191,16 @@ class MemoryService:
                 if project:
                     source_info["project_name"] = project["name"]
             
+            # Agent Instance 정보 추가
+            if memory.get("metadata") and memory["metadata"].get("source") == "agent":
+                agent_instance_id = memory["metadata"].get("agent_instance_id")
+                if agent_instance_id:
+                    from src.agent.repository import AgentRepository
+                    agent_repo = AgentRepository(self.repo.db)
+                    instance = await agent_repo.get_agent_instance(agent_instance_id)
+                    if instance:
+                        source_info["agent_instance_name"] = instance["name"]
+                        
             memories_with_source.append({
                 "memory": memory,
                 "source_info": source_info,
@@ -193,6 +217,7 @@ class MemoryService:
         scope: str | None = None,
         project_id: str | None = None,
         department_id: str | None = None,
+        agent_instance_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """메모리 시맨틱 검색"""
         # 쿼리 임베딩
@@ -219,6 +244,13 @@ class MemoryService:
             if memory_id:
                 memory = await self.repo.get_memory(memory_id)
                 if memory:
+                    # agent_instance_id 필터링
+                    if agent_instance_id:
+                        if not (memory.get("metadata") and 
+                                memory["metadata"].get("source") == "agent" and
+                                memory["metadata"].get("agent_instance_id") == agent_instance_id):
+                            continue
+                    
                     # 출처 정보 조회
                     source_info = {}
                     if memory["scope"] == "chatroom" and memory.get("chat_room_id"):
@@ -233,6 +265,16 @@ class MemoryService:
                         project = await user_repo.get_project(memory["project_id"])
                         if project:
                             source_info["project_name"] = project["name"]
+                    
+                    # Agent Instance 정보 추가
+                    if memory.get("metadata") and memory["metadata"].get("source") == "agent":
+                        mem_agent_instance_id = memory["metadata"].get("agent_instance_id")
+                        if mem_agent_instance_id:
+                            from src.agent.repository import AgentRepository
+                            agent_repo = AgentRepository(self.repo.db)
+                            instance = await agent_repo.get_agent_instance(mem_agent_instance_id)
+                            if instance:
+                                source_info["agent_instance_name"] = instance["name"]
                     
                     search_results.append({
                         "memory": memory,
@@ -387,6 +429,12 @@ class MemoryService:
             if not user:
                 raise PermissionDeniedException()
             if user.get("department_id") != memory.get("department_id"):
+                raise PermissionDeniedException()
+            return True
+        
+        # 에이전트 메모리: 소유자만
+        if scope == "agent":
+            if memory["owner_id"] != user_id:
                 raise PermissionDeniedException()
             return True
 
