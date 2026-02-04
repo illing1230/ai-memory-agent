@@ -418,6 +418,28 @@ class AgentRepository:
         
         return data_list
 
+    async def count_agent_data(
+        self,
+        agent_instance_id: str,
+        internal_user_id: str | None = None,
+        data_type: str | None = None,
+    ) -> int:
+        """Agent 데이터 총 개수"""
+        query = "SELECT COUNT(*) as count FROM agent_data WHERE agent_instance_id = ?"
+        params: list = [agent_instance_id]
+
+        if internal_user_id:
+            query += " AND internal_user_id = ?"
+            params.append(internal_user_id)
+
+        if data_type:
+            query += " AND data_type = ?"
+            params.append(data_type)
+
+        cursor = await self.db.execute(query, params)
+        row = await cursor.fetchone()
+        return row["count"] if row else 0
+
     # ==================== External User Mapping ====================
 
     async def create_external_user_mapping(

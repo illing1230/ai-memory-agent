@@ -223,6 +223,33 @@ export function Sidebar() {
             )}
           </SidebarSection>
 
+          {/* Agent Section */}
+          <SidebarSection
+            title="Agent"
+            icon={Bot}
+            expanded={expandedSections.agents}
+            onToggle={() => toggleSection('agents')}
+          >
+            <SidebarItem
+              to="/agents/marketplace"
+              icon={Bot}
+              label="Marketplace"
+              active={isActive('/agents/marketplace')}
+            />
+            <SidebarItem
+              to="/agents/my-instances"
+              icon={List}
+              label="내 Instances"
+              active={isActive('/agents/my-instances')}
+            />
+            <SidebarItem
+              to="/agents/types"
+              icon={Settings}
+              label="Agent 등록"
+              active={isActive('/agents/types')}
+            />
+          </SidebarSection>
+
           {/* Memory Section */}
           <SidebarSection
             title="지식 센터"
@@ -268,33 +295,6 @@ export function Sidebar() {
               icon={Briefcase}
               label="프로젝트"
               active={isActive('/projects')}
-            />
-          </SidebarSection>
-
-          {/* Agent Section */}
-          <SidebarSection
-            title="Agent"
-            icon={Bot}
-            expanded={expandedSections.agents}
-            onToggle={() => toggleSection('agents')}
-          >
-            <SidebarItem
-              to="/agents/marketplace"
-              icon={Bot}
-              label="Marketplace"
-              active={isActive('/agents/marketplace')}
-            />
-            <SidebarItem
-              to="/agents/my-instances"
-              icon={List}
-              label="내 Instances"
-              active={isActive('/agents/my-instances')}
-            />
-            <SidebarItem
-              to="/agents/types"
-              icon={Settings}
-              label="Agent 등록"
-              active={isActive('/agents/types')}
             />
           </SidebarSection>
           {/* Guide Section */}
@@ -348,7 +348,7 @@ export function Sidebar() {
             <Settings className="h-4 w-4" />
             <span className="text-sm">설정</span>
           </Button>
-          <Tooltip content="SDK 통합 가이드" side="top">
+          <Tooltip content="Agent 연동 가이드" side="top">
             <Button 
               variant="ghost" 
               size="icon" 

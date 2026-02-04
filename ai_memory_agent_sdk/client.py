@@ -191,7 +191,7 @@ class AIMemoryAgentClient:
     
     async def health_check(self) -> bool:
         """서버 헬스 체크
-        
+
         Returns:
             서버가 정상이면 True, 아니면 False
         """
@@ -200,6 +200,91 @@ class AIMemoryAgentClient:
             return response.status_code == 200
         except Exception:
             return False
+
+    async def get_memory_sources(
+        self,
+        external_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        """접근 가능한 메모리 소스 목록 조회"""
+        params = {}
+        if external_user_id:
+            params["external_user_id"] = external_user_id
+        try:
+            response = await self._client.get(
+                f"/api/v1/agents/{self.agent_id}/memory-sources",
+                params=params,
+            )
+            if response.status_code >= 400:
+                self._handle_error(response)
+            return response.json()
+        except httpx.TimeoutException:
+            raise ConnectionError("요청 타임아웃")
+        except httpx.ConnectError:
+            raise ConnectionError(f"서버에 연결할 수 없습니다: {self.base_url}")
+        except (AuthenticationError, APIError, ValidationError):
+            raise
+        except Exception as e:
+            raise ConnectionError(f"알 수 없는 오류: {str(e)}")
+
+    async def search_memories(
+        self,
+        query: str,
+        context_sources: dict[str, Any] | None = None,
+        limit: int = 10,
+        external_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        """메모리 검색"""
+        payload: dict[str, Any] = {"query": query, "limit": limit}
+        if context_sources:
+            payload["context_sources"] = context_sources
+        if external_user_id:
+            payload["external_user_id"] = external_user_id
+        try:
+            response = await self._client.post(
+                f"/api/v1/agents/{self.agent_id}/memories/search",
+                json=payload,
+            )
+            if response.status_code >= 400:
+                self._handle_error(response)
+            return response.json()
+        except httpx.TimeoutException:
+            raise ConnectionError("요청 타임아웃")
+        except httpx.ConnectError:
+            raise ConnectionError(f"서버에 연결할 수 없습니다: {self.base_url}")
+        except (AuthenticationError, APIError, ValidationError):
+            raise
+        except Exception as e:
+            raise ConnectionError(f"알 수 없는 오류: {str(e)}")
+
+    async def get_data(
+        self,
+        data_type: str | None = None,
+        external_user_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """에이전트 데이터 조회"""
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if data_type:
+            params["data_type"] = data_type
+        if external_user_id:
+            params["external_user_id"] = external_user_id
+        try:
+            response = await self._client.get(
+                f"/api/v1/agents/{self.agent_id}/data",
+                params=params,
+            )
+            if response.status_code >= 400:
+                self._handle_error(response)
+            return response.json()
+        except httpx.TimeoutException:
+            raise ConnectionError("요청 타임아웃")
+        except httpx.ConnectError:
+            raise ConnectionError(f"서버에 연결할 수 없습니다: {self.base_url}")
+        except (AuthenticationError, APIError, ValidationError):
+            raise
+        except Exception as e:
+            raise ConnectionError(f"알 수 없는 오류: {str(e)}")
 
 
 # 동기 클라이언트 (선택사항)
@@ -346,3 +431,88 @@ class AIMemoryAgentSyncClient:
             return response.status_code == 200
         except Exception:
             return False
+
+    def get_memory_sources(
+        self,
+        external_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        """접근 가능한 메모리 소스 목록 조회 (동기)"""
+        params = {}
+        if external_user_id:
+            params["external_user_id"] = external_user_id
+        try:
+            response = self._client.get(
+                f"/api/v1/agents/{self.agent_id}/memory-sources",
+                params=params,
+            )
+            if response.status_code >= 400:
+                self._handle_error(response)
+            return response.json()
+        except httpx.TimeoutException:
+            raise ConnectionError("요청 타임아웃")
+        except httpx.ConnectError:
+            raise ConnectionError(f"서버에 연결할 수 없습니다: {self.base_url}")
+        except (AuthenticationError, APIError, ValidationError):
+            raise
+        except Exception as e:
+            raise ConnectionError(f"알 수 없는 오류: {str(e)}")
+
+    def search_memories(
+        self,
+        query: str,
+        context_sources: dict[str, Any] | None = None,
+        limit: int = 10,
+        external_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        """메모리 검색 (동기)"""
+        payload: dict[str, Any] = {"query": query, "limit": limit}
+        if context_sources:
+            payload["context_sources"] = context_sources
+        if external_user_id:
+            payload["external_user_id"] = external_user_id
+        try:
+            response = self._client.post(
+                f"/api/v1/agents/{self.agent_id}/memories/search",
+                json=payload,
+            )
+            if response.status_code >= 400:
+                self._handle_error(response)
+            return response.json()
+        except httpx.TimeoutException:
+            raise ConnectionError("요청 타임아웃")
+        except httpx.ConnectError:
+            raise ConnectionError(f"서버에 연결할 수 없습니다: {self.base_url}")
+        except (AuthenticationError, APIError, ValidationError):
+            raise
+        except Exception as e:
+            raise ConnectionError(f"알 수 없는 오류: {str(e)}")
+
+    def get_data(
+        self,
+        data_type: str | None = None,
+        external_user_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """에이전트 데이터 조회 (동기)"""
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if data_type:
+            params["data_type"] = data_type
+        if external_user_id:
+            params["external_user_id"] = external_user_id
+        try:
+            response = self._client.get(
+                f"/api/v1/agents/{self.agent_id}/data",
+                params=params,
+            )
+            if response.status_code >= 400:
+                self._handle_error(response)
+            return response.json()
+        except httpx.TimeoutException:
+            raise ConnectionError("요청 타임아웃")
+        except httpx.ConnectError:
+            raise ConnectionError(f"서버에 연결할 수 없습니다: {self.base_url}")
+        except (AuthenticationError, APIError, ValidationError):
+            raise
+        except Exception as e:
+            raise ConnectionError(f"알 수 없는 오류: {str(e)}")

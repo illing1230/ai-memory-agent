@@ -1,14 +1,22 @@
 """Agent Service - 비즈니스 로직"""
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 import aiosqlite
 
 from src.agent.repository import AgentRepository
+from src.chat.repository import ChatRepository
 from src.memory.repository import MemoryRepository
+from src.user.repository import UserRepository
 from src.shared.exceptions import NotFoundException, PermissionDeniedException
-from src.shared.vector_store import upsert_vector
+from src.shared.vector_store import upsert_vector, search_vectors
 from src.shared.providers import get_embedding_provider
+
+# 리랭킹 상수 (chat/service.py와 동일)
+SIMILARITY_ALPHA = 0.6
+RECENCY_BETA = 0.4
+RECENCY_DECAY_DAYS = 30
 
 
 class AgentService:
@@ -223,6 +231,30 @@ class AgentService:
 
     # ==================== Agent Data ====================
 
+    async def _resolve_user_from_api_key(
+        self,
+        api_key: str,
+        external_user_id: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        """API Key → (agent_instance, internal_user_id) 해석"""
+        instance = await self.repo.get_agent_instance_by_api_key(api_key)
+        if not instance:
+            raise PermissionDeniedException("유효하지 않은 API Key입니다")
+
+        if instance["status"] != "active":
+            raise PermissionDeniedException("비활성화된 Agent Instance입니다")
+
+        if external_user_id:
+            mapping = await self.repo.get_external_user_mapping_by_external_id(
+                instance["id"],
+                external_user_id,
+            )
+            internal_user_id = mapping["internal_user_id"] if mapping else instance["owner_id"]
+        else:
+            internal_user_id = instance["owner_id"]
+
+        return instance, internal_user_id
+
     async def receive_agent_data(
         self,
         api_key: str,
@@ -232,30 +264,10 @@ class AgentService:
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """Agent 데이터 수신"""
-        # API Key로 Agent Instance 조회
-        instance = await self.repo.get_agent_instance_by_api_key(api_key)
-        if not instance:
-            raise PermissionDeniedException("유효하지 않은 API Key입니다")
-        
-        if instance["status"] != "active":
-            raise PermissionDeniedException("비활성화된 Agent Instance입니다")
-        
-        # 사용자 ID 결정
-        if external_user_id:
-            # 외부 사용자 매핑 조회
-            mapping = await self.repo.get_external_user_mapping_by_external_id(
-                instance["id"],
-                external_user_id,
-            )
-            if mapping:
-                internal_user_id = mapping["internal_user_id"]
-            else:
-                # 매핑이 없으면 소유자 사용
-                internal_user_id = instance["owner_id"]
-        else:
-            # 단일 사용자 Agent
-            internal_user_id = instance["owner_id"]
-        
+        instance, internal_user_id = await self._resolve_user_from_api_key(
+            api_key, external_user_id,
+        )
+
         # 데이터 저장
         agent_data = await self.repo.create_agent_data(
             agent_instance_id=instance["id"],
@@ -339,6 +351,165 @@ class AgentService:
             )
         
         return memory
+
+    # ==================== Agent Memory Access (API Key Auth) ====================
+
+    async def get_memory_sources(
+        self,
+        api_key: str,
+        external_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        """에이전트의 소유자가 접근 가능한 메모리 소스 목록"""
+        instance, user_id = await self._resolve_user_from_api_key(
+            api_key, external_user_id,
+        )
+
+        chat_repo = ChatRepository(self.db)
+        user_repo = UserRepository(self.db)
+
+        # 1. 채팅방
+        rooms = await chat_repo.get_user_rooms(user_id)
+        chat_room_sources = [
+            {"id": r["id"], "name": r["name"], "room_type": r.get("room_type")}
+            for r in rooms
+        ]
+
+        return {
+            "chat_rooms": chat_room_sources,
+        }
+
+    async def search_memories(
+        self,
+        api_key: str,
+        query: str,
+        context_sources: dict | None = None,
+        limit: int = 10,
+        external_user_id: str | None = None,
+    ) -> dict[str, Any]:
+        """컨텍스트 소스 기반 메모리 검색 (API Key 인증)"""
+        instance, user_id = await self._resolve_user_from_api_key(
+            api_key, external_user_id,
+        )
+
+        # 접근 가능한 소스 ID 집합 조회 (권한 검증용)
+        accessible = await self.get_memory_sources(api_key, external_user_id)
+        accessible_room_ids = {r["id"] for r in accessible["chat_rooms"]}
+
+        if context_sources is None:
+            context_sources = {}
+
+        # 쿼리 임베딩
+        embedding_provider = get_embedding_provider()
+        query_vector = await embedding_provider.embed(query)
+
+        all_memories: list[dict[str, Any]] = []
+
+        # 1. 채팅방 메모리
+        for room_id in context_sources.get("chat_rooms", []):
+            if room_id not in accessible_room_ids:
+                continue
+            results = await search_vectors(
+                query_vector=query_vector,
+                limit=5,
+                filter_conditions={"chat_room_id": room_id},
+            )
+            for r in results:
+                memory = await self.memory_repo.get_memory(
+                    r["payload"].get("memory_id")
+                )
+                if memory and not memory.get("superseded", False):
+                    all_memories.append({"memory": memory, "score": r["score"]})
+
+        # 2. 개인 메모리
+        if context_sources.get("include_personal", False):
+            results = await search_vectors(
+                query_vector=query_vector,
+                limit=5,
+                filter_conditions={"owner_id": user_id, "scope": "personal"},
+            )
+            for r in results:
+                memory = await self.memory_repo.get_memory(
+                    r["payload"].get("memory_id")
+                )
+                if memory and not memory.get("superseded", False):
+                    all_memories.append({"memory": memory, "score": r["score"]})
+
+        # 리랭킹: 유사도(60%) + 최신도(40%)
+        for m in all_memories:
+            similarity_score = m["score"]
+            recency_score = self._calculate_recency_score(m["memory"]["created_at"])
+            m["score"] = (similarity_score * SIMILARITY_ALPHA) + (recency_score * RECENCY_BETA)
+
+        # 중복 제거 + 정렬
+        seen: set[str] = set()
+        unique: list[dict[str, Any]] = []
+        for m in sorted(all_memories, key=lambda x: x["score"], reverse=True):
+            if m["memory"]["id"] not in seen:
+                seen.add(m["memory"]["id"])
+                unique.append(m)
+
+        results_list = unique[:limit]
+
+        return {
+            "results": [
+                {
+                    "memory_id": m["memory"]["id"],
+                    "content": m["memory"]["content"],
+                    "scope": m["memory"]["scope"],
+                    "category": m["memory"].get("category"),
+                    "importance": m["memory"].get("importance", "medium"),
+                    "score": m["score"],
+                    "created_at": m["memory"]["created_at"],
+                    "metadata": m["memory"].get("metadata"),
+                }
+                for m in results_list
+            ],
+            "total": len(results_list),
+            "query": query,
+        }
+
+    async def get_agent_data_by_api_key(
+        self,
+        api_key: str,
+        data_type: str | None = None,
+        external_user_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """API Key 인증으로 Agent 데이터 조회"""
+        instance, user_id = await self._resolve_user_from_api_key(
+            api_key, external_user_id,
+        )
+
+        data_list = await self.repo.list_agent_data(
+            agent_instance_id=instance["id"],
+            internal_user_id=user_id,
+            data_type=data_type,
+            limit=limit,
+            offset=offset,
+        )
+
+        total = await self.repo.count_agent_data(
+            agent_instance_id=instance["id"],
+            internal_user_id=user_id,
+            data_type=data_type,
+        )
+
+        return {"data": data_list, "total": total}
+
+    def _calculate_recency_score(self, created_at: str) -> float:
+        """최신성 점수 계산"""
+        try:
+            created_dt = datetime.fromisoformat(created_at)
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            days_old = (now - created_dt).days
+            if days_old >= RECENCY_DECAY_DAYS:
+                return 0.0
+            return max(0.0, 1.0 - (days_old / RECENCY_DECAY_DAYS))
+        except Exception:
+            return 0.5
 
     # ==================== External User Mapping ====================
 

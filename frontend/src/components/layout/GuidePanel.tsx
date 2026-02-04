@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, ChevronRight, MessageSquare, Brain, Shield, Bot, ChevronDown } from 'lucide-react'
+import { X, ChevronRight, MessageSquare, Brain, Shield, Bot, ChevronDown, ExternalLink } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 
 interface GuideCategory {
@@ -18,43 +18,71 @@ interface GuideItem {
 const guideCategories: GuideCategory[] = [
   {
     id: 'sdk',
-    title: 'SDK 연동 가이드',
+    title: 'Agent 연동 가이드',
     icon: Bot,
     items: [
       {
-        title: 'Agent Instance 생성',
-        description: 'SDK를 사용하여 Agent Instance를 생성하는 방법',
+        title: 'Agent Type 등록',
+        description: '나만의 Agent Type을 등록하는 방법',
         content: (
           <div className="space-y-4">
+            <p>Agent를 사용하려면 먼저 Agent Type을 등록해야 합니다.</p>
             <div className="step">
               <span className="step-number">1</span>
-              <strong>AI Memory Agent 웹 대시보드 접속</strong>
-              <p>브라우저에서 AI Memory Agent 대시보드에 접속합니다.</p>
+              <strong>Agent 등록 페이지 이동</strong>
+              <p>사이드바에서 "Agent" → "Agent 등록"을 클릭합니다.</p>
             </div>
             <div className="step">
               <span className="step-number">2</span>
-              <strong>Agent Marketplace 이동</strong>
-              <p>사이드바에서 "Agent" → "Marketplace"를 클릭합니다.</p>
+              <strong>"Agent 등록" 버튼 클릭</strong>
+              <p>상단의 "Agent 등록" 버튼을 클릭하면 등록 모달이 열립니다.</p>
             </div>
             <div className="step">
               <span className="step-number">3</span>
-              <strong>Agent Instance 생성</strong>
-              <p>원하는 Agent Type을 선택하고 "Instance 생성" 버튼을 클릭합니다.</p>
+              <strong>Agent 정보 입력</strong>
+              <p>다음 항목을 입력합니다:</p>
+              <ul>
+                <li><strong>이름</strong> (필수): Agent 이름</li>
+                <li><strong>설명</strong>: Agent 용도 설명</li>
+                <li><strong>버전</strong>: 기본값 1.0.0</li>
+                <li><strong>기능</strong>: 쉼표로 구분 (예: memory, message, log)</li>
+                <li><strong>공개 범위</strong>: private / project / department / public</li>
+              </ul>
             </div>
             <div className="step">
               <span className="step-number">4</span>
-              <strong>API Key 확인</strong>
-              <p>생성된 Agent Instance의 API Key를 복사합니다. 이 API Key는 SDK 연동에 필요합니다.</p>
+              <strong>등록 완료</strong>
+              <p>등록된 Agent Type은 Marketplace에 표시되며, 공개 범위에 따라 다른 사용자도 사용할 수 있습니다.</p>
             </div>
           </div>
         ),
       },
       {
-        title: 'API Key 관리',
-        description: 'API Key를 생성하고 관리하는 방법',
+        title: 'Agent Instance 생성',
+        description: '등록된 Agent Type으로 Instance를 생성하는 방법',
         content: (
           <div className="space-y-4">
-            <p>API Key는 Agent Instance를 생성할 때 자동으로 생성됩니다.</p>
+            <p>Agent Type을 등록한 후, Instance를 생성하여 API Key를 발급받습니다.</p>
+            <div className="step">
+              <span className="step-number">1</span>
+              <strong>Agent Marketplace 이동</strong>
+              <p>사이드바에서 "Agent" → "Marketplace"를 클릭합니다.</p>
+            </div>
+            <div className="step">
+              <span className="step-number">2</span>
+              <strong>Agent Instance 생성</strong>
+              <p>원하는 Agent Type을 선택하고 "Instance 생성" 버튼을 클릭합니다.</p>
+            </div>
+            <div className="step">
+              <span className="step-number">3</span>
+              <strong>Instance 이름 입력</strong>
+              <p>Instance 이름을 입력하고 생성합니다.</p>
+            </div>
+            <div className="step">
+              <span className="step-number">4</span>
+              <strong>API Key 확인</strong>
+              <p>"내 Agent Instances" 탭에서 생성된 Instance의 API Key를 복사합니다. 이 API Key는 SDK 연동에 필요합니다.</p>
+            </div>
             <div className="warning-box">
               <strong>⚠️ 중요:</strong> API Key는 안전하게 보관하세요. 유출 시 타인이 귀하의 Agent Instance에 접근할 수 있습니다.
             </div>
@@ -62,10 +90,61 @@ const guideCategories: GuideCategory[] = [
         ),
       },
       {
-        title: '메모리 저장',
-        description: 'SDK를 사용하여 메모리를 저장하는 방법',
+        title: 'SDK 설치',
+        description: 'pip로 AI Memory Agent SDK를 설치하는 방법',
         content: (
           <div className="space-y-4">
+            <p>Agent API 또는 Client API를 사용하려면 SDK를 설치해야 합니다.</p>
+            <h4 className="font-semibold text-sm">pip 설치</h4>
+            <pre><code>{`pip install ai-memory-agent-sdk`}</code></pre>
+            <h4 className="font-semibold text-sm">소스 코드에서 설치 (개발 모드)</h4>
+            <pre><code>{`cd ai-memory-agent
+pip install -e ai_memory_agent_sdk`}</code></pre>
+            <h4 className="font-semibold text-sm">환경 변수 설정</h4>
+            <pre><code>{`# .env
+AI_MEMORY_AGENT_API_KEY=your_api_key
+AI_MEMORY_AGENT_URL=http://localhost:8000`}</code></pre>
+          </div>
+        ),
+      },
+      {
+        title: 'Agent 클래스 (Agent API)',
+        description: 'LLM 호출 + 메모리 통합을 한 번에 처리하는 Agent 클래스',
+        content: (
+          <div className="space-y-4">
+            <p>Agent 클래스는 LLM 호출, 대화 관리, 메모리 저장/검색을 통합한 Agent API입니다.</p>
+            <pre><code>{`from ai_memory_agent_sdk import Agent
+
+agent = Agent(
+    api_key="your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="your_agent_id",
+    llm_provider="openai",  # openai / anthropic / ollama
+    llm_url="http://localhost:8080/v1",
+    llm_api_key="your_llm_key",
+    model="your-model-name",
+)
+
+# 대화 (자동으로 메시지 저장 + 메모리 검색)
+response = agent.message("안녕하세요!")
+
+# 수동 메모리 추출
+agent.memory()
+
+# 메모리 검색
+results = agent.search("커피 선호도")
+
+# 대화 초기화
+agent.clear()`}</code></pre>
+          </div>
+        ),
+      },
+      {
+        title: '메모리 저장 (Client API)',
+        description: 'Client를 사용하여 메모리를 직접 저장하는 방법',
+        content: (
+          <div className="space-y-4">
+            <p>Client API를 사용하면 메모리, 메시지, 로그를 직접 저장할 수 있습니다.</p>
             <pre><code>{`from ai_memory_agent_sdk import AIMemoryAgentSyncClient
 
 client = AIMemoryAgentSyncClient(
@@ -74,13 +153,17 @@ client = AIMemoryAgentSyncClient(
     agent_id="your_agent_id"
 )
 
-result = client.send_memory(
+# 메모리 저장
+client.send_memory(
     content="사용자가 커피를 좋아합니다",
-    metadata={
-        "source": "chatbot",
-        "category": "preference"
-    }
-)`}</code></pre>
+    metadata={"category": "preference"}
+)
+
+# 메시지 저장
+client.send_message(content="안녕하세요!")
+
+# 로그 저장
+client.send_log(content="작업 완료")`}</code></pre>
           </div>
         ),
       },
@@ -89,7 +172,27 @@ result = client.send_memory(
         description: 'SDK를 사용하여 메모리를 검색하는 방법',
         content: (
           <div className="space-y-4">
-            <p>SDK를 통한 메모리 검색 기능은 현재 개발 중입니다. 웹 대시보드의 "지식 센터" → "검색"을 이용해주세요.</p>
+            <p>시맨틱 검색으로 관련 메모리를 찾을 수 있습니다.</p>
+            <pre><code>{`from ai_memory_agent_sdk import AIMemoryAgentSyncClient
+
+client = AIMemoryAgentSyncClient(
+    api_key="your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="your_agent_id"
+)
+
+# 메모리 검색
+results = client.search_memories(
+    query="커피 선호도",
+    context_sources={
+        "include_personal": True,
+        "chat_rooms": ["room_id_1"]
+    },
+    limit=10
+)
+
+for r in results["results"]:
+    print(f"[{r['score']:.3f}] {r['content']}")`}</code></pre>
           </div>
         ),
       },
@@ -100,6 +203,88 @@ result = client.send_memory(
     title: '대화방',
     icon: MessageSquare,
     items: [
+      {
+        title: '@ai로 AI에게 질문하기',
+        description: '대화방에서 AI에게 질문하는 방법',
+        content: (
+          <div className="space-y-4">
+            <div className="step">
+              <span className="step-number">1</span>
+              <strong>@ai 입력</strong>
+              <p>메시지 입력창에 <code>@ai</code>를 입력한 후 질문을 작성합니다.</p>
+              <p className="text-xs text-foreground-muted mt-1">예: <code>@ai 이 프로젝트의 배포 절차를 알려줘</code></p>
+            </div>
+            <div className="step">
+              <span className="step-number">2</span>
+              <strong>AI 응답 확인</strong>
+              <p>AI가 다음 정보를 참고하여 답변합니다:</p>
+              <ul>
+                <li><strong>최근 대화 내용</strong> (최우선)</li>
+                <li><strong>연결된 RAG 문서</strong> (높은 우선순위)</li>
+                <li><strong>설정된 메모리 소스</strong> (보조)</li>
+              </ul>
+            </div>
+            <div className="step">
+              <span className="step-number">3</span>
+              <strong>자동 메모리 추출</strong>
+              <p>AI 응답 후, 대화에서 중요한 정보가 자동으로 메모리로 추출/저장됩니다.</p>
+            </div>
+            <div className="tip-box">
+              <strong>💡 팁:</strong> 문서를 대화방에 연결하면 AI가 문서 내용을 참고하여 더 정확한 답변을 제공합니다.
+            </div>
+          </div>
+        ),
+      },
+      {
+        title: '슬래시 커맨드',
+        description: '대화방에서 사용할 수 있는 슬래시 커맨드 목록',
+        content: (
+          <div className="space-y-4">
+            <p>메시지 입력창에 <code>/</code>를 입력하면 사용 가능한 커맨드가 표시됩니다.</p>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 pr-4">커맨드</th>
+                  <th className="text-left py-2">설명</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-border">
+                  <td className="py-2 pr-4"><code>/remember &lt;내용&gt;</code></td>
+                  <td className="py-2">개인 + 대화방 메모리로 저장</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="py-2 pr-4"><code>/memory</code></td>
+                  <td className="py-2">최근 대화에서 메모리 자동 추출</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="py-2 pr-4"><code>/search &lt;검색어&gt;</code></td>
+                  <td className="py-2">저장된 메모리 검색</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="py-2 pr-4"><code>/forget &lt;검색어&gt;</code></td>
+                  <td className="py-2">메모리 삭제</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="py-2 pr-4"><code>/members</code></td>
+                  <td className="py-2">대화방 멤버 목록</td>
+                </tr>
+                <tr className="border-b border-border">
+                  <td className="py-2 pr-4"><code>/invite &lt;이메일&gt;</code></td>
+                  <td className="py-2">멤버 초대 (관리자)</td>
+                </tr>
+                <tr>
+                  <td className="py-2 pr-4"><code>/help</code></td>
+                  <td className="py-2">도움말</td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="tip-box">
+              <strong>💡 팁:</strong> <code>/memory</code>는 <code>@ai</code> 없이 일반 대화만 한 경우에도 수동으로 메모리를 추출할 수 있습니다. 중복 메모리는 자동으로 건너뜁니다.
+            </div>
+          </div>
+        ),
+      },
       {
         title: '대화방 생성',
         description: '새로운 대화방을 만드는 방법',
@@ -113,7 +298,7 @@ result = client.send_memory(
             <div className="step">
               <span className="step-number">2</span>
               <strong>대화방 정보 입력</strong>
-              <p>대화방 이름과 유형(개인/프로젝트/부서)을 선택합니다.</p>
+              <p>대화방 이름을 입력합니다.</p>
             </div>
             <div className="step">
               <span className="step-number">3</span>
@@ -141,8 +326,6 @@ result = client.send_memory(
                 <li><strong>이 대화방:</strong> 현재 대화방의 메모리 사용</li>
                 <li><strong>다른 대화방:</strong> 다른 대화방의 메모리 사용</li>
                 <li><strong>개인 전체:</strong> 개인 모든 메모리 사용 (⚠️ 주의 필요)</li>
-                <li><strong>프로젝트:</strong> 특정 프로젝트의 메모리 사용</li>
-                <li><strong>부서:</strong> 특정 부서의 메모리 사용</li>
               </ul>
             </div>
             <div className="step">
@@ -216,7 +399,7 @@ result = client.send_memory(
               <p>필요한 경우 다음 필터를 적용할 수 있습니다:</p>
               <ul>
                 <li><strong>데이터 타입:</strong> 메모리, 메시지, 로그</li>
-                <li><strong>범위:</strong> 개인, 프로젝트, 부서, 대화방</li>
+                <li><strong>범위:</strong> 개인, 대화방</li>
                 <li><strong>기간:</strong> 특정 기간 내의 메모리</li>
               </ul>
             </div>
@@ -294,6 +477,32 @@ result = client.send_memory(
         ),
       },
       {
+        title: '문서-대화방 연결',
+        description: '업로드된 문서를 대화방에 연결하여 RAG로 활용하는 방법',
+        content: (
+          <div className="space-y-4">
+            <div className="step">
+              <span className="step-number">1</span>
+              <strong>대화방 설정 열기</strong>
+              <p>대화방 헤더의 설정(톱니바퀴) 아이콘을 클릭합니다.</p>
+            </div>
+            <div className="step">
+              <span className="step-number">2</span>
+              <strong>문서 연결</strong>
+              <p>"문서 연결" 섹션에서 연결할 문서를 선택합니다.</p>
+            </div>
+            <div className="step">
+              <span className="step-number">3</span>
+              <strong>AI 응답에서 문서 활용</strong>
+              <p>연결된 문서는 <code>@ai</code> 질문 시 자동으로 참조됩니다. AI가 문서 내용을 기반으로 더 정확한 답변을 제공합니다.</p>
+            </div>
+            <div className="feature-box">
+              <strong>참고:</strong> 하나의 문서를 여러 대화방에 연결할 수 있고, 하나의 대화방에 여러 문서를 연결할 수 있습니다 (다대다 관계).
+            </div>
+          </div>
+        ),
+      },
+      {
         title: '문서 미리보기',
         description: '업로드된 문서를 미리보는 방법',
         content: (
@@ -362,39 +571,6 @@ result = client.send_memory(
               <span className="step-number">5</span>
               <strong>권한 저장</strong>
               <p>"저장" 버튼을 클릭하여 권한 설정을 적용합니다.</p>
-            </div>
-          </div>
-        ),
-      },
-      {
-        title: '프로젝트',
-        description: '프로젝트를 생성하고 관리하는 방법',
-        content: (
-          <div className="space-y-4">
-            <div className="step">
-              <span className="step-number">1</span>
-              <strong>프로젝트 페이지 이동</strong>
-              <p>사이드바에서 "권한 관리" → "프로젝트"를 클릭합니다.</p>
-            </div>
-            <div className="step">
-              <span className="step-number">2</span>
-              <strong>프로젝트 생성</strong>
-              <p>"새 프로젝트" 버튼을 클릭하고 프로젝트 정보를 입력합니다.</p>
-            </div>
-            <div className="step">
-              <span className="step-number">3</span>
-              <strong>팀원 초대</strong>
-              <p>프로젝트에 참여할 팀원을 초대합니다.</p>
-            </div>
-            <div className="step">
-              <span className="step-number">4</span>
-              <strong>역할 할당</strong>
-              <p>팀원에게 적절한 역할을 할당합니다:</p>
-              <ul>
-                <li><strong>관리자:</strong> 모든 권한</li>
-                <li><strong>멤버:</strong> 메모리 읽기/쓰기</li>
-                <li><strong>조회자:</strong> 메모리 읽기만</li>
-              </ul>
             </div>
           </div>
         ),
@@ -487,7 +663,7 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
               </Button>
               <h3 className="text-lg font-semibold mb-2">{selectedItem.title}</h3>
               <p className="text-sm text-foreground-muted mb-4">{selectedItem.description}</p>
-              <div className="space-y-4">{selectedItem.content}</div>
+              <div className="space-y-4 guide-content">{selectedItem.content}</div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -533,6 +709,33 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* 전체 문서 보기 링크 */}
+          {!selectedItem && (
+            <div className="mt-8 pt-6 border-t border-border space-y-3">
+              <h4 className="text-sm font-semibold text-foreground-muted mb-3">전체 문서 보기</h4>
+              <button
+                onClick={() => window.open('/guide.html', '_blank')}
+                className="w-full flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors text-left"
+              >
+                <ExternalLink className="h-4 w-4 text-accent shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">사용 가이드 (전체)</p>
+                  <p className="text-xs text-foreground-muted">메모리 관리, 문서, 검색, 에이전트 활용</p>
+                </div>
+              </button>
+              <button
+                onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+                className="w-full flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors text-left"
+              >
+                <ExternalLink className="h-4 w-4 text-accent shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Agent 연동 가이드 (전체)</p>
+                  <p className="text-xs text-foreground-muted">Agent 클래스, 클라이언트 API, 코드 예시</p>
+                </div>
+              </button>
             </div>
           )}
         </div>

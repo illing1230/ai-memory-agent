@@ -115,6 +115,53 @@ class ExternalUserMappingResponse(BaseModel):
         from_attributes = True
 
 
+# Agent 메모리 소스 스키마
+class ChatRoomSource(BaseModel):
+    id: str
+    name: str
+    room_type: str | None = None
+
+
+class MemorySourcesResponse(BaseModel):
+    chat_rooms: list[ChatRoomSource]
+
+
+# Agent 메모리 검색 스키마
+class AgentMemoryContextSources(BaseModel):
+    include_personal: bool = False
+    chat_rooms: list[str] = []
+
+
+class AgentMemorySearchRequest(BaseModel):
+    query: str
+    context_sources: AgentMemoryContextSources | None = None
+    limit: int = Field(default=10, ge=1, le=50)
+    external_user_id: str | None = None
+
+
+class AgentMemorySearchResult(BaseModel):
+    memory_id: str
+    content: str
+    scope: str
+    category: str | None = None
+    importance: str = "medium"
+    score: float
+    created_at: datetime
+    metadata: dict | None = None
+
+
+class AgentMemorySearchResponse(BaseModel):
+    results: list[AgentMemorySearchResult]
+    total: int
+    query: str
+
+
+# Agent 데이터 목록 스키마
+class AgentDataListResponse(BaseModel):
+    data: list[AgentDataResponse]
+    total: int
+
+
 # Agent Instance 공유 스키마
 class AgentInstanceShareCreate(BaseModel):
     shared_with_user_id: str | None = None

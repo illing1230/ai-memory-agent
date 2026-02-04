@@ -110,80 +110,6 @@ MEMORIES = [
         "importance": "medium",
         "topic_key": "한기획 주간 보고서",
     },
-    # 프로젝트 메모리
-    {
-        "content": "PLM 시스템의 데이터베이스는 PostgreSQL을 사용한다",
-        "scope": "project",
-        "owner_idx": 1,
-        "project_idx": 0,
-        "category": "fact",
-        "importance": "high",
-        "topic_key": "PLM 데이터베이스",
-    },
-    {
-        "content": "MemGate는 Qdrant 벡터 DB와 SQLite를 함께 사용한다",
-        "scope": "project",
-        "owner_idx": 0,
-        "project_idx": 1,
-        "category": "fact",
-        "importance": "high",
-        "topic_key": "MemGate 기술 스택",
-    },
-    {
-        "content": "RAG 시스템에서 chunk 크기는 512 토큰으로 결정했다",
-        "scope": "project",
-        "owner_idx": 5,
-        "project_idx": 2,
-        "category": "decision",
-        "importance": "high",
-        "topic_key": "RAG chunk 크기",
-    },
-    {
-        "content": "품질 대시보드는 Grafana로 구현하기로 했다",
-        "scope": "project",
-        "owner_idx": 1,
-        "project_idx": 3,
-        "category": "decision",
-        "importance": "medium",
-        "topic_key": "품질 대시보드 기술",
-    },
-    {
-        "content": "신제품 출시일은 2025년 3월로 목표한다",
-        "scope": "project",
-        "owner_idx": 8,
-        "project_idx": 4,
-        "category": "decision",
-        "importance": "high",
-        "topic_key": "신제품 출시일",
-    },
-    # 부서 메모리
-    {
-        "content": "품질팀 회의는 매주 화요일 오전 10시에 진행한다",
-        "scope": "department",
-        "owner_idx": 1,
-        "dept_idx": 0,
-        "category": "fact",
-        "importance": "medium",
-        "topic_key": "품질팀 회의",
-    },
-    {
-        "content": "개발팀은 GitFlow 브랜치 전략을 사용한다",
-        "scope": "department",
-        "owner_idx": 0,
-        "dept_idx": 1,
-        "category": "fact",
-        "importance": "high",
-        "topic_key": "개발팀 브랜치 전략",
-    },
-    {
-        "content": "기획팀은 Notion을 공식 문서 도구로 사용한다",
-        "scope": "department",
-        "owner_idx": 8,
-        "dept_idx": 2,
-        "category": "fact",
-        "importance": "medium",
-        "topic_key": "기획팀 문서 도구",
-    },
     # 추가 메모리
     {
         "content": "김품질은 커피보다 녹차를 선호한다",
@@ -200,35 +126,6 @@ MEMORIES = [
         "category": "preference",
         "importance": "medium",
         "topic_key": "최개발 업무 시간",
-    },
-    {
-        "content": "MemGate API는 FastAPI로 구현한다",
-        "scope": "project",
-        "owner_idx": 5,
-        "project_idx": 1,
-        "category": "decision",
-        "importance": "high",
-        "topic_key": "MemGate API 프레임워크",
-    },
-    {
-        "content": "RAG 시스템에서 HyDE 기법을 적용하기로 했다",
-        "scope": "project",
-        "owner_idx": 7,
-        "project_idx": 2,
-        "category": "decision",
-        "importance": "high",
-        "topic_key": "RAG HyDE 기법",
-    },
-    # UPDATE 예제 (같은 topic_key, superseded 관계)
-    {
-        "content": "신제품 출시일은 2025년 6월로 연기되었다",
-        "scope": "project",
-        "owner_idx": 8,
-        "project_idx": 4,
-        "category": "decision",
-        "importance": "high",
-        "topic_key": "신제품 출시일",
-        "supersedes_idx": 7,  # 이전 메모리(2025년 3월)를 superseded
     },
 ]
 
@@ -668,9 +565,7 @@ async def seed_data():
             memory_id = str(uuid.uuid4())
             vector_id = str(uuid.uuid4())
             now = (datetime.now(timezone.utc) + timedelta(hours=9)).isoformat()
-            project_id = project_ids[mem["project_idx"]] if "project_idx" in mem else None
-            department_id = dept_ids[mem["dept_idx"]] if "dept_idx" in mem else None
-            
+
             # 임베딩 생성 (프로바이더 있고, 이전에 실패하지 않았을 때만)
             vector = None
             if embedding_provider and not embedding_failed:
@@ -685,33 +580,30 @@ async def seed_data():
                     embedding_failed = True
             else:
                 vector_id = None
-            
+
             # SQLite에 저장
             topic_key = mem.get("topic_key")
             await db.execute(
                 """INSERT INTO memories
-                    (id, content, vector_id, scope, owner_id, project_id, department_id,
+                    (id, content, vector_id, scope, owner_id,
                     category, importance, topic_key, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (memory_id, mem["content"], vector_id, mem["scope"],
-                  user_ids[mem["owner_idx"]], project_id, department_id,
+                  user_ids[mem["owner_idx"]],
                   mem.get("category"), mem.get("importance", "medium"), topic_key, now, now),
             )
-            
+
             # Qdrant에 저장
             if vector and vector_id:
                 payload = {
                     "memory_id": memory_id,
                     "scope": mem["scope"],
                     "owner_id": user_ids[mem["owner_idx"]],
-                    "project_id": project_id,
-                    "department_id": department_id,
                 }
                 await upsert_vector(vector_id, vector, payload)
-            
+
             memory_ids.append(memory_id)
-            scope_icon = {"personal": "👤", "project": "📋", "department": "🏢"}
-            print(f"  {scope_icon.get(mem['scope'], '❓')} {mem['content'][:40]}...")
+            print(f"  👤 {mem['content'][:40]}...")
         
         # 12.5. superseded 관계 설정
         print("\n🔄 superseded 관계 설정...")

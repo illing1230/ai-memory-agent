@@ -11,6 +11,11 @@ from src.shared.exceptions import ProviderException
 
 MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가치가 있는 정보를 추출하세요.
 
+중요 규칙:
+- 대화에 명시적으로 언급된 정보만 추출하세요.
+- 대화에 없는 내용을 추론하거나 가정하지 마세요.
+- 불확실한 정보는 추출하지 마세요.
+
 추출 기준:
 - 사용자의 선호도, 습관, 특성
 - 중요한 사실이나 결정 사항
@@ -101,7 +106,7 @@ class AnthropicLLMProvider(BaseLLMProvider):
         response = await self.generate(
             prompt=prompt,
             system_prompt="당신은 대화에서 중요한 정보를 추출하는 AI입니다. JSON 형식으로만 응답하세요.",
-            temperature=0.3,
+            temperature=0.1,
             max_tokens=2000,
         )
 

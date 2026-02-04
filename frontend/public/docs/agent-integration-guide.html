@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Memory Agent SDK 연동 가이드</title>
+    <title>AI Memory Agent 연동 가이드</title>
     <style>
         * {
             margin: 0;
@@ -187,7 +187,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔌 AI Memory Agent SDK 연동 가이드</h1>
+        <h1>🔌 AI Memory Agent 연동 가이드</h1>
         <p class="subtitle">외부 AI 에이전트에 메모리 기능 통합하기</p>
         
         <div class="toc">
@@ -210,7 +210,9 @@
         <div class="feature-box">
             <strong>SDK 주요 기능:</strong>
             <ul>
+                <li>고수준 Agent 클래스 (LLM 호출 + 메모리 통합)</li>
                 <li>메모리, 메시지, 로그 데이터 전송</li>
+                <li>시맨틱 메모리 검색</li>
                 <li>동기 및 비동기 클라이언트 지원</li>
                 <li>자동 재시도 및 에러 처리</li>
                 <li>타입 안전한 API</li>
@@ -278,8 +280,41 @@ AI_MEMORY_AGENT_API_KEY=sk_your_api_key_here
 AI_MEMORY_AGENT_BASE_URL=http://localhost:8000</code></pre>
         
         <h2 id="integration">5. SDK 연동</h2>
-        
-        <h3>5.1 동기 클라이언트 사용</h3>
+
+        <h3>5.1 Agent 클래스 (Agent API)</h3>
+        <p>Agent 클래스는 LLM 호출, 대화 관리, 메모리 저장/검색을 통합한 Agent API입니다. 외부 챗봇을 빠르게 구축할 때 권장됩니다.</p>
+        <pre><code>from ai_memory_agent_sdk import Agent
+
+agent = Agent(
+    api_key="your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="your_agent_id",
+    llm_provider="openai",  # openai / anthropic / ollama
+    llm_url="http://localhost:8080/v1",
+    llm_api_key="your_llm_key",
+    model="your-model-name",
+)
+
+# 대화 (자동으로 메시지 저장 + 메모리 검색)
+response = agent.message("안녕하세요!")
+print(response)
+
+# 수동 메모리 추출
+agent.memory()
+
+# 메모리 검색
+results = agent.search("커피 선호도")
+
+# 접근 가능한 메모리 소스 조회
+sources = agent.sources()
+
+# 저장된 데이터 조회
+data = agent.data(limit=20)
+
+# 대화 초기화
+agent.clear()</code></pre>
+
+        <h3>5.2 동기 클라이언트 사용 (Client API)</h3>
         <pre><code>from ai_memory_agent_sdk import AIMemoryAgentSyncClient
 from dotenv import load_dotenv
 
@@ -304,7 +339,7 @@ result = client.send_memory(
 
 print(f"메모리 ID: {result['id']}")</code></pre>
         
-        <h3>5.2 비동기 클라이언트 사용</h3>
+        <h3>5.3 비동기 클라이언트 사용</h3>
         <pre><code>import asyncio
 from ai_memory_agent_sdk import AIMemoryAgentClient
 
@@ -328,7 +363,7 @@ async def main():
 
 asyncio.run(main())</code></pre>
         
-        <h3>5.3 데이터 타입</h3>
+        <h3>5.4 데이터 타입</h3>
         <p>SDK는 세 가지 데이터 타입을 지원합니다:</p>
         
         <table>
@@ -401,7 +436,23 @@ class Chatbot:
         
         return memory</code></pre>
         
-        <h3>6.2 사용자 매핑</h3>
+        <h3>6.2 메모리 검색</h3>
+        <p>시맨틱 검색으로 저장된 메모리를 찾을 수 있습니다.</p>
+        <pre><code># 메모리 검색
+results = client.search_memories(
+    query="커피 선호도",
+    context_sources={
+        "include_personal": True,
+        "chat_rooms": ["room_id_1"]
+    },
+    limit=10
+)
+
+print(f"검색 결과: {results['total']}건")
+for r in results["results"]:
+    print(f"  [{r['score']:.3f}] ({r['scope']}) {r['content'][:80]}")</code></pre>
+
+        <h3>6.3 사용자 매핑</h3>
         <p>외부 시스템의 사용자 ID를 AI Memory Agent의 내부 사용자 ID와 매핑할 수 있습니다.</p>
         
         <pre><code># 외부 사용자 ID로 메모리 전송
@@ -414,7 +465,7 @@ client.send_memory(
     }
 )</code></pre>
         
-        <h3>6.3 에러 처리</h3>
+        <h3>6.4 에러 처리</h3>
         <pre><code>from ai_memory_agent_sdk import (
     AIMemoryAgentSyncClient,
     AuthenticationError,

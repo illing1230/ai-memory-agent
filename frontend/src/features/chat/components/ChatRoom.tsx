@@ -205,7 +205,7 @@ export function ChatRoom() {
         </div>
         
         <div className="flex items-center gap-1 shrink-0">
-          <Tooltip content="SDK 통합 가이드" side="bottom">
+          <Tooltip content="Agent 연동 가이드" side="bottom">
             <Button 
               variant="ghost" 
               size="icon" 

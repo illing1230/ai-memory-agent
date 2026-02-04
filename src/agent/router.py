@@ -15,6 +15,10 @@ from src.agent.schemas import (
     AgentInstanceResponse,
     AgentDataCreate,
     AgentDataResponse,
+    AgentDataListResponse,
+    AgentMemorySearchRequest,
+    AgentMemorySearchResponse,
+    MemorySourcesResponse,
     ExternalUserMappingCreate,
     ExternalUserMappingResponse,
     AgentInstanceShareCreate,
@@ -281,6 +285,68 @@ async def list_agent_data(
         )
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=e.message)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+# ==================== Agent Memory Access (API Key Auth) ====================
+
+@router.get("/agents/{agent_id}/memory-sources", response_model=MemorySourcesResponse)
+async def get_memory_sources(
+    agent_id: str,
+    external_user_id: str | None = None,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    service: AgentService = Depends(get_agent_service),
+):
+    """에이전트가 접근 가능한 메모리 소스 목록 (API Key 인증)"""
+    try:
+        return await service.get_memory_sources(
+            api_key=x_api_key,
+            external_user_id=external_user_id,
+        )
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+@router.post("/agents/{agent_id}/memories/search", response_model=AgentMemorySearchResponse)
+async def search_agent_memories(
+    agent_id: str,
+    data: AgentMemorySearchRequest,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    service: AgentService = Depends(get_agent_service),
+):
+    """메모리 검색 (API Key 인증, context_sources 기반)"""
+    try:
+        return await service.search_memories(
+            api_key=x_api_key,
+            query=data.query,
+            context_sources=data.context_sources.model_dump() if data.context_sources else None,
+            limit=data.limit,
+            external_user_id=data.external_user_id,
+        )
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+@router.get("/agents/{agent_id}/data", response_model=AgentDataListResponse)
+async def get_agent_data(
+    agent_id: str,
+    data_type: str | None = None,
+    external_user_id: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    service: AgentService = Depends(get_agent_service),
+):
+    """에이전트 데이터 조회 (API Key 인증)"""
+    try:
+        return await service.get_agent_data_by_api_key(
+            api_key=x_api_key,
+            data_type=data_type,
+            external_user_id=external_user_id,
+            limit=limit,
+            offset=offset,
+        )
     except PermissionDeniedException as e:
         raise HTTPException(status_code=403, detail=e.message)
 
