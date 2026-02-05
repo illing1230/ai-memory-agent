@@ -26,10 +26,14 @@
 """
 
 import os
+import warnings
 from typing import Any, Callable
 
 from ai_memory_agent_sdk.client import AIMemoryAgentSyncClient
 from ai_memory_agent_sdk.exceptions import ConnectionError as SDKConnectionError
+
+# SSL 경고 억제 (내부 서버용)
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 
 def _create_llm_client(
@@ -40,13 +44,14 @@ def _create_llm_client(
     """LLM 클라이언트 생성
 
     Args:
-        provider: "openai", "anthropic", "ollama"
+        provider: "openai", "ollama"
         llm_url: LLM API URL (직접 지정, 환경변수보다 우선)
         llm_api_key: LLM API Key (직접 지정, 환경변수보다 우선)
     """
     if provider in ("openai", "ollama"):
         try:
             from openai import OpenAI
+            import httpx
         except ImportError:
             raise ImportError("openai 패키지가 필요합니다: pip install openai")
 
@@ -57,30 +62,21 @@ def _create_llm_client(
             return OpenAI(api_key=llm_api_key or "ollama", base_url=url)
 
         # openai
-        api_key = llm_api_key or os.getenv("OPENAI_API_KEY")
-        base_url = llm_url or os.getenv("OPENAI_API_BASE")
+        api_key = llm_api_key or os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+        base_url = llm_url or os.getenv("LLM_URL") or os.getenv("OPENAI_API_BASE")
         if not api_key:
-            raise ValueError("llm_api_key 또는 OPENAI_API_KEY 환경 변수를 설정해주세요.")
+            raise ValueError("llm_api_key 또는 LLM_API_KEY/OPENAI_API_KEY 환경 변수를 설정해주세요.")
 
         kwargs: dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
+        
+        # 내부 서버용 SSL 검증 비활성화 (자체 서명된 인증서 지원)
+        if base_url and base_url.startswith("https://"):
+            http_client = httpx.Client(verify=False)
+            kwargs["http_client"] = http_client
+        
         return OpenAI(**kwargs)
-
-    elif provider == "anthropic":
-        try:
-            from anthropic import Anthropic
-        except ImportError:
-            raise ImportError("anthropic 패키지가 필요합니다: pip install anthropic")
-
-        api_key = llm_api_key or os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("llm_api_key 또는 ANTHROPIC_API_KEY 환경 변수를 설정해주세요.")
-
-        kwargs_anthropic: dict[str, Any] = {"api_key": api_key}
-        if llm_url:
-            kwargs_anthropic["base_url"] = llm_url
-        return Anthropic(**kwargs_anthropic)
 
     else:
         raise ValueError(f"지원하지 않는 LLM 프로바이더: {provider}")
@@ -89,8 +85,7 @@ def _create_llm_client(
 def _get_default_model(provider: str) -> str:
     """프로바이더별 기본 모델"""
     defaults = {
-        "openai": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        "anthropic": os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        "openai": os.getenv("LLM_MODEL") or os.getenv("OPENAI_LLM_MODEL", "gpt-4o-mini"),
         "ollama": os.getenv("OLLAMA_MODEL", "qwen3:32b"),
     }
     return defaults.get(provider, "gpt-4o-mini")
@@ -101,39 +96,19 @@ def _llm_chat(
     provider: str,
     model: str,
     messages: list[dict[str, str]],
-    temperature: float = 0.7,
+    temperature: float = 0.1,
     max_tokens: int = 500,
 ) -> str:
     """동기 LLM chat completions 호출"""
-    if provider == "anthropic":
-        system_msg = None
-        chat_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_msg = msg["content"]
-            else:
-                chat_messages.append(msg)
 
-        kwargs: dict[str, Any] = {
-            "model": model,
-            "messages": chat_messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if system_msg:
-            kwargs["system"] = system_msg
-
-        response = client.messages.create(**kwargs)
-        return response.content[0].text
-    else:
         # OpenAI / Ollama (OpenAI-compatible)
-        response = client.chat.completions.create(
+    response = client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content or ""
+    )
+    return response.choices[0].message.content or ""
 
 
 class Agent:
@@ -145,7 +120,7 @@ class Agent:
         api_key: AI Memory Agent API Key
         base_url: AI Memory Agent 서버 URL
         agent_id: Agent Instance ID
-        llm_provider: LLM 프로바이더 ("openai", "anthropic", "ollama")
+        llm_provider: LLM 프로바이더 ("openai", "ollama")
         llm_url: LLM API URL (직접 지정, 환경변수보다 우선)
         llm_api_key: LLM API Key (직접 지정, 환경변수보다 우선)
         model: LLM 모델명 (미지정 시 프로바이더 기본값)
@@ -345,14 +320,17 @@ class Agent:
         """메모리 검색하여 컨텍스트 문자열 반환 (내부)"""
         if not self._context_sources:
             return ""
+        
         try:
             result = self._api_client.search_memories(
                 query=query,
                 context_sources=self._context_sources,
                 limit=5,
             )
+            
             if not result.get("results"):
                 return ""
+            
             return "\n".join(
                 f"- [{r['scope']}] {r['content']}" for r in result["results"]
             )

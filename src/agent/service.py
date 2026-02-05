@@ -320,15 +320,24 @@ class AgentService:
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """Agent 데이터를 메모리로 변환"""
+        print(f"[DEBUG] Agent 메모리 변환 시작: agent_instance_id={agent_instance_id}")
+        
+        # 벡터 ID 생성
+        import uuid
+        vector_id = str(uuid.uuid4())
+        print(f"[DEBUG] vector_id 생성: {vector_id}")
+        
         # 벡터 생성
         embedding_provider = get_embedding_provider()
         vector = await embedding_provider.embed(content)
+        print(f"[DEBUG] 벡터 생성 완료: dimension={len(vector)}")
         
-        # 메모리 생성 (scope를 'agent'로 설정)
+        # 메모리 생성 (scope를 'agent'로 설정, vector_id 포함)
         memory = await self.memory_repo.create_memory(
             content=content,
             owner_id=owner_id,
             scope="agent",
+            vector_id=vector_id,
             category=metadata.get("category") if metadata else None,
             importance=metadata.get("importance", "medium") if metadata else "medium",
             metadata={
@@ -337,6 +346,7 @@ class AgentService:
                 "agent_instance_id": agent_instance_id,
             },
         )
+        print(f"[DEBUG] 메모리 생성 완료: memory_id={memory['id']}, vector_id={memory.get('vector_id')}")
         
         # 벡터 저장
         if memory.get("vector_id"):
@@ -347,8 +357,12 @@ class AgentService:
                     "memory_id": memory["id"],
                     "scope": "agent",
                     "owner_id": owner_id,
+                    "agent_instance_id": agent_instance_id,
                 },
             )
+            print(f"[DEBUG] 벡터 저장 완료: vector_id={memory['vector_id']}, agent_instance_id={agent_instance_id}")
+        else:
+            print(f"[WARNING] vector_id가 없어서 벡터 저장 건너뜀")
         
         return memory
 
@@ -374,8 +388,24 @@ class AgentService:
             for r in rooms
         ]
 
+        # 2. Agent 메모리 (이 Agent Instance의 메모리)
+        agent_source = {
+            "id": instance["id"],
+            "name": instance["name"],
+            "type": "agent"
+        }
+
+        # 3. 문서 메모리
+        document_source = {
+            "id": "documents",
+            "name": "문서",
+            "type": "document"
+        }
+
         return {
             "chat_rooms": chat_room_sources,
+            "agent": agent_source,
+            "document": document_source,
         }
 
     async def search_memories(
@@ -420,7 +450,42 @@ class AgentService:
                 if memory and not memory.get("superseded", False):
                     all_memories.append({"memory": memory, "score": r["score"]})
 
-        # 2. 개인 메모리
+        # 2. Agent 메모리
+        if context_sources.get("include_agent", False):
+            print(f"[DEBUG] Agent 메모리 검색: query='{query}', agent_instance_id={instance['id']}")
+            results = await search_vectors(
+                query_vector=query_vector,
+                limit=5,
+                filter_conditions={
+                    "owner_id": user_id,
+                    "scope": "agent",
+                    "agent_instance_id": instance["id"]
+                },
+            )
+            print(f"[DEBUG] Agent 메모리 검색 결과: {len(results)}개")
+            for r in results:
+                memory = await self.memory_repo.get_memory(
+                    r["payload"].get("memory_id")
+                )
+                if memory and not memory.get("superseded", False):
+                    all_memories.append({"memory": memory, "score": r["score"]})
+                    print(f"[DEBUG]   - memory_id={memory['id']}, score={r['score']:.3f}, content={memory['content'][:50]}...")
+
+        # 3. 문서 메모리
+        if context_sources.get("include_document", False):
+            results = await search_vectors(
+                query_vector=query_vector,
+                limit=5,
+                filter_conditions={"owner_id": user_id, "scope": "document"},
+            )
+            for r in results:
+                memory = await self.memory_repo.get_memory(
+                    r["payload"].get("memory_id")
+                )
+                if memory and not memory.get("superseded", False):
+                    all_memories.append({"memory": memory, "score": r["score"]})
+
+        # 4. 개인 메모리
         if context_sources.get("include_personal", False):
             results = await search_vectors(
                 query_vector=query_vector,

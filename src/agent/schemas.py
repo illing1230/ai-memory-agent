@@ -1,6 +1,6 @@
 """Agent Pydantic 스키마"""
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -124,11 +124,15 @@ class ChatRoomSource(BaseModel):
 
 class MemorySourcesResponse(BaseModel):
     chat_rooms: list[ChatRoomSource]
+    agent: dict[str, Any] | None = None
+    document: dict[str, Any] | None = None
 
 
 # Agent 메모리 검색 스키마
 class AgentMemoryContextSources(BaseModel):
     include_personal: bool = False
+    include_agent: bool = False
+    include_document: bool = False
     chat_rooms: list[str] = []
 
 

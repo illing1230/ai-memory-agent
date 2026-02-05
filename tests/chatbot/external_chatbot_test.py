@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 try:
     from ai_memory_agent_sdk import Agent
 except ImportError:
@@ -28,13 +30,31 @@ def setup_context_sources(agent: Agent) -> None:
 
     ctx: dict = {
         "include_personal": False,
+        "include_agent": False,
+        "include_document": False,
         "chat_rooms": [],
     }
 
+    # Agent 메모리
+    if "agent" in sources:
+        print(f"  Agent 메모리: {sources['agent']['name']}")
+        ans = input("  Agent 메모리 포함? (y/N): ").strip().lower()
+        if ans == "y":
+            ctx["include_agent"] = True
+
+    # 문서 메모리
+    if "document" in sources:
+        print(f"  문서 메모리: {sources['document']['name']}")
+        ans = input("  문서 메모리 포함? (y/N): ").strip().lower()
+        if ans == "y":
+            ctx["include_document"] = True
+
+    # 개인 메모리
     ans = input("  개인 메모리 포함? (y/N): ").strip().lower()
     if ans == "y":
         ctx["include_personal"] = True
 
+    # 채팅방
     if sources["chat_rooms"]:
         print(f"  채팅방 ({len(sources['chat_rooms'])}개):")
         for i, r in enumerate(sources["chat_rooms"]):
@@ -48,6 +68,10 @@ def setup_context_sources(agent: Agent) -> None:
 
     agent.context_sources = ctx
     active = []
+    if ctx["include_agent"]:
+        active.append("Agent")
+    if ctx["include_document"]:
+        active.append("문서")
     if ctx["include_personal"]:
         active.append("개인")
     if ctx["chat_rooms"]:
@@ -64,7 +88,7 @@ def main():
     agent = Agent(
         api_key=api_key,
         base_url=os.getenv("AI_MEMORY_AGENT_URL", "http://localhost:8000"),
-        agent_id=os.getenv("AGENT_ID", "test"),
+        agent_id=os.getenv("AGENT_ID", "My Bot"),
         llm_provider=os.getenv("LLM_PROVIDER", "openai"),
         llm_url=os.getenv("LLM_URL"),
         llm_api_key=os.getenv("LLM_API_KEY"),
@@ -103,9 +127,17 @@ def main():
                     print("대화가 부족합니다.\n")
             elif cmd == "/sources":
                 sources = agent.sources()
-                print(f"\n채팅방: {len(sources['chat_rooms'])}개")
+                print(f"\n=== 메모리 소스 ===")
+                
+                if "agent" in sources:
+                    print(f"  Agent: {sources['agent']['name']}")
+                
+                if "document" in sources:
+                    print(f"  문서: {sources['document']['name']}")
+                
+                print(f"\n  채팅방 ({len(sources['chat_rooms'])}개):")
                 for r in sources["chat_rooms"]:
-                    print(f"  - {r['name']}")
+                    print(f"    - {r['name']}")
                 print()
             elif cmd.startswith("/search "):
                 query = user_input[8:].strip()
@@ -142,7 +174,9 @@ def main():
             print("\n\n종료합니다.")
             break
         except Exception as e:
-            print(f"\n오류: {e}\n")
+            import traceback
+            print(f"\n오류: {e}")
+            print(f"상세 정보:\n{traceback.format_exc()}\n")
 
 
 if __name__ == "__main__":
