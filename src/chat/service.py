@@ -1016,6 +1016,33 @@ AI가 해당 메모리들도 참조합니다."""
             except Exception as e:
                 print(f"    실패: {e}")
         
+        # 4. Agent 메모리
+        agent_instances = memory_config.get("agent_instances", [])
+        print(f"\n[4] Agent 메모리 검색 대상: {agent_instances}")
+        for agent_instance_id in agent_instances:
+            try:
+                print(f"    Agent({agent_instance_id}) 검색 중...")
+                results = await search_vectors(
+                    query_vector=query_vector,
+                    limit=3,
+                    filter_conditions={
+                        "owner_id": user_id,
+                        "scope": "agent",
+                        "agent_instance_id": agent_instance_id
+                    },
+                )
+                print(f"    검색 결과: {len(results)}개")
+                for r in results:
+                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
+                    if memory:
+                        # superseded된 메모리 필터링
+                        if not memory.get("superseded", False):
+                            all_memories.append({"memory": memory, "score": r["score"]})
+                        else:
+                            print(f"    - superseded된 메모리 제외: {memory['id']}")
+            except Exception as e:
+                print(f"    실패: {e}")
+        
         # Re-ranking: similarity × α + recency × β
         for m in all_memories:
             similarity_score = m["score"]

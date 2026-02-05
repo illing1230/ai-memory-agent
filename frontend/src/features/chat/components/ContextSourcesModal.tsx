@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { X, AlertTriangle, Loader2, FileText, Upload, Link2, Unlink } from 'lucide-react'
+import { X, AlertTriangle, Loader2, FileText, Upload, Link2, Unlink, Bot } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { get, put, post, del } from '@/lib/api'
 import type { ChatRoom, Document } from '@/types'
 import { DocumentUpload } from '@/features/document/components/DocumentUpload'
+import { agentApi, type AgentInstance } from '@/features/agent/api/agentApi'
 
 interface ContextSourcesModalProps {
   room: ChatRoom
@@ -18,6 +19,7 @@ interface ContextSources {
     include_this_room?: boolean
     other_chat_rooms?: string[]
     include_personal?: boolean
+    agent_instances?: string[]
   }
   rag?: {
     collections?: string[]
@@ -31,7 +33,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   
   // 데이터
   const [myChatRooms, setMyChatRooms] = useState<ChatRoom[]>([])
-
+  const [myAgentInstances, setMyAgentInstances] = useState<AgentInstance[]>([])
   
   // 문서 데이터
   const [linkedDocuments, setLinkedDocuments] = useState<Document[]>([])
@@ -43,6 +45,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   const [includeThisRoom, setIncludeThisRoom] = useState(true)
   const [selectedRooms, setSelectedRooms] = useState<string[]>([])
   const [includePersonal, setIncludePersonal] = useState(false)
+  const [selectedAgentInstances, setSelectedAgentInstances] = useState<string[]>([])
 
   // 데이터 로드
   useEffect(() => {
@@ -54,6 +57,14 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
         // 대화방 목록
         const rooms = await get<ChatRoom[]>('/chat-rooms')
         setMyChatRooms(rooms.filter(r => r.id !== room.id))
+
+        // Agent Instance 목록 로드
+        try {
+          const agents = await agentApi.listAgentInstances()
+          setMyAgentInstances(agents.filter(a => a.status === 'active'))
+        } catch {
+          setMyAgentInstances([])
+        }
 
         // 문서 목록 로드
         try {
@@ -76,6 +87,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           setIncludeThisRoom(ctx.include_this_room ?? true)
           setSelectedRooms(ctx.other_chat_rooms || [])
           setIncludePersonal(ctx.include_personal ?? false)
+          setSelectedAgentInstances(ctx.agent_instances || [])
         }
       } catch (e) {
         console.error('데이터 로드 실패:', e)
@@ -85,7 +97,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
     }
 
     loadData()
-  }, [open, room.id, room.context_sources])
+  }, [open, room.id])
 
   // 저장
   const handleSave = async () => {
@@ -96,6 +108,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           include_this_room: includeThisRoom,
           other_chat_rooms: selectedRooms,
           include_personal: includePersonal,
+          agent_instances: selectedAgentInstances,
         },
         rag: room.context_sources?.rag || { collections: [], filters: {} },
       }
@@ -258,6 +271,37 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                             )}
                             {r.room_type === 'personal' ? '개인' : r.room_type === 'project' ? '프로젝트' : '부서'}
                           </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Agent 메모리 */}
+                {myAgentInstances.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Agent 메모리</h3>
+                    <div className="space-y-1">
+                      {myAgentInstances.map((agent) => (
+                        <label
+                          key={agent.id}
+                          className="flex items-center gap-3 p-2 rounded-md hover:bg-background-hover cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAgentInstances.includes(agent.id)}
+                            onChange={() => {
+                              setSelectedAgentInstances(prev =>
+                                prev.includes(agent.id) 
+                                  ? prev.filter(id => id !== agent.id) 
+                                  : [...prev, agent.id]
+                              )
+                            }}
+                            className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
+                          />
+                          <Bot className="h-4 w-4 text-accent shrink-0" />
+                          <span className="text-sm">{agent.name}</span>
+                          <span className="text-xs text-foreground-muted ml-auto">Agent</span>
                         </label>
                       ))}
                     </div>

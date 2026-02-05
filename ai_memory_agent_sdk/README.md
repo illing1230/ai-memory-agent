@@ -272,10 +272,6 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-## 라이선스
-
-MIT License
-
 ## 지원
 
-문제가 있거나 기능 요청이 있으시면 [GitHub Issues](https://github.com/your-org/ai-memory-agent/issues)를 통해 알려주세요.
+문제가 있거나 기능 요청이 있으시면 [Knox email](hy.joo@samsung.com)를 통해 알려주세요.

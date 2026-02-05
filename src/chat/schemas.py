@@ -10,6 +10,9 @@ class MemorySources(BaseModel):
     include_this_room: bool = True  # 이 대화방 메모리 (기본 true)
     other_chat_rooms: list[str] = []  # 다른 대화방 ID 목록
     include_personal: bool = False  # 내 개인 메모리 전체 (주의 필요)
+    agent_instances: list[str] = []  # Agent Instance ID 목록
+    include_agent: bool = False  # Agent 메모리 포함 (SDK용)
+    include_document: bool = False  # 문서 메모리 포함 (SDK용)
     projects: list[str] = []  # 프로젝트 ID 목록
     departments: list[str] = []  # 부서 ID 목록
 

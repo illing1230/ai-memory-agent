@@ -60,6 +60,7 @@ export interface ContextSources {
     include_this_room?: boolean
     other_chat_rooms?: string[]
     include_personal?: boolean
+    agent_instances?: string[]
     projects?: string[]
     departments?: string[]
   }

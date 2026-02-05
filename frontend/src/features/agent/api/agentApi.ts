@@ -63,6 +63,27 @@ export interface AgentInstanceShare {
   created_at: string;
 }
 
+// Agent 메모리 소스 타입
+export interface AgentMemorySource {
+  id: string;
+  name: string;
+  type: 'agent';
+}
+
+export interface MemorySourcesResponse {
+  chat_rooms: Array<{
+    id: string;
+    name: string;
+    room_type: string | null;
+  }>;
+  agent: AgentMemorySource | null;
+  document: {
+    id: string;
+    name: string;
+    type: 'document';
+  } | null;
+}
+
 // Agent Type 생성 DTO
 export interface CreateAgentTypeDTO {
   name: string;
@@ -259,5 +280,27 @@ export const agentApi = {
   // Agent Instance 공유 삭제
   deleteAgentInstanceShare: async (shareId: string): Promise<void> => {
     return del(`/agent-instances/shares/${shareId}`);
+  },
+
+  // ==================== Agent Memory Sources ====================
+
+  // Agent 메모리 소스 조회 (API Key 인증 필요)
+  getMemorySources: async (
+    agentId: string,
+    apiKey: string
+  ): Promise<MemorySourcesResponse> => {
+    const API_BASE_URL = 'http://localhost:8000/api/v1';
+    const response = await fetch(`${API_BASE_URL}/agents/${agentId}/memory-sources`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch memory sources: ${response.statusText}`);
+    }
+    
+    return response.json();
   },
 };
