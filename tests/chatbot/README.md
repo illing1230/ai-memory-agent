@@ -317,6 +317,37 @@ LLM_PROVIDER=ollama python tests/chatbot/external_chatbot_test.py
 | 데이터 조회 | 지원 안 함 | 지원 (`/data` 명령어) |
 | Agent 클래스 | 사용 안 함 | 사용 |
 
+### 대화 예시
+
+```
+External LLM Chatbot + AI Memory Agent
+
+명령어: /exit /clear /memory /sources /search /data /setup /help
+
+서버 연결 성공
+
+You: 안녕하세요!
+
+Assistant: 안녕하세요! 무엇을 도와드릴까요?
+
+You: 제 이름은 김철수이고, 파이썬 프로그래밍을 좋아해요
+
+Assistant: 안녕하세요 김철수님! 파이썬 프로그래밍에 관심이 있으시군요. 어떤 프로젝트를 진행하고 계신가요?
+
+You: /memory
+
+추출된 메모리:
+사용자 이름은 김철수이며, 파이썬 프로그래밍에 관심이 있습니다.
+
+You: /search 파이썬
+
+검색 결과: 2건
+  [0.892] (personal) 사용자는 파이썬 프로그래밍을 좋아합니다
+  [0.845] (personal) 파이썬으로 머신러닝 모델을 개발했습니다
+
+Assistant: 파이썬 프로그래밍과 머신러닝에 관심이 있으시군요! 어떤 도움이 필요하신가요?
+```
+
 ### 예제 시나리오
 
 #### 시나리오 1: 메모리 검색 활용
