@@ -473,17 +473,43 @@ class AgentService:
 
         # 3. 문서 메모리
         if context_sources.get("include_document", False):
+            print(f"[DEBUG] 문서 메모리 검색: query='{query}', owner_id={user_id}")
             results = await search_vectors(
                 query_vector=query_vector,
                 limit=5,
                 filter_conditions={"owner_id": user_id, "scope": "document"},
             )
+            print(f"[DEBUG] 문서 메모리 검색 결과: {len(results)}개")
             for r in results:
-                memory = await self.memory_repo.get_memory(
-                    r["payload"].get("memory_id")
-                )
-                if memory and not memory.get("superseded", False):
-                    all_memories.append({"memory": memory, "score": r["score"]})
+                # 문서 청크는 메모리 테이블이 아니라 별도로 처리
+                document_id = r["payload"].get("document_id")
+                chunk_index = r["payload"].get("chunk_index")
+                
+                # 문서 청크 내용 조회
+                from src.document.repository import DocumentRepository
+                doc_repo = DocumentRepository(self.db)
+                chunks = await doc_repo.get_chunks(document_id)
+                chunk_content = ""
+                for c in chunks:
+                    if c["chunk_index"] == chunk_index:
+                        chunk_content = c["content"]
+                        break
+                
+                if chunk_content:
+                    # 문서 청크를 메모리 형식으로 변환
+                    from datetime import datetime, timezone
+                    doc_memory = {
+                        "id": f"doc_{document_id}_{chunk_index}",
+                        "content": chunk_content,
+                        "scope": "document",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "metadata": {
+                            "document_id": document_id,
+                            "chunk_index": chunk_index,
+                        }
+                    }
+                    all_memories.append({"memory": doc_memory, "score": r["score"]})
+                    print(f"[DEBUG]   - document_id={document_id}, chunk_index={chunk_index}, score={r['score']:.3f}")
 
         # 4. 개인 메모리
         if context_sources.get("include_personal", False):
