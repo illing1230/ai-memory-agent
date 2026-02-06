@@ -4,6 +4,26 @@
 
 ## 설치
 
+### uv로 설치 (권장)
+
+```bash
+# uv 설치
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 방법 1: pyproject.toml로 개발 (ai-memory-agent 내부)
+cd ai-memory-agent/ai_memory_agent_sdk
+uv sync  # 기본 의존성
+uv sync --extra agent  # Agent 의존성 포함
+
+# 방법 2: PyPI에서 설치
+uv pip install ai-memory-agent-sdk
+
+# 방법 3: 개발 버전 설치
+uv pip install git+https://github.sec.samsung.net/work/ai-memory-agent-sdk.git
+```
+
+### pip로 설치
+
 ```bash
 pip install ai-memory-agent-sdk
 ```
@@ -11,7 +31,7 @@ pip install ai-memory-agent-sdk
 또는 개발 버전 설치:
 
 ```bash
-pip install git+https://github.com/your-org/ai-memory-agent.git#subdirectory=ai_memory_agent_sdk
+pip install git+https://github.sec.samsung.net/work/ai-memory-agent-sdk.git
 ```
 
 ## 빠른 시작
