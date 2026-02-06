@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -23,7 +23,7 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
 - 프로젝트/업무 관련 정보
 - 관계 정보 (사람, 조직 등)
 
-응답 형식 (JSON만 출력, 다른 텍스트 없이):
+응답 형식 (반드시 유효한 JSON 배열만 출력):
 [
   {
     "content": "추출된 메모리 내용",
@@ -32,8 +32,24 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
   }
 ]
 
-추출할 메모리가 없으면 빈 배열 []만 반환하세요.
-반드시 유효한 JSON 배열만 출력하세요.
+예시:
+[
+  {
+    "content": "김과장은 오전 회의를 선호한다",
+    "category": "preference",
+    "importance": "medium"
+  },
+  {
+    "content": "프로젝트 마감일은 3월 15일이다",
+    "category": "fact",
+    "importance": "high"
+  }
+]
+
+중요:
+- 추출할 메모리가 없으면 빈 배열 []만 반환하세요.
+- JSON 배열 외에 다른 텍스트, 설명, 주석은 절대 포함하지 마세요.
+- 코드 블록(```json) 없이 JSON 배열만 직접 출력하세요.
 
 대화:
 {conversation}"""
@@ -83,7 +99,7 @@ class OpenAILLMProvider(BaseLLMProvider):
             # 내부망 직접 접속: 프록시 완전 비활성화
             # trust_env=False로 환경변수 프록시 설정 무시
             async with httpx.AsyncClient(
-                timeout=httpx.Timeout(120.0, connect=30.0),
+                timeout=httpx.Timeout(120.0, connect=30.0),  # 5분으로 증가
                 verify=False,
                 trust_env=False,  # 환경변수 HTTP_PROXY/HTTPS_PROXY 무시
             ) as client:
@@ -105,16 +121,38 @@ class OpenAILLMProvider(BaseLLMProvider):
                 
                 data = response.json()
                 
+                print(f"[LLM] 응답 데이터 구조: {list(data.keys())}")
+                
                 if "choices" not in data or len(data["choices"]) == 0:
                     print(f"[LLM] 잘못된 응답 형식: {data}")
                     raise ProviderException("OpenAI LLM", f"잘못된 응답 형식: choices 없음")
                 
-                content = data["choices"][0]["message"]["content"]
+                choice = data["choices"][0]
+                print(f"[LLM] choice 구조: {list(choice.keys())}")
                 
-                # content가 None인 경우 처리
+                if "message" not in choice:
+                    print(f"[LLM] choice에 message가 없음: {choice}")
+                    raise ProviderException("OpenAI LLM", f"잘못된 응답 형식: message 없음")
+                
+                message = choice["message"]
+                print(f"[LLM] message 구조: {list(message.keys())}")
+                
+                content = message.get("content")
+                
+                # content가 None이거나 빈 문자열인 경우 처리
                 if content is None:
-                    print(f"[LLM] 응답 content가 None입니다")
-                    raise ProviderException("OpenAI LLM", "LLM 응답이 비어있습니다")
+                    print(f"[LLM] 응답 content가 None입니다. 전체 message: {message}")
+                    # gpt-oss-120b 모델은 reasoning_content 필드를 사용
+                    content = message.get("reasoning_content", "")
+                    if content:
+                        print(f"[LLM] reasoning_content에서 응답을 찾았습니다")
+                    else:
+                        # 빈 문자열로 처리하여 계속 진행
+                        content = ""
+                
+                if not isinstance(content, str):
+                    print(f"[LLM] 응답 content가 문자열이 아님: {type(content)}, 값: {content}")
+                    content = str(content) if content else ""
                 
                 # <think> 태그 제거 (Qwen3 등)
                 content = re.sub(r"<think>[\s\S]*?</think>", "", content)
@@ -147,6 +185,91 @@ class OpenAILLMProvider(BaseLLMProvider):
             print(f"[LLM] Traceback: {error_detail}")
             raise ProviderException("OpenAI LLM", f"{type(e).__name__}: {e}")
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ) -> AsyncGenerator[str, None]:
+        """텍스트 스트리밍 생성"""
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            if self.api_key.startswith("Bearer "):
+                headers["Authorization"] = self.api_key
+            else:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,  # 스트리밍 활성화
+        }
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(300.0, connect=30.0),  # 5분으로 증가
+                verify=False,
+                trust_env=False,
+            ) as client:
+                print(f"[LLM 스트리밍] 요청 URL: {self.base_url}/chat/completions")
+                print(f"[LLM 스트리밍] 모델: {self.model}")
+                
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                ) as response:
+                    if response.status_code != 200:
+                        error_text = await response.aread()
+                        print(f"[LLM 스트리밍] 에러 응답: {error_text[:500]}")
+                        raise ProviderException("OpenAI LLM", f"HTTP {response.status_code}: {error_text[:200]}")
+                    
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]  # "data: " 제거
+                            
+                            if data_str == "[DONE]":
+                                break
+                            
+                            try:
+                                data = json.loads(data_str)
+                                if "choices" in data and len(data["choices"]) > 0:
+                                    delta = data["choices"][0].get("delta", {})
+                                    content = delta.get("content", "")
+                                    if content:
+                                        # </think> 태그 제거
+                                        content = re.sub(r"</think>[\s\S]*?</think>", "", content)
+                                        yield content
+                            except json.JSONDecodeError:
+                                continue
+                                
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP 오류: {e.response.status_code}"
+            raise ProviderException("OpenAI LLM", error_msg)
+        except httpx.ConnectError as e:
+            error_msg = f"연결 오류: {e}"
+            raise ProviderException("OpenAI LLM", f"연결 실패: {self.base_url} - {e}")
+        except httpx.TimeoutException as e:
+            error_msg = f"타임아웃: {e}"
+            raise ProviderException("OpenAI LLM", f"타임아웃 (120초): {self.base_url}")
+        except ProviderException:
+            raise
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[LLM 스트리밍] 예상치 못한 오류: {type(e).__name__}: {e}")
+            print(f"[LLM 스트리밍] Traceback: {error_detail}")
+            raise ProviderException("OpenAI LLM", f"{type(e).__name__}: {e}")
+
     async def extract_memories(
         self,
         conversation: list[dict[str, str]],
@@ -176,11 +299,13 @@ class OpenAILLMProvider(BaseLLMProvider):
         return self._parse_json_response(response)
 
     def _parse_json_response(self, response: str) -> list[dict[str, Any]]:
-        """LLM 응답에서 JSON 파싱"""
+        """LLM 응답에서 JSON 파싱 (강화된 에러 핸들링)"""
         if not response:
+            print(f"[JSON 파싱] 빈 응답")
             return []
         
         response = response.strip()
+        print(f"[JSON 파싱] 원본 응답 (길이: {len(response)}): {response[:300]}...")
         
         # 코드 블록 제거
         if "```" in response:
@@ -188,12 +313,17 @@ class OpenAILLMProvider(BaseLLMProvider):
             match = re.search(r"```(?:json)?\s*([\s\S]*?)```", response)
             if match:
                 response = match.group(1).strip()
+                print(f"[JSON 파싱] 코드 블록 제거 후: {response[:200]}...")
         
         # JSON 배열 찾기
         # [ 로 시작하고 ] 로 끝나는 부분 추출
         match = re.search(r"\[[\s\S]*\]", response)
         if match:
             response = match.group(0)
+            print(f"[JSON 파싱] JSON 배열 추출: {response[:200]}...")
+        else:
+            print(f"[JSON 파싱] JSON 배열 패턴을 찾을 수 없음")
+            return []
         
         try:
             memories = json.loads(response)
@@ -207,8 +337,11 @@ class OpenAILLMProvider(BaseLLMProvider):
                             "category": str(mem.get("category", "fact")),
                             "importance": str(mem.get("importance", "medium")),
                         })
+                print(f"[JSON 파싱] 성공: {len(valid_memories)}개의 메모리 추출")
                 return valid_memories
+            print(f"[JSON 파싱] 응답이 리스트가 아님: {type(memories)}")
             return []
         except json.JSONDecodeError as e:
-            print(f"JSON 파싱 실패: {e}, 응답: {response[:200]}")
+            print(f"[JSON 파싱] JSON 파싱 실패: {e}")
+            print(f"[JSON 파싱] 파싱 실패한 응답: {response}")
             return []

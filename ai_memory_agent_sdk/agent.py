@@ -27,6 +27,7 @@
 
 import os
 import warnings
+import threading
 from typing import Any, Callable
 
 from ai_memory_agent_sdk.client import AIMemoryAgentSyncClient
@@ -224,7 +225,7 @@ class Agent:
         )
 
     def message(self, content: str) -> str:
-        """메시지 전송 → 메모리 검색 → LLM 응답 → 저장
+        """메시지 전송 → 메모리 검색 → LLM 응답 → 저장 (백그라운드)
 
         Args:
             content: 사용자 메시지
@@ -235,13 +236,10 @@ class Agent:
         # 1. 대화 기록에 추가
         self._history.append({"role": "user", "content": content})
 
-        # 2. 사용자 메시지 저장
-        self._safe_send("message", f"[user] {content}")
-
-        # 3. 메모리 검색
+        # 2. 메모리 검색
         memory_context = self._search_memories(content)
 
-        # 4. LLM 호출
+        # 3. LLM 호출
         system = self._system_prompt
         if memory_context:
             system += f"\n\n[관련 메모리]\n{memory_context}"
@@ -251,9 +249,16 @@ class Agent:
 
         response = self._call_llm(messages)
 
-        # 5. 응답 저장 + 기록
-        self._safe_send("message", f"[assistant] {response}")
+        # 4. 응답 기록
         self._history.append({"role": "assistant", "content": response})
+
+        # 5. 백그라운드에서 저장
+        def save_in_background():
+            self._safe_send("message", f"[user] {content}")
+            self._safe_send("message", f"[assistant] {response}")
+
+        thread = threading.Thread(target=save_in_background, daemon=True)
+        thread.start()
 
         return response
 

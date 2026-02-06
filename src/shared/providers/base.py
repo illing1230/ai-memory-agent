@@ -1,7 +1,7 @@
 """Provider 추상 베이스 클래스"""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, AsyncGenerator
 
 
 class BaseEmbeddingProvider(ABC):
@@ -36,6 +36,17 @@ class BaseLLMProvider(ABC):
         max_tokens: int = 1000,
     ) -> str:
         """텍스트 생성"""
+        pass
+
+    @abstractmethod
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ) -> AsyncGenerator[str, None]:
+        """텍스트 스트리밍 생성"""
         pass
 
     @abstractmethod

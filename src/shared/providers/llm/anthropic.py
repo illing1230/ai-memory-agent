@@ -1,7 +1,7 @@
 """Anthropic LLM Provider"""
 
 import json
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -22,7 +22,7 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
 - 프로젝트/업무 관련 정보
 - 관계 정보 (사람, 조직 등)
 
-응답 형식 (JSON만 출력):
+응답 형식 (반드시 유효한 JSON 배열만 출력):
 [
   {
     "content": "추출된 메모리 내용",
@@ -31,7 +31,24 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
   }
 ]
 
-추출할 메모리가 없으면 빈 배열 []을 반환하세요.
+예시:
+[
+  {
+    "content": "김과장은 오전 회의를 선호한다",
+    "category": "preference",
+    "importance": "medium"
+  },
+  {
+    "content": "프로젝트 마감일은 3월 15일이다",
+    "category": "fact",
+    "importance": "high"
+  }
+]
+
+중요:
+- 추출할 메모리가 없으면 빈 배열 []만 반환하세요.
+- JSON 배열 외에 다른 텍스트, 설명, 주석은 절대 포함하지 마세요.
+- 코드 블록(```json) 없이 JSON 배열만 직접 출력하세요.
 
 대화:
 {conversation}"""
@@ -91,6 +108,62 @@ class AnthropicLLMProvider(BaseLLMProvider):
         except Exception as e:
             raise ProviderException("Anthropic LLM", str(e))
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ) -> AsyncGenerator[str, None]:
+        """텍스트 스트리밍 생성"""
+        if not self.api_key:
+            raise ProviderException("Anthropic LLM", "API 키가 설정되지 않았습니다")
+
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+        }
+
+        payload = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,  # 스트리밍 활성화
+        }
+
+        if system_prompt:
+            payload["system"] = system_prompt
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/messages",
+                    headers=headers,
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]  # "data: " 제거
+                            
+                            try:
+                                data = json.loads(data_str)
+                                if data.get("type") == "content_block_delta":
+                                    delta = data.get("delta", {})
+                                    content = delta.get("text", "")
+                                    if content:
+                                        yield content
+                            except json.JSONDecodeError:
+                                continue
+                                
+        except httpx.HTTPStatusError as e:
+            raise ProviderException("Anthropic LLM", f"HTTP 오류: {e.response.status_code}")
+        except Exception as e:
+            raise ProviderException("Anthropic LLM", str(e))
+
     async def extract_memories(
         self,
         conversation: list[dict[str, str]],
@@ -112,15 +185,31 @@ class AnthropicLLMProvider(BaseLLMProvider):
 
         try:
             response = response.strip()
+            print(f"[JSON 파싱] 원본 응답 (길이: {len(response)}): {response[:300]}...")
+            
             if response.startswith("```"):
                 response = response.split("```")[1]
                 if response.startswith("json"):
                     response = response[4:]
             response = response.strip()
+            print(f"[JSON 파싱] 코드 블록 제거 후: {response[:200]}...")
 
             memories = json.loads(response)
             if isinstance(memories, list):
-                return memories
+                # 유효한 메모리만 필터링
+                valid_memories = []
+                for mem in memories:
+                    if isinstance(mem, dict) and mem.get("content"):
+                        valid_memories.append({
+                            "content": str(mem.get("content", "")),
+                            "category": str(mem.get("category", "fact")),
+                            "importance": str(mem.get("importance", "medium")),
+                        })
+                print(f"[JSON 파싱] 성공: {len(valid_memories)}개의 메모리 추출")
+                return valid_memories
+            print(f"[JSON 파싱] 응답이 리스트가 아님: {type(memories)}")
             return []
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            print(f"[JSON 파싱] JSON 파싱 실패: {e}")
+            print(f"[JSON 파싱] 파싱 실패한 응답: {response}")
             return []
