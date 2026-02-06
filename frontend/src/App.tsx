@@ -9,10 +9,10 @@ import { DocumentPage } from '@/features/document/components/DocumentPage'
 import { ChatRoomManagement } from '@/features/chatroom/components/ChatRoomManagement'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { AgentMarketplace, MyAgentInstances, AgentTypeManagement } from '@/features/agent/components'
-import { useAuthStore } from '@/features/auth/store/authStore'
+import { useIsAuthenticated } from '@/features/auth/store/authStore'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
+  const isAuthenticated = useIsAuthenticated()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

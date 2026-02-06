@@ -217,7 +217,7 @@ class AgentService:
         if instance["owner_id"] != user_id:
             raise PermissionDeniedException("API Key를 재발급할 권한이 없습니다")
         
-        return await self.repo.regenerate_api_key(instance_id)
+        return await self.repo.regenerate_api_key(instance_id) 
 
     async def delete_agent_instance(self, instance_id: str, user_id: str) -> bool:
         """Agent Instance 삭제"""

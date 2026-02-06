@@ -5,7 +5,6 @@ import type { User } from '@/types'
 interface AuthState {
   user: User | null
   token: string | null
-  isAuthenticated: boolean
   isLoading: boolean
   
   setUser: (user: User | null) => void
@@ -20,10 +19,9 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
-      isAuthenticated: false,
       isLoading: false,
       
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => set({ user }),
       
       setToken: (token) => {
         if (token) {
@@ -37,14 +35,14 @@ export const useAuthStore = create<AuthState>()(
       login: (user, token) => {
         localStorage.setItem('access_token', token)
         localStorage.setItem('user_id', user.id)
-        set({ user, token, isAuthenticated: true })
+        set({ user, token })
       },
       
       logout: () => {
         localStorage.removeItem('access_token')
         localStorage.removeItem('user_id')
         // persist 스토리지는 삭제하지 않고 상태만 초기화
-        set({ user: null, token: null, isAuthenticated: false })
+        set({ user: null, token: null })
       },
       
       setLoading: (isLoading) => set({ isLoading }),
@@ -55,6 +53,12 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 )
+
+// 계산된 값: isAuthenticated
+export const useIsAuthenticated = () => {
+  const { user, token } = useAuthStore()
+  return !!(user && token)
+}
 
 // 개발용 mock 사용자 설정
 export function setDevUser() {
