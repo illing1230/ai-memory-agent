@@ -14,6 +14,8 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
   const d = typeof date === 'string' ? new Date(date) : date
+  // UTC+9 (한국 시간)으로 변환
+  const koreaTime = new Date(d.getTime() + (9 * 60 * 60 * 1000))
   
   const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',
@@ -24,7 +26,7 @@ export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOpt
     ...options,
   }
   
-  return d.toLocaleDateString('ko-KR', defaultOptions)
+  return koreaTime.toLocaleDateString('ko-KR', defaultOptions)
 }
 
 /**
