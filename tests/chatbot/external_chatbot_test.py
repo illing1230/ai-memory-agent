@@ -10,13 +10,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
 try:
     from ai_memory_agent_sdk import Agent
 except ImportError:
     print("AI Memory Agent SDK가 설치되지 않았습니다.")
-    print("설치: pip install -e ai_memory_agent_sdk")
+    print("설치: cd ../ai_memory_agent_sdk && uv pip install -e .")
     sys.exit(1)
 
 

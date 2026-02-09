@@ -185,6 +185,10 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
               <p className="text-sm text-foreground-secondary mt-0.5">
                 AI가 참조할 메모리와 문서를 설정하세요
               </p>
+              <p className="text-xs text-warning mt-1 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                관리자(owner/admin)만 메모리 설정이 가능합니다
+              </p>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={onClose}>
               <X className="h-4 w-4" />

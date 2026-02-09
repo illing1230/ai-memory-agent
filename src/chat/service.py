@@ -961,14 +961,17 @@ AI가 해당 메모리들도 참조합니다."""
         
         all_memories = []
         
-        # 1. 이 대화방 메모리 (기본)
+        # 1. 이 대화방 메모리 (기본) - 사용자별 필터링
         if memory_config.get("include_this_room", True):
             try:
-                print(f"\n[1] 이 대화방({current_room_id}) 메모리 검색 중...")
+                print(f"\n[1] 이 대화방({current_room_id}) 메모리 검색 중... (사용자: {user_id})")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=5,
-                    filter_conditions={"chat_room_id": current_room_id},
+                    filter_conditions={
+                        "chat_room_id": current_room_id,
+                        "owner_id": user_id  # 사용자별 필터링 추가
+                    },
                 )
                 print(f"    검색 결과: {len(results)}개")
                 for r in results:
@@ -983,16 +986,19 @@ AI가 해당 메모리들도 참조합니다."""
             except Exception as e:
                 print(f"    실패: {e}")
         
-        # 2. 다른 대화방 메모리
+        # 2. 다른 대화방 메모리 - 사용자별 필터링
         other_rooms = memory_config.get("other_chat_rooms", [])
         print(f"\n[2] 다른 대화방 검색 대상: {other_rooms}")
         for room_id in other_rooms:
             try:
-                print(f"    대화방({room_id}) 검색 중...")
+                print(f"    대화방({room_id}) 검색 중... (사용자: {user_id})")
                 results = await search_vectors(
                     query_vector=query_vector,
                     limit=3,
-                    filter_conditions={"chat_room_id": room_id},
+                    filter_conditions={
+                        "chat_room_id": room_id,
+                        "owner_id": user_id  # 사용자별 필터링 추가
+                    },
                 )
                 print(f"    검색 결과: {len(results)}개")
                 for r in results:
