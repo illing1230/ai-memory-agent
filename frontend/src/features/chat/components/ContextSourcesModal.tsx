@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, AlertTriangle, Loader2, FileText, Upload, Link2, Unlink, Bot } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
-import { cn } from '@/lib/utils'
+
 import { get, put, post, del } from '@/lib/api'
 import type { ChatRoom, Document } from '@/types'
 import { DocumentUpload } from '@/features/document/components/DocumentUpload'
@@ -18,7 +18,7 @@ interface ContextSources {
   memory?: {
     include_this_room?: boolean
     other_chat_rooms?: string[]
-    include_personal?: boolean
+
     agent_instances?: string[]
   }
   rag?: {
@@ -44,7 +44,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   // 설정 값
   const [includeThisRoom, setIncludeThisRoom] = useState(true)
   const [selectedRooms, setSelectedRooms] = useState<string[]>([])
-  const [includePersonal, setIncludePersonal] = useState(false)
   const [selectedAgentInstances, setSelectedAgentInstances] = useState<string[]>([])
 
   // 데이터 로드
@@ -86,7 +85,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
         if (ctx) {
           setIncludeThisRoom(ctx.include_this_room ?? true)
           setSelectedRooms(ctx.other_chat_rooms || [])
-          setIncludePersonal(ctx.include_personal ?? false)
           setSelectedAgentInstances(ctx.agent_instances || [])
         }
       } catch (e) {
@@ -107,7 +105,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
         memory: {
           include_this_room: includeThisRoom,
           other_chat_rooms: selectedRooms,
-          include_personal: includePersonal,
           agent_instances: selectedAgentInstances,
         },
         rag: room.context_sources?.rag || { collections: [], filters: {} },
@@ -222,36 +219,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                   </label>
                 </div>
 
-                {/* 개인 메모리 전체 */}
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">개인 메모리</h3>
-                  <label className={cn(
-                    'flex items-start gap-3 p-3 rounded-lg border cursor-pointer',
-                    includePersonal ? 'border-warning bg-warning/5' : 'border-border hover:bg-background-hover'
-                  )}>
-                    <input
-                      type="checkbox"
-                      checked={includePersonal}
-                      onChange={(e) => setIncludePersonal(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 rounded border-border text-accent focus:ring-accent"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">내 개인 메모리 전체</p>
-                        <AlertTriangle className="h-4 w-4 text-warning" />
-                      </div>
-                      <p className="text-xs text-foreground-muted">
-                        모든 개인 메모리가 AI 컨텍스트에 포함됩니다
-                      </p>
-                      {includePersonal && (
-                        <p className="text-xs text-warning mt-1">
-                          ⚠️ 민감한 정보가 공유될 수 있습니다
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                </div>
-
                 {/* 다른 대화방 */}
                 {myChatRooms.length > 0 && (
                   <div className="space-y-2">
@@ -273,7 +240,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
                             {r.share_role === 'viewer' && (
                               <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent">공유</span>
                             )}
-                            {r.room_type === 'personal' ? '개인' : r.room_type === 'project' ? '프로젝트' : '부서'}
+                            대화방
                           </span>
                         </label>
                       ))}

@@ -37,10 +37,8 @@ export async function searchMemories(params: SearchMemoriesParams): Promise<Memo
 
 export interface CreateMemoryParams {
   content: string
-  scope?: 'personal' | 'chatroom' | 'project' | 'department'
+  scope?: 'personal' | 'chatroom' | 'agent'
   chat_room_id?: string
-  project_id?: string
-  department_id?: string
   category?: string
   importance?: 'high' | 'medium' | 'low'
 }

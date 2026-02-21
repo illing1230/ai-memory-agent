@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-this-secret-key-in-production"
     jwt_access_token_expire_hours: int = 24
 
+    # Reranker
+    reranker_url: str | None = None
+    reranker_model: str = "jinaai/jina-reranker-v2-base-multilingual"
+
     # Memory Extraction
     auto_extract_memory: bool = True
     min_message_length_for_extraction: int = 10

@@ -157,3 +157,29 @@ class DocumentRepository:
         )
         rows = await cursor.fetchall()
         return [row["id"] for row in rows]
+
+    async def search_chunks_by_keyword(
+        self, query: str, document_ids: list[str], limit: int = 10
+    ) -> list[dict]:
+        """FTS5 키워드 검색 (chunk_index 포함)"""
+        if not document_ids or not query.strip():
+            return []
+
+        placeholders = ",".join("?" * len(document_ids))
+        try:
+            cursor = await self.db.execute(
+                f"""SELECT fts.chunk_id, fts.document_id, fts.content,
+                           dc.chunk_index,
+                           fts.rank * -1 as score
+                    FROM document_chunks_fts fts
+                    LEFT JOIN document_chunks dc ON dc.id = fts.chunk_id
+                    WHERE document_chunks_fts MATCH ?
+                      AND fts.document_id IN ({placeholders})
+                    ORDER BY fts.rank
+                    LIMIT ?""",
+                [query, *document_ids, limit],
+            )
+            return [dict(row) for row in await cursor.fetchall()]
+        except Exception as e:
+            print(f"FTS 키워드 검색 실패: {e}")
+            return []

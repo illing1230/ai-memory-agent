@@ -25,9 +25,7 @@ class MemoryService:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "project", "department", "chatroom", "agent"] = "personal",
-        project_id: str | None = None,
-        department_id: str | None = None,
+        scope: Literal["personal", "chatroom", "agent"] = "personal",
         chat_room_id: str | None = None,
         source_message_id: str | None = None,
         category: str | None = None,
@@ -45,8 +43,7 @@ class MemoryService:
             "memory_id": None,  # 아래에서 업데이트
             "scope": scope,
             "owner_id": owner_id,
-            "project_id": project_id,
-            "department_id": department_id,
+            "chat_room_id": chat_room_id,
         }
 
         # SQLite에 메모리 저장
@@ -55,8 +52,6 @@ class MemoryService:
             owner_id=owner_id,
             scope=scope,
             vector_id=vector_id,
-            project_id=project_id,
-            department_id=department_id,
             chat_room_id=chat_room_id,
             source_message_id=source_message_id,
             category=category,
@@ -92,8 +87,6 @@ class MemoryService:
         self,
         user_id: str,
         scope: str | None = None,
-        project_id: str | None = None,
-        department_id: str | None = None,
         agent_instance_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
@@ -116,7 +109,7 @@ class MemoryService:
             )
             all_memories.extend(personal)
 
-        # 2. 대화방 메모리 (scope=chatroom 또는 chat_room_id가 있는 것 중 owner가 나인 것)
+        # 2. 대화방 메모리 (scope=chatroom이고 owner가 나인 것)
         if scope is None or scope == "chatroom":
             chatroom_memories = await self.repo.list_memories(
                 owner_id=user_id,
@@ -126,34 +119,7 @@ class MemoryService:
             )
             all_memories.extend(chatroom_memories)
 
-        # 3. 프로젝트 메모리 (멤버인 프로젝트)
-        if scope is None or scope == "project":
-            user_projects = await self.user_repo.get_user_projects(user_id)
-            for project in user_projects:
-                if project_id and project["id"] != project_id:
-                    continue
-                project_memories = await self.repo.list_memories(
-                    scope="project",
-                    project_id=project["id"],
-                    agent_instance_id=agent_instance_id,
-                    limit=limit,
-                )
-                all_memories.extend(project_memories)
-
-        # 4. 부서 메모리
-        if scope is None or scope == "department":
-            user_dept_id = user.get("department_id")
-            if user_dept_id:
-                if department_id is None or department_id == user_dept_id:
-                    dept_memories = await self.repo.list_memories(
-                        scope="department",
-                        department_id=user_dept_id,
-                        agent_instance_id=agent_instance_id,
-                        limit=limit,
-                    )
-                    all_memories.extend(dept_memories)
-        
-        # 5. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
+        # 3. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
         if scope is None or scope == "agent":
             agent_memories = await self.repo.list_memories(
                 owner_id=user_id,
@@ -184,13 +150,7 @@ class MemoryService:
                 room = await chat_repo.get_chat_room(memory["chat_room_id"])
                 if room:
                     source_info["chat_room_name"] = room["name"]
-            elif memory["scope"] == "project" and memory.get("project_id"):
-                from src.user.repository import UserRepository
-                user_repo = UserRepository(self.repo.db)
-                project = await user_repo.get_project(memory["project_id"])
-                if project:
-                    source_info["project_name"] = project["name"]
-            
+
             # Agent Instance 정보 추가
             if memory.get("metadata") and memory["metadata"].get("source") == "agent":
                 agent_instance_id = memory["metadata"].get("agent_instance_id")
@@ -200,7 +160,7 @@ class MemoryService:
                     instance = await agent_repo.get_agent_instance(agent_instance_id)
                     if instance:
                         source_info["agent_instance_name"] = instance["name"]
-                        
+
             memories_with_source.append({
                 "memory": memory,
                 "source_info": source_info,
@@ -215,19 +175,17 @@ class MemoryService:
         limit: int = 10,
         score_threshold: float | None = None,
         scope: str | None = None,
-        project_id: str | None = None,
-        department_id: str | None = None,
         agent_instance_id: str | None = None,
     ) -> list[dict[str, Any]]:
-        """메모리 시맨틱 검색"""
+        """메모리 시맨틱 검색 (Reranker 적용)"""
+        from src.shared.providers import get_reranker_provider
+
         # 쿼리 임베딩
         embedding_provider = get_embedding_provider()
         query_vector = await embedding_provider.embed(query)
 
         # 필터 조건 구성
-        filter_conditions = await self._build_search_filter(
-            user_id, scope, project_id, department_id
-        )
+        filter_conditions = await self._build_search_filter(user_id, scope)
 
         # 벡터 검색
         results = await search_vectors(
@@ -237,52 +195,91 @@ class MemoryService:
             filter_conditions=filter_conditions,
         )
 
-        # 메모리 정보 조회
-        search_results = []
+        # 배치 메모리 조회 (N+1 해소)
+        memory_ids = [r["payload"].get("memory_id") for r in results if r["payload"].get("memory_id")]
+        memories_list = await self.repo.get_memories_by_ids(memory_ids) if memory_ids else []
+        memories_by_id = {m["id"]: m for m in memories_list}
+
+        # 메모리 정보 조합 + superseded 필터링
+        candidates = []
         for result in results:
             memory_id = result["payload"].get("memory_id")
-            if memory_id:
-                memory = await self.repo.get_memory(memory_id)
-                if memory:
-                    # agent_instance_id 필터링
-                    if agent_instance_id:
-                        if not (memory.get("metadata") and 
-                                memory["metadata"].get("source") == "agent" and
-                                memory["metadata"].get("agent_instance_id") == agent_instance_id):
-                            continue
-                    
-                    # 출처 정보 조회
-                    source_info = {}
-                    if memory["scope"] == "chatroom" and memory.get("chat_room_id"):
-                        from src.chat.repository import ChatRepository
-                        chat_repo = ChatRepository(self.repo.db)
-                        room = await chat_repo.get_chat_room(memory["chat_room_id"])
-                        if room:
-                            source_info["chat_room_name"] = room["name"]
-                    elif memory["scope"] == "project" and memory.get("project_id"):
-                        from src.user.repository import UserRepository
-                        user_repo = UserRepository(self.repo.db)
-                        project = await user_repo.get_project(memory["project_id"])
-                        if project:
-                            source_info["project_name"] = project["name"]
-                    
-                    # Agent Instance 정보 추가
-                    if memory.get("metadata") and memory["metadata"].get("source") == "agent":
-                        mem_agent_instance_id = memory["metadata"].get("agent_instance_id")
-                        if mem_agent_instance_id:
-                            from src.agent.repository import AgentRepository
-                            agent_repo = AgentRepository(self.repo.db)
-                            instance = await agent_repo.get_agent_instance(mem_agent_instance_id)
-                            if instance:
-                                source_info["agent_instance_name"] = instance["name"]
-                    
-                    search_results.append({
-                        "memory": memory,
-                        "score": result["score"],
-                        "source_info": source_info,
-                    })
+            if not memory_id:
+                continue
+            memory = memories_by_id.get(memory_id)
+            if not memory or memory.get("superseded", False):
+                continue
 
-        return search_results[:limit]
+            # agent_instance_id 필터링
+            if agent_instance_id:
+                if not (memory.get("metadata") and
+                        memory["metadata"].get("source") == "agent" and
+                        memory["metadata"].get("agent_instance_id") == agent_instance_id):
+                    continue
+
+            candidates.append({
+                "memory": memory,
+                "score": result["score"],
+            })
+
+        # Reranker 적용
+        reranker = get_reranker_provider()
+        if reranker and len(candidates) > 1:
+            try:
+                documents = [c["memory"]["content"] for c in candidates]
+                reranked = await reranker.rerank(
+                    query=query,
+                    documents=documents,
+                    top_n=limit,
+                )
+                reranked_candidates = []
+                for item in reranked:
+                    idx = item["index"]
+                    if idx < len(candidates):
+                        candidate = candidates[idx].copy()
+                        candidate["score"] = item["relevance_score"]
+                        reranked_candidates.append(candidate)
+                candidates = reranked_candidates
+            except Exception as e:
+                print(f"Reranker 실패, 벡터 점수 사용: {e}")
+
+        # 접근 추적
+        accessed_ids = [c["memory"]["id"] for c in candidates[:limit]]
+        if accessed_ids:
+            try:
+                await self.repo.update_access(accessed_ids)
+            except Exception:
+                pass
+
+        # 출처 정보 추가
+        search_results = []
+        for c in candidates[:limit]:
+            memory = c["memory"]
+            source_info = {}
+            if memory["scope"] == "chatroom" and memory.get("chat_room_id"):
+                from src.chat.repository import ChatRepository
+                chat_repo = ChatRepository(self.repo.db)
+                room = await chat_repo.get_chat_room(memory["chat_room_id"])
+                if room:
+                    source_info["chat_room_name"] = room["name"]
+
+            # Agent Instance 정보 추가
+            if memory.get("metadata") and memory["metadata"].get("source") == "agent":
+                mem_agent_instance_id = memory["metadata"].get("agent_instance_id")
+                if mem_agent_instance_id:
+                    from src.agent.repository import AgentRepository
+                    agent_repo = AgentRepository(self.repo.db)
+                    instance = await agent_repo.get_agent_instance(mem_agent_instance_id)
+                    if instance:
+                        source_info["agent_instance_name"] = instance["name"]
+
+            search_results.append({
+                "memory": memory,
+                "score": c["score"],
+                "source_info": source_info,
+            })
+
+        return search_results
 
     async def update_memory(
         self,
@@ -311,8 +308,7 @@ class MemoryService:
                 "memory_id": memory_id,
                 "scope": memory["scope"],
                 "owner_id": memory["owner_id"],
-                "project_id": memory.get("project_id"),
-                "department_id": memory.get("department_id"),
+                "chat_room_id": memory.get("chat_room_id"),
             }
             await upsert_vector(vector_id, vector, payload)
 
@@ -357,9 +353,7 @@ class MemoryService:
         self,
         conversation: list[dict[str, str]],
         owner_id: str,
-        scope: Literal["personal", "project", "department"] = "personal",
-        project_id: str | None = None,
-        department_id: str | None = None,
+        scope: Literal["personal", "chatroom"] = "personal",
         chat_room_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """대화에서 메모리 자동 추출"""
@@ -384,8 +378,6 @@ class MemoryService:
                 content=content,
                 owner_id=owner_id,
                 scope=scope,
-                project_id=project_id,
-                department_id=department_id,
                 chat_room_id=chat_room_id,
                 category=item.get("category"),
                 importance=item.get("importance", "medium"),
@@ -414,24 +406,6 @@ class MemoryService:
                 raise PermissionDeniedException()
             return True
 
-        # 프로젝트 메모리: 프로젝트 멤버만
-        if scope == "project":
-            project_id = memory.get("project_id")
-            if project_id:
-                is_member = await self.user_repo.is_project_member(project_id, user_id)
-                if not is_member:
-                    raise PermissionDeniedException()
-            return True
-
-        # 부서 메모리: 같은 부서원만
-        if scope == "department":
-            user = await self.user_repo.get_user(user_id)
-            if not user:
-                raise PermissionDeniedException()
-            if user.get("department_id") != memory.get("department_id"):
-                raise PermissionDeniedException()
-            return True
-        
         # 에이전트 메모리: 소유자만
         if scope == "agent":
             if memory["owner_id"] != user_id:
@@ -444,40 +418,11 @@ class MemoryService:
         self,
         user_id: str,
         scope: str | None = None,
-        project_id: str | None = None,
-        department_id: str | None = None,
     ) -> dict[str, Any]:
         """검색 필터 조건 구성"""
-        user = await self.user_repo.get_user(user_id)
-
-        # 접근 가능한 scope 목록 구성
-        allowed_conditions = []
-
-        # 개인 메모리
-        if scope is None or scope in ("personal", "all"):
-            allowed_conditions.append(("owner_id", user_id))
-
-        # 프로젝트 메모리
-        if scope is None or scope in ("project", "all"):
-            user_projects = await self.user_repo.get_user_projects(user_id)
-            project_ids = [p["id"] for p in user_projects]
-            if project_id and project_id in project_ids:
-                project_ids = [project_id]
-            if project_ids:
-                allowed_conditions.append(("project_id", project_ids))
-
-        # 부서 메모리
-        if scope is None or scope in ("department", "all"):
-            user_dept_id = user.get("department_id") if user else None
-            if user_dept_id:
-                if department_id is None or department_id == user_dept_id:
-                    allowed_conditions.append(("department_id", user_dept_id))
-
-        # 필터 반환 (간소화된 버전)
-        filter_dict = {}
+        filter_dict: dict[str, Any] = {"owner_id": user_id}
         if scope and scope != "all":
             filter_dict["scope"] = scope
-
         return filter_dict
 
     async def _check_duplicate(

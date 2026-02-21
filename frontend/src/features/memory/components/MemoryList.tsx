@@ -8,7 +8,7 @@ import { getDocuments, deleteDocument } from '@/features/document/api/documentAp
 import { formatDate, cn, formatFileSize } from '@/lib/utils'
 import type { MemoryListResult, Memory, Document } from '@/types'
 
-type TabType = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent' | 'document'
+type TabType = 'all' | 'personal' | 'chatroom' | 'agent' | 'document'
 
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -75,8 +75,6 @@ export function MemoryList() {
   const scopeLabel: Record<string, string> = {
     personal: '개인',
     chatroom: '대화방',
-    project: '프로젝트',
-    department: '부서',
     agent: '에이전트',
   }
 
@@ -119,8 +117,6 @@ export function MemoryList() {
     { id: 'all', label: '전체', icon: Brain },
     { id: 'personal', label: '개인', icon: Brain },
     { id: 'chatroom', label: '대화방', icon: Brain },
-    { id: 'project', label: '프로젝트', icon: Brain },
-    { id: 'department', label: '부서', icon: Brain },
     { id: 'agent', label: '에이전트', icon: Bot },
     { id: 'document', label: '문서', icon: FileText },
   ]

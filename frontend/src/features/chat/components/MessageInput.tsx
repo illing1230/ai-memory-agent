@@ -6,6 +6,7 @@ import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 
 interface MessageInputProps {
   onSend: (content: string) => void
+  onFileUpload?: (files: FileList) => void
   disabled?: boolean
   placeholder?: string
   onTyping?: () => void
@@ -21,9 +22,10 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { command: 'help', label: '도움말', description: '사용 가능한 명령어 보기', icon: '❓' },
 ]
 
-export function MessageInput({ 
-  onSend, 
-  disabled = false, 
+export function MessageInput({
+  onSend,
+  onFileUpload,
+  disabled = false,
   placeholder = '메시지 입력... / 로 명령어',
   onTyping,
 }: MessageInputProps) {
@@ -32,6 +34,7 @@ export function MessageInput({
   const [slashFilter, setSlashFilter] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
   const filteredCommands = SLASH_COMMANDS.filter((cmd) =>
@@ -170,11 +173,25 @@ export function MessageInput({
             >
               <AtSign className="h-4 w-4" />
             </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              multiple
+              accept=".pdf,.txt"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0 && onFileUpload) {
+                  onFileUpload(e.target.files)
+                  e.target.value = ''
+                }
+              }}
+            />
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-foreground-muted hover:text-foreground"
-              disabled={disabled}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || !onFileUpload}
               title="파일 첨부"
             >
               <Paperclip className="h-4 w-4" />

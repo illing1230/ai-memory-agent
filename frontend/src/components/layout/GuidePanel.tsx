@@ -185,7 +185,6 @@ client = AIMemoryAgentSyncClient(
 results = client.search_memories(
     query="커피 선호도",
     context_sources={
-        "include_personal": True,
         "chat_rooms": ["room_id_1"]
     },
     limit=10

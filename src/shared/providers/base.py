@@ -4,6 +4,20 @@ from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator
 
 
+class BaseRerankerProvider(ABC):
+    """Reranker Provider 추상 클래스"""
+
+    @abstractmethod
+    async def rerank(
+        self,
+        query: str,
+        documents: list[str],
+        top_n: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """문서 리랭킹. Returns [{"index": int, "relevance_score": float, "document": str}]"""
+        pass
+
+
 class BaseEmbeddingProvider(ABC):
     """Embedding Provider 추상 클래스"""
 

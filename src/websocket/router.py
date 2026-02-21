@@ -192,10 +192,10 @@ async def websocket_chat(
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        print(f"WebSocket error: {type(e).__name__}: {e}")
-        print(f"WebSocket traceback: {error_detail}")
+        import traceback, logging
+        logger = logging.getLogger("uvicorn.error")
+        logger.error(f"WebSocket error: {type(e).__name__}: {e}")
+        logger.error(f"WebSocket traceback:\n{traceback.format_exc()}")
     finally:
         await manager.disconnect(room_id, user_id)
         await db.close()

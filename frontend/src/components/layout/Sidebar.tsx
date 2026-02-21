@@ -10,7 +10,6 @@ import {
   Settings,
   Brain,
   List,
-  Briefcase,
   FileText,
   PanelLeftClose,
   PanelLeft,
@@ -37,9 +36,8 @@ export function Sidebar() {
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     chatRooms: false,
-    memory: false,
     agents: false,
-    guide: false,
+    knowledge: false,
   })
 
   const toggleSection = (section: string) => {
@@ -50,11 +48,8 @@ export function Sidebar() {
   const isActivePrefix = (path: string) => location.pathname.startsWith(path)
 
   const handleLogout = () => {
-    // 모든 캐시 초기화
     queryClient.clear()
-    // 로그아웃
     logout()
-    // 로그인 페이지로 이동
     navigate('/login')
   }
 
@@ -66,7 +61,7 @@ export function Sidebar() {
             <PanelLeft className="h-4 w-4" />
           </Button>
         </Tooltip>
-        
+
         <div className="mt-4 space-y-1">
           <Tooltip content="채팅" side="right">
             <Button
@@ -76,28 +71,6 @@ export function Sidebar() {
               onClick={() => navigate('/chat')}
             >
               <MessageSquare className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-          
-          <Tooltip content="메모리" side="right">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(isActivePrefix('/memory') && 'bg-background-active')}
-              onClick={() => navigate('/memory/search')}
-            >
-              <Brain className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip content="프로젝트" side="right">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(isActive('/projects') && 'bg-background-active')}
-              onClick={() => navigate('/projects')}
-            >
-              <Briefcase className="h-4 w-4" />
             </Button>
           </Tooltip>
 
@@ -111,14 +84,15 @@ export function Sidebar() {
               <Bot className="h-4 w-4" />
             </Button>
           </Tooltip>
-          <Tooltip content="대화방 권한 관리" side="right">
+
+          <Tooltip content="지식" side="right">
             <Button
               variant="ghost"
               size="icon"
-              className={cn(isActive('/chatrooms') && 'bg-background-active')}
-              onClick={() => navigate('/chatrooms')}
+              className={cn((isActivePrefix('/memory') || isActive('/documents') || isActive('/chatrooms')) && 'bg-background-active')}
+              onClick={() => navigate('/memory/search')}
             >
-              <Shield className="h-4 w-4" />
+              <Brain className="h-4 w-4" />
             </Button>
           </Tooltip>
 
@@ -136,7 +110,12 @@ export function Sidebar() {
           )}
         </div>
 
-        <div className="mt-auto">
+        <div className="mt-auto space-y-1">
+          <Tooltip content="사용 가이드" side="right">
+            <Button variant="ghost" size="icon" onClick={() => useUIStore.getState().setGuidePanelOpen(true)}>
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="로그아웃" side="right">
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
@@ -210,7 +189,7 @@ export function Sidebar() {
               <div className="px-2 py-1 text-xs text-foreground-muted">대화방이 없습니다</div>
             ) : (
               chatRooms
-                .filter((room: ChatRoom) => room.share_role !== 'viewer') // viewer 공유 방은 제외 (입장 불가)
+                .filter((room: ChatRoom) => room.share_role !== 'viewer')
                 .map((room: ChatRoom) => (
                 <SidebarItem
                   key={room.id}
@@ -250,12 +229,12 @@ export function Sidebar() {
             />
           </SidebarSection>
 
-          {/* Memory Section */}
+          {/* Knowledge Section (merged: 지식 센터 + 권한 관리) */}
           <SidebarSection
-            title="지식 센터"
+            title="지식"
             icon={Brain}
-            expanded={expandedSections.memory}
-            onToggle={() => toggleSection('memory')}
+            expanded={expandedSections.knowledge}
+            onToggle={() => toggleSection('knowledge')}
           >
             <SidebarItem
               to="/memory/search"
@@ -272,45 +251,15 @@ export function Sidebar() {
             <SidebarItem
               to="/documents"
               icon={FileText}
-              label="문서 업로드"
+              label="문서"
               active={isActive('/documents')}
             />
-          </SidebarSection>
-
-          {/* Permission Management Section */}
-          <SidebarSection
-            title="권한 관리"
-            icon={Shield}
-            expanded={expandedSections.permission}
-            onToggle={() => toggleSection('permission')}
-          >
             <SidebarItem
               to="/chatrooms"
               icon={Shield}
               label="지식 권한"
               active={isActive('/chatrooms')}
             />
-            <SidebarItem
-              to="/projects"
-              icon={Briefcase}
-              label="프로젝트"
-              active={isActive('/projects')}
-            />
-          </SidebarSection>
-          {/* Guide Section */}
-          <SidebarSection
-            title="사용 가이드"
-            icon={HelpCircle}
-            expanded={expandedSections.guide}
-            onToggle={() => toggleSection('guide')}
-          >
-            <div
-              className="sidebar-item cursor-pointer"
-              onClick={() => useUIStore.getState().setGuidePanelOpen(true)}
-            >
-              <Book className="h-4 w-4 shrink-0" />
-              <span className="truncate">가이드 보기</span>
-            </div>
           </SidebarSection>
 
           {/* Admin - admin role만 표시 */}
@@ -348,10 +297,19 @@ export function Sidebar() {
             <Settings className="h-4 w-4" />
             <span className="text-sm">설정</span>
           </Button>
+          <Tooltip content="사용 가이드" side="top">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => useUIStore.getState().setGuidePanelOpen(true)}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </Tooltip>
           <Tooltip content="Agent 연동 가이드" side="top">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
             >
               <Book className="h-4 w-4" />

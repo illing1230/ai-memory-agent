@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui'
 import { formatTime } from '@/lib/utils'
-import { Bot } from 'lucide-react'
+import { Bot, ChevronRight, FileText, Brain } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Message } from '@/types'
+import type { Message, MessageSource } from '@/types'
 
 interface MessageItemProps {
   message: Message
@@ -47,7 +48,63 @@ export function MessageItem({ message, isOwnMessage = false }: MessageItemProps)
         <div className={cn('inline-block max-w-[85%] text-sm', isAssistant && 'bg-background-secondary rounded-lg px-3 py-2')}>
           <MessageContent content={message.content} isAssistant={isAssistant} />
         </div>
+
+        {isAssistant && message.sources && <SourcePanel sources={message.sources} />}
       </div>
+    </div>
+  )
+}
+
+function SourcePanel({ sources }: { sources: MessageSource }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const docCount = sources.documents?.length ?? 0
+  const memCount = sources.memories?.length ?? 0
+  const totalCount = docCount + memCount
+
+  if (totalCount === 0) return null
+
+  const parts: string[] = []
+  if (docCount > 0) parts.push(`문서 ${docCount}`)
+  if (memCount > 0) parts.push(`메모리 ${memCount}`)
+  const summary = parts.join(', ')
+
+  return (
+    <div className="mt-2 max-w-[85%]">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 text-xs text-foreground-muted hover:text-foreground transition-colors"
+      >
+        <ChevronRight
+          className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-90')}
+        />
+        <span>참조 소스 ({summary})</span>
+      </button>
+
+      {isOpen && (
+        <div className="mt-1 pl-4 space-y-1 text-xs text-foreground-secondary">
+          {sources.documents?.map((doc) => (
+            <div key={doc.document_id} className="flex items-start gap-1.5">
+              <FileText className="h-3 w-3 mt-0.5 shrink-0 text-accent" />
+              <div className="min-w-0">
+                <span className="font-medium">{doc.document_name}</span>
+                <span className="text-foreground-muted ml-1">({Math.round(doc.score * 100)}%)</span>
+                <p className="text-foreground-muted truncate">{doc.content}</p>
+              </div>
+            </div>
+          ))}
+          {sources.memories?.map((mem) => (
+            <div key={mem.memory_id} className="flex items-start gap-1.5">
+              <Brain className="h-3 w-3 mt-0.5 shrink-0 text-purple-500" />
+              <div className="min-w-0">
+                <span className="font-medium">{mem.source_name}</span>
+                <span className="text-foreground-muted ml-1">({Math.round(mem.score * 100)}%)</span>
+                <p className="text-foreground-muted truncate">{mem.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

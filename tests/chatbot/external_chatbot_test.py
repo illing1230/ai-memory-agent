@@ -27,7 +27,6 @@ def setup_context_sources(agent: Agent) -> None:
         return
 
     ctx: dict = {
-        "include_personal": False,
         "include_agent": False,
         "include_document": False,
         "chat_rooms": [],
@@ -47,11 +46,6 @@ def setup_context_sources(agent: Agent) -> None:
         if ans == "y":
             ctx["include_document"] = True
 
-    # 개인 메모리
-    ans = input("  개인 메모리 포함? (y/N): ").strip().lower()
-    if ans == "y":
-        ctx["include_personal"] = True
-
     # 채팅방
     if sources["chat_rooms"]:
         print(f"  채팅방 ({len(sources['chat_rooms'])}개):")
@@ -70,8 +64,6 @@ def setup_context_sources(agent: Agent) -> None:
         active.append("Agent")
     if ctx["include_document"]:
         active.append("문서")
-    if ctx["include_personal"]:
-        active.append("개인")
     if ctx["chat_rooms"]:
         active.append(f"채팅방({len(ctx['chat_rooms'])})")
     print(f"  설정 완료: {', '.join(active) or '없음'}\n")

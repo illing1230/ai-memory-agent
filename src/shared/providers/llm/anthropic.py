@@ -9,51 +9,6 @@ from src.shared.providers.base import BaseLLMProvider
 from src.shared.exceptions import ProviderException
 
 
-MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가치가 있는 정보를 추출하세요.
-
-중요 규칙:
-- 대화에 명시적으로 언급된 정보만 추출하세요.
-- 대화에 없는 내용을 추론하거나 가정하지 마세요.
-- 불확실한 정보는 추출하지 마세요.
-
-추출 기준:
-- 사용자의 선호도, 습관, 특성
-- 중요한 사실이나 결정 사항
-- 프로젝트/업무 관련 정보
-- 관계 정보 (사람, 조직 등)
-
-응답 형식 (반드시 유효한 JSON 배열만 출력):
-[
-  {
-    "content": "추출된 메모리 내용",
-    "category": "preference|fact|decision|relationship",
-    "importance": "high|medium|low"
-  }
-]
-
-예시:
-[
-  {
-    "content": "김과장은 오전 회의를 선호한다",
-    "category": "preference",
-    "importance": "medium"
-  },
-  {
-    "content": "프로젝트 마감일은 3월 15일이다",
-    "category": "fact",
-    "importance": "high"
-  }
-]
-
-중요:
-- 추출할 메모리가 없으면 빈 배열 []만 반환하세요.
-- JSON 배열 외에 다른 텍스트, 설명, 주석은 절대 포함하지 마세요.
-- 코드 블록(```json) 없이 JSON 배열만 직접 출력하세요.
-
-대화:
-{conversation}"""
-
-
 class AnthropicLLMProvider(BaseLLMProvider):
     """Anthropic Claude LLM Provider"""
 
@@ -169,6 +124,8 @@ class AnthropicLLMProvider(BaseLLMProvider):
         conversation: list[dict[str, str]],
     ) -> list[dict[str, Any]]:
         """대화에서 메모리 추출"""
+        from src.memory.pipeline import MEMORY_EXTRACTION_PROMPT
+
         conv_text = "\n".join(
             f"{msg.get('role', 'user')}: {msg.get('content', '')}"
             for msg in conversation

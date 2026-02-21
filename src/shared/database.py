@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
     content TEXT NOT NULL,
     mentions TEXT,
+    sources TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE
 );
@@ -114,6 +115,8 @@ CREATE TABLE IF NOT EXISTS memories (
     superseded BOOLEAN DEFAULT 0,
     superseded_by TEXT,
     superseded_at DATETIME,
+    last_accessed_at DATETIME,
+    access_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES users(id),
@@ -131,6 +134,46 @@ CREATE TABLE IF NOT EXISTS memory_access_log (
     accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- 엔티티 테이블
+CREATE TABLE IF NOT EXISTS entities (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    name_normalized TEXT NOT NULL,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('person','meeting','project','organization','topic','date')),
+    owner_id TEXT NOT NULL,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_id) REFERENCES users(id),
+    UNIQUE (name_normalized, entity_type, owner_id)
+);
+
+-- 메모리-엔티티 연결 테이블
+CREATE TABLE IF NOT EXISTS memory_entities (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    relation_type TEXT DEFAULT 'mentioned',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE,
+    FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+    UNIQUE (memory_id, entity_id)
+);
+
+-- 엔티티 관계 테이블
+CREATE TABLE IF NOT EXISTS entity_relations (
+    id TEXT PRIMARY KEY,
+    source_entity_id TEXT NOT NULL,
+    target_entity_id TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+    FOREIGN KEY (owner_id) REFERENCES users(id),
+    UNIQUE (source_entity_id, target_entity_id, relation_type)
 );
 
 -- 문서 테이블
@@ -169,6 +212,10 @@ CREATE TABLE IF NOT EXISTS document_chat_rooms (
     FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
     UNIQUE (document_id, chat_room_id)
 );
+
+-- 문서 청크 전문검색 (FTS5)
+CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts
+USING fts5(content, chunk_id UNINDEXED, document_id UNINDEXED);
 
 -- 공유 설정 테이블
 CREATE TABLE IF NOT EXISTS shares (
@@ -212,6 +259,18 @@ CREATE INDEX IF NOT EXISTS idx_document_chat_rooms_room ON document_chat_rooms(c
 CREATE INDEX IF NOT EXISTS idx_shares_resource ON shares(resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_shares_target ON shares(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_shares_created_by ON shares(created_by);
+
+-- 엔티티 인덱스
+CREATE INDEX IF NOT EXISTS idx_entities_name_normalized ON entities(name_normalized);
+CREATE INDEX IF NOT EXISTS idx_entities_type_owner ON entities(entity_type, owner_id);
+CREATE INDEX IF NOT EXISTS idx_entities_owner ON entities(owner_id);
+CREATE INDEX IF NOT EXISTS idx_memory_entities_memory ON memory_entities(memory_id);
+CREATE INDEX IF NOT EXISTS idx_memory_entities_entity ON memory_entities(entity_id);
+
+-- 엔티티 관계 인덱스
+CREATE INDEX IF NOT EXISTS idx_entity_relations_source ON entity_relations(source_entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_relations_target ON entity_relations(target_entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_relations_owner ON entity_relations(owner_id);
 
 -- Agent Type (에이전트 유형/템플릿)
 CREATE TABLE IF NOT EXISTS agent_types (
@@ -414,6 +473,95 @@ async def init_database() -> None:
         await _db_connection.commit()
     except Exception:
         pass  # 이미 존재하면 무시
+
+    # sources 컬럼 추가 (chat_messages)
+    try:
+        await _db_connection.execute("ALTER TABLE chat_messages ADD COLUMN sources TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # last_accessed_at 컬럼 추가 (memories)
+    try:
+        await _db_connection.execute("ALTER TABLE memories ADD COLUMN last_accessed_at DATETIME")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # access_count 컬럼 추가 (memories)
+    try:
+        await _db_connection.execute("ALTER TABLE memories ADD COLUMN access_count INTEGER DEFAULT 0")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # entities, memory_entities 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS entities (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                name_normalized TEXT NOT NULL,
+                entity_type TEXT NOT NULL CHECK (entity_type IN ('person','meeting','project','organization','topic','date')),
+                owner_id TEXT NOT NULL,
+                metadata TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (owner_id) REFERENCES users(id),
+                UNIQUE (name_normalized, entity_type, owner_id)
+            );
+            CREATE TABLE IF NOT EXISTS memory_entities (
+                id TEXT PRIMARY KEY,
+                memory_id TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                relation_type TEXT DEFAULT 'mentioned',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE,
+                FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+                UNIQUE (memory_id, entity_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_entities_name_normalized ON entities(name_normalized);
+            CREATE INDEX IF NOT EXISTS idx_entities_type_owner ON entities(entity_type, owner_id);
+            CREATE INDEX IF NOT EXISTS idx_entities_owner ON entities(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_memory_entities_memory ON memory_entities(memory_id);
+            CREATE INDEX IF NOT EXISTS idx_memory_entities_entity ON memory_entities(entity_id);
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # entity_relations 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS entity_relations (
+                id TEXT PRIMARY KEY,
+                source_entity_id TEXT NOT NULL,
+                target_entity_id TEXT NOT NULL,
+                relation_type TEXT NOT NULL,
+                owner_id TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (source_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+                FOREIGN KEY (target_entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+                FOREIGN KEY (owner_id) REFERENCES users(id),
+                UNIQUE (source_entity_id, target_entity_id, relation_type)
+            );
+            CREATE INDEX IF NOT EXISTS idx_entity_relations_source ON entity_relations(source_entity_id);
+            CREATE INDEX IF NOT EXISTS idx_entity_relations_target ON entity_relations(target_entity_id);
+            CREATE INDEX IF NOT EXISTS idx_entity_relations_owner ON entity_relations(owner_id);
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # document_chunks_fts FTS5 가상 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.execute(
+            """CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts
+               USING fts5(content, chunk_id UNINDEXED, document_id UNINDEXED)"""
+        )
+        await _db_connection.commit()
+    except Exception:
+        pass
 
     print(f"✅ SQLite 데이터베이스 초기화 완료: {db_path}")
 

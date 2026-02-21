@@ -8,7 +8,7 @@ import { searchDocuments, type DocumentSearchResult } from '@/features/document/
 import { formatDate, cn } from '@/lib/utils'
 import type { MemorySearchResult } from '@/types'
 
-type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'project' | 'department' | 'agent' | 'document'
+type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'agent' | 'document'
 
 export function MemorySearch() {
   const [query, setQuery] = useState('')
@@ -90,7 +90,7 @@ export function MemorySearch() {
             <Filter className="h-4 w-4 text-foreground-muted" />
             <span className="text-sm text-foreground-secondary">범위:</span>
             <div className="flex gap-1">
-              {(['all', 'personal', 'chatroom', 'project', 'department', 'agent', 'document'] as ScopeFilter[]).map((scope) => (
+              {(['all', 'personal', 'chatroom', 'agent', 'document'] as ScopeFilter[]).map((scope) => (
               <Button
                 key={scope}
                 variant={scopeFilter === scope ? 'default' : 'ghost'}
@@ -101,8 +101,6 @@ export function MemorySearch() {
                 {scope === 'all' && '전체'}
                 {scope === 'personal' && '개인'}
                 {scope === 'chatroom' && '대화방'}
-                {scope === 'project' && '프로젝트'}
-                {scope === 'department' && '부서'}
                 {scope === 'agent' && '에이전트'}
                 {scope === 'document' && '문서'}
               </Button>
@@ -192,7 +190,7 @@ interface MemoryCardProps {
 
 function MemoryCard({ result, onDelete }: MemoryCardProps) {
   const { memory, score, source_info } = result
-  const scopeLabel: Record<string, string> = { personal: '개인', chatroom: '대화방', project: '프로젝트', department: '부서' }
+  const scopeLabel: Record<string, string> = { personal: '개인', chatroom: '대화방' }
 
   return (
     <div className="group card p-4 hover:shadow-medium transition-shadow">

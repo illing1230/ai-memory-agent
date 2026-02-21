@@ -240,11 +240,6 @@ with st.sidebar:
                     if st.checkbox(r["name"], key=f"other_room_{r['id']}"):
                         other_rooms.append(r["id"])
             
-            # 내 개인 메모리 전체
-            include_personal = st.checkbox("내 개인 메모리 전체", value=False, key="include_personal")
-            if include_personal:
-                st.warning("주의: 모든 개인 메모리가 공유됩니다")
-            
             # 내가 속한 프로젝트
             my_projects = load_my_projects()
             selected_projects = []
@@ -268,7 +263,6 @@ with st.sidebar:
                         "memory": {
                             "include_this_room": True,
                             "other_chat_rooms": other_rooms,
-                            "include_personal": include_personal,
                             "projects": selected_projects,
                             "departments": selected_depts,
                         },
@@ -435,8 +429,6 @@ if st.session_state.page == "chat":
         sources = ["이 대화방"]
         if memory_config.get("other_chat_rooms"):
             sources.append(f"다른방({len(memory_config['other_chat_rooms'])})")
-        if memory_config.get("include_personal"):
-            sources.append("개인전체⚠️")
         if memory_config.get("projects"):
             sources.append(f"프로젝트({len(memory_config['projects'])})")
         if memory_config.get("departments"):

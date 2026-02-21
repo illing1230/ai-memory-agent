@@ -3,7 +3,6 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { ChatRoom } from '@/features/chat/components/ChatRoom'
 import { MemorySearch } from '@/features/memory/components/MemorySearch'
 import { MemoryList } from '@/features/memory/components/MemoryList'
-import { ProjectManagement } from '@/features/project/components/ProjectManagement'
 import { AdminPage } from '@/features/admin/components/AdminPage'
 import { DocumentPage } from '@/features/document/components/DocumentPage'
 import { ChatRoomManagement } from '@/features/chatroom/components/ChatRoomManagement'
@@ -41,7 +40,6 @@ function App() {
           <Route path="memory" element={<Navigate to="/memory/search" replace />} />
           <Route path="memory/search" element={<MemorySearch />} />
           <Route path="memory/list" element={<MemoryList />} />
-          <Route path="projects" element={<ProjectManagement />} />
           <Route path="documents" element={<DocumentPage />} />
           <Route path="chatrooms" element={<ChatRoomManagement />} />
           <Route path="admin" element={<AdminPage />} />

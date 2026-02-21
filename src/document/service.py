@@ -62,7 +62,16 @@ class DocumentService:
                     except Exception as e:
                         print(f"  임베딩 실패 (청크 {i}): {e}")
 
-                await self.repo.create_chunk(doc["id"], chunk_text, i, vector_id)
+                chunk_record = await self.repo.create_chunk(doc["id"], chunk_text, i, vector_id)
+
+                # FTS5 인덱스에 동기화
+                try:
+                    await self.repo.db.execute(
+                        "INSERT INTO document_chunks_fts (content, chunk_id, document_id) VALUES (?, ?, ?)",
+                        (chunk_text, chunk_record["id"], doc["id"]),
+                    )
+                except Exception:
+                    pass  # FTS 테이블 미존재 시 무시
 
                 if vector:
                     await upsert_vector(vector_id, vector, {
@@ -97,6 +106,15 @@ class DocumentService:
         vector_ids = await self.repo.get_chunk_vector_ids(doc_id)
         for vid in vector_ids:
             await delete_vector(vid)
+
+        # FTS5 인덱스에서도 삭제
+        try:
+            await self.repo.db.execute(
+                "DELETE FROM document_chunks_fts WHERE document_id = ?",
+                (doc_id,),
+            )
+        except Exception:
+            pass  # FTS 테이블 미존재 시 무시
 
         return await self.repo.delete_document(doc_id)
 
@@ -259,13 +277,44 @@ class DocumentService:
     def _chunk_text(
         self, text: str, chunk_size: int = 800, overlap: int = 100
     ) -> list[str]:
-        """텍스트를 오버랩 있는 청크로 분할"""
+        """문장/문단 경계를 존중하는 시맨틱 청킹"""
+        import re
+
+        # 1. 문단 단위로 먼저 분리
+        paragraphs = re.split(r'\n\s*\n', text)
+
+        # 2. 각 문단을 문장 단위로 분리
+        sentences = []
+        for para in paragraphs:
+            sents = re.split(r'(?<=[.!?。])\s+', para.strip())
+            sentences.extend([s for s in sents if s.strip()])
+            sentences.append("")  # 문단 구분자
+
+        # 3. 문장들을 chunk_size 이내로 묶기
         chunks = []
-        start = 0
-        while start < len(text):
-            end = start + chunk_size
-            chunk = text[start:end]
-            if chunk.strip():
-                chunks.append(chunk.strip())
-            start = end - overlap
-        return chunks
+        current_chunk = []
+        current_len = 0
+
+        for sent in sentences:
+            sent_len = len(sent)
+            if current_len + sent_len > chunk_size and current_chunk:
+                chunks.append(" ".join(current_chunk).strip())
+                # overlap: 마지막 몇 문장을 다음 청크에 포함
+                overlap_chunk = []
+                overlap_len = 0
+                for s in reversed(current_chunk):
+                    if overlap_len + len(s) > overlap:
+                        break
+                    overlap_chunk.insert(0, s)
+                    overlap_len += len(s)
+                current_chunk = overlap_chunk
+                current_len = overlap_len
+            current_chunk.append(sent)
+            current_len += sent_len
+
+        if current_chunk:
+            final = " ".join(current_chunk).strip()
+            if final:
+                chunks.append(final)
+
+        return [c for c in chunks if c.strip()]

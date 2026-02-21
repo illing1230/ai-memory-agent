@@ -3,7 +3,7 @@
 from functools import lru_cache
 
 from src.config import get_settings
-from src.shared.providers.base import BaseEmbeddingProvider, BaseLLMProvider
+from src.shared.providers.base import BaseEmbeddingProvider, BaseLLMProvider, BaseRerankerProvider
 
 
 @lru_cache
@@ -77,3 +77,21 @@ def get_llm_provider() -> BaseLLMProvider:
 
     else:
         raise ValueError(f"Unknown LLM provider: {provider}")
+
+
+@lru_cache
+def get_reranker_provider() -> BaseRerankerProvider | None:
+    """Reranker Provider 생성 (설정되지 않으면 None 반환)"""
+    settings = get_settings()
+    reranker_url = getattr(settings, "reranker_url", None)
+
+    if not reranker_url:
+        return None
+
+    from src.shared.providers.reranker.jina import JinaRerankerProvider
+
+    reranker_model = getattr(settings, "reranker_model", "jinaai/jina-reranker-v2-base-multilingual")
+    return JinaRerankerProvider(
+        base_url=reranker_url,
+        model=reranker_model,
+    )

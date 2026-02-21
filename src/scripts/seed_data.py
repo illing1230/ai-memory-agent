@@ -127,6 +127,112 @@ MEMORIES = [
         "importance": "medium",
         "topic_key": "최개발 업무 시간",
     },
+    # 엔티티 관계 테스트용 메모리
+    {
+        "content": "박관리가 PLM 시스템 프로젝트를 총괄 관리하고 있다",
+        "scope": "chatroom",
+        "owner_idx": 1,
+        "chat_room_idx": 4,  # PLM 개발 채팅
+        "category": "relationship",
+        "importance": "high",
+        "topic_key": "박관리 PLM 관리",
+        "entities": [
+            {"name": "박관리", "type": "person"},
+            {"name": "PLM 시스템", "type": "project"},
+        ],
+    },
+    {
+        "content": "김품질이 매주 월요일 품질검사 미팅에 참석한다",
+        "scope": "chatroom",
+        "owner_idx": 1,
+        "chat_room_idx": 4,  # PLM 개발 채팅
+        "category": "fact",
+        "importance": "high",
+        "topic_key": "김품질 품질검사 미팅",
+        "entities": [
+            {"name": "김품질", "type": "person"},
+            {"name": "품질검사 미팅", "type": "meeting"},
+        ],
+    },
+    {
+        "content": "품질검사 미팅은 PLM 시스템 프로젝트의 정기 회의이다",
+        "scope": "chatroom",
+        "owner_idx": 1,
+        "chat_room_idx": 4,  # PLM 개발 채팅
+        "category": "fact",
+        "importance": "medium",
+        "topic_key": "품질검사 미팅 PLM",
+        "entities": [
+            {"name": "품질검사 미팅", "type": "meeting"},
+            {"name": "PLM 시스템", "type": "project"},
+        ],
+    },
+    {
+        "content": "이검사가 PLM 시스템의 테스트 자동화를 담당하고 있다",
+        "scope": "chatroom",
+        "owner_idx": 1,
+        "chat_room_idx": 4,  # PLM 개발 채팅
+        "category": "relationship",
+        "importance": "high",
+        "topic_key": "이검사 테스트 자동화",
+        "entities": [
+            {"name": "이검사", "type": "person"},
+            {"name": "PLM 시스템", "type": "project"},
+        ],
+    },
+    {
+        "content": "최개발이 MemGate 프로젝트의 백엔드 아키텍처를 설계했다",
+        "scope": "chatroom",
+        "owner_idx": 0,
+        "chat_room_idx": 5,  # MemGate 개발 채팅
+        "category": "fact",
+        "importance": "high",
+        "topic_key": "최개발 MemGate 아키텍처",
+        "entities": [
+            {"name": "최개발", "type": "person"},
+            {"name": "MemGate", "type": "project"},
+        ],
+    },
+    {
+        "content": "정백엔드가 MemGate 프로젝트의 RAG 파이프라인을 구현 중이다",
+        "scope": "chatroom",
+        "owner_idx": 0,
+        "chat_room_idx": 5,  # MemGate 개발 채팅
+        "category": "fact",
+        "importance": "high",
+        "topic_key": "정백엔드 RAG 구현",
+        "entities": [
+            {"name": "정백엔드", "type": "person"},
+            {"name": "MemGate", "type": "project"},
+        ],
+    },
+    {
+        "content": "3월 릴리즈 일정이 MemGate 프로젝트의 첫 번째 마일스톤이다",
+        "scope": "chatroom",
+        "owner_idx": 0,
+        "chat_room_idx": 5,  # MemGate 개발 채팅
+        "category": "decision",
+        "importance": "high",
+        "topic_key": "MemGate 3월 릴리즈",
+        "entities": [
+            {"name": "3월 릴리즈", "type": "date"},
+            {"name": "MemGate", "type": "project"},
+        ],
+    },
+]
+
+# 엔티티 관계 시드 데이터 (entities 자동 생성 후 relation 연결)
+# owner_idx는 해당 관계를 생성한 사용자 인덱스
+ENTITY_RELATIONS = [
+    # PLM 프로젝트 관계
+    {"source": "박관리", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "MANAGES", "owner_idx": 1},
+    {"source": "김품질", "source_type": "person", "target": "품질검사 미팅", "target_type": "meeting", "relation": "ATTENDS", "owner_idx": 1},
+    {"source": "품질검사 미팅", "source_type": "meeting", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 1},
+    {"source": "이검사", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 1},
+    # MemGate 프로젝트 관계
+    {"source": "최개발", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 0},
+    {"source": "정백엔드", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 0},
+    {"source": "3월 릴리즈", "source_type": "date", "target": "MemGate", "target_type": "project", "relation": "PART_OF", "owner_idx": 0},
 ]
 
 # Agent Types (에이전트 유형/템플릿)
@@ -581,15 +687,20 @@ async def seed_data():
             else:
                 vector_id = None
 
+            # chat_room_id 처리
+            chat_room_id = None
+            if "chat_room_idx" in mem:
+                chat_room_id = chat_room_ids[mem["chat_room_idx"]]
+
             # SQLite에 저장
             topic_key = mem.get("topic_key")
             await db.execute(
                 """INSERT INTO memories
-                    (id, content, vector_id, scope, owner_id,
+                    (id, content, vector_id, scope, owner_id, chat_room_id,
                     category, importance, topic_key, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (memory_id, mem["content"], vector_id, mem["scope"],
-                  user_ids[mem["owner_idx"]],
+                  user_ids[mem["owner_idx"]], chat_room_id,
                   mem.get("category"), mem.get("importance", "medium"), topic_key, now, now),
             )
 
@@ -600,12 +711,81 @@ async def seed_data():
                     "scope": mem["scope"],
                     "owner_id": user_ids[mem["owner_idx"]],
                 }
+                if chat_room_id:
+                    payload["chat_room_id"] = chat_room_id
                 await upsert_vector(vector_id, vector, payload)
+
+            # 엔티티 연결 (entities 필드가 있는 경우)
+            if "entities" in mem:
+                for ent in mem["entities"]:
+                    ent_name = ent["name"]
+                    ent_type = ent["type"]
+                    owner_id = user_ids[mem["owner_idx"]]
+                    name_normalized = ent_name.strip().lower()
+
+                    # get_or_create entity
+                    cursor = await db.execute(
+                        "SELECT id FROM entities WHERE name_normalized = ? AND entity_type = ? AND owner_id = ?",
+                        (name_normalized, ent_type, owner_id),
+                    )
+                    row = await cursor.fetchone()
+                    if row:
+                        entity_id = row[0]
+                    else:
+                        entity_id = str(uuid.uuid4())
+                        await db.execute(
+                            "INSERT INTO entities (id, name, name_normalized, entity_type, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (entity_id, ent_name, name_normalized, ent_type, owner_id, now, now),
+                        )
+
+                    # link memory <-> entity
+                    link_id = str(uuid.uuid4())
+                    await db.execute(
+                        "INSERT OR IGNORE INTO memory_entities (id, memory_id, entity_id, relation_type) VALUES (?, ?, ?, ?)",
+                        (link_id, memory_id, entity_id, "mentioned"),
+                    )
+                    print(f"    🔗 엔티티 연결: {ent_name} ({ent_type})")
 
             memory_ids.append(memory_id)
             print(f"  👤 {mem['content'][:40]}...")
         
-        # 12.5. superseded 관계 설정
+        # 12.5. 엔티티 관계 생성
+        print("\n🔗 엔티티 관계 생성...")
+        for rel in ENTITY_RELATIONS:
+            owner_id = user_ids[rel["owner_idx"]]
+            src_norm = rel["source"].strip().lower()
+            tgt_norm = rel["target"].strip().lower()
+
+            # source entity 조회
+            cursor = await db.execute(
+                "SELECT id FROM entities WHERE name_normalized = ? AND entity_type = ? AND owner_id = ?",
+                (src_norm, rel["source_type"], owner_id),
+            )
+            src_row = await cursor.fetchone()
+
+            # target entity 조회
+            cursor = await db.execute(
+                "SELECT id FROM entities WHERE name_normalized = ? AND entity_type = ? AND owner_id = ?",
+                (tgt_norm, rel["target_type"], owner_id),
+            )
+            tgt_row = await cursor.fetchone()
+
+            if src_row and tgt_row:
+                rel_id = str(uuid.uuid4())
+                await db.execute(
+                    "INSERT OR IGNORE INTO entity_relations (id, source_entity_id, target_entity_id, relation_type, owner_id) VALUES (?, ?, ?, ?, ?)",
+                    (rel_id, src_row[0], tgt_row[0], rel["relation"], owner_id),
+                )
+                print(f"  ✓ {rel['source']} →{rel['relation']}→ {rel['target']}")
+            else:
+                missing = []
+                if not src_row:
+                    missing.append(f"source={rel['source']}")
+                if not tgt_row:
+                    missing.append(f"target={rel['target']}")
+                print(f"  ⚠ 엔티티 없음: {', '.join(missing)}")
+
+        # 12.6. superseded 관계 설정
         print("\n🔄 superseded 관계 설정...")
         for i, mem in enumerate(MEMORIES):
             if "supersedes_idx" in mem:
@@ -674,6 +854,7 @@ async def seed_data():
         print(f"  🔗 External User Mappings: {len(EXTERNAL_USER_MAPPINGS)}개")
         print(f"  🔗 Agent Instance Shares: {len(AGENT_INSTANCE_SHARES)}개")
         print(f"  🧠 메모리: {len(MEMORIES)}개")
+        print(f"  🔗 엔티티 관계: {len(ENTITY_RELATIONS)}개")
         print(f"  🔗 공유 설정: {len(SHARES)}개")
         print("=" * 50)
         

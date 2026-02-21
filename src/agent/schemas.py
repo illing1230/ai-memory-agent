@@ -130,7 +130,6 @@ class MemorySourcesResponse(BaseModel):
 
 # Agent 메모리 검색 스키마
 class AgentMemoryContextSources(BaseModel):
-    include_personal: bool = False
     include_agent: bool = False
     include_document: bool = False
     chat_rooms: list[str] = []

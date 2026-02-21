@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { chatKeys } from '@/features/chat/hooks/useChat'
+import type { Message, MessageSource } from '@/types'
 
 type MessageHandler = (data: unknown) => void
 
@@ -113,6 +114,27 @@ export function useWebSocket({
           }
         )
         break
+
+      case 'message:stream_end': {
+        const { sources } = (message.data as { sources?: MessageSource }) || {}
+        if (sources) {
+          queryClient.setQueryData(
+            chatKeys.messages(roomId),
+            (old: Message[] | undefined) => {
+              if (!old) return old
+              const updated = [...old]
+              for (let i = updated.length - 1; i >= 0; i--) {
+                if (updated[i].role === 'assistant') {
+                  updated[i] = { ...updated[i], sources }
+                  break
+                }
+              }
+              return updated
+            }
+          )
+        }
+        break
+      }
 
       case 'member:join':
       case 'member:leave':

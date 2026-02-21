@@ -1,40 +1,12 @@
 """Ollama LLM Provider"""
 
 import json
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import httpx
 
 from src.shared.providers.base import BaseLLMProvider
 from src.shared.exceptions import ProviderException
-
-
-MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가치가 있는 정보를 추출하세요.
-
-중요 규칙:
-- 대화에 명시적으로 언급된 정보만 추출하세요.
-- 대화에 없는 내용을 추론하거나 가정하지 마세요.
-- 불확실한 정보는 추출하지 마세요.
-
-추출 기준:
-- 사용자의 선호도, 습관, 특성
-- 중요한 사실이나 결정 사항
-- 프로젝트/업무 관련 정보
-- 관계 정보 (사람, 조직 등)
-
-응답 형식 (JSON만 출력):
-[
-  {
-    "content": "추출된 메모리 내용",
-    "category": "preference|fact|decision|relationship",
-    "importance": "high|medium|low"
-  }
-]
-
-추출할 메모리가 없으면 빈 배열 []을 반환하세요.
-
-대화:
-{conversation}"""
 
 
 class OllamaLLMProvider(BaseLLMProvider):
@@ -87,11 +59,59 @@ class OllamaLLMProvider(BaseLLMProvider):
         except Exception as e:
             raise ProviderException("Ollama LLM", str(e))
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ) -> AsyncGenerator[str, None]:
+        """스트리밍 텍스트 생성"""
+        full_prompt = ""
+        if system_prompt:
+            full_prompt = f"System: {system_prompt}\n\nUser: {prompt}"
+        else:
+            full_prompt = prompt
+
+        payload = {
+            "model": self.model,
+            "prompt": full_prompt,
+            "stream": True,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/api/generate",
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line:
+                            data = json.loads(line)
+                            token = data.get("response", "")
+                            if token:
+                                yield token
+                            if data.get("done", False):
+                                break
+
+        except httpx.HTTPStatusError as e:
+            raise ProviderException("Ollama LLM", f"HTTP 오류: {e.response.status_code}")
+        except Exception as e:
+            raise ProviderException("Ollama LLM", str(e))
+
     async def extract_memories(
         self,
         conversation: list[dict[str, str]],
     ) -> list[dict[str, Any]]:
-        """대화에서 메모리 추출"""
+        """대화에서 메모리 추출 (프롬프트는 memory/pipeline.py에서 관리)"""
+        from src.memory.pipeline import MEMORY_EXTRACTION_PROMPT
+
         conv_text = "\n".join(
             f"{msg.get('role', 'user')}: {msg.get('content', '')}"
             for msg in conversation

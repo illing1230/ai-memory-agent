@@ -95,6 +95,24 @@ def create_app() -> FastAPI:
             }
         }
 
+    # 프론트엔드 정적 파일 서빙 (빌드된 dist)
+    import os
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    
+    frontend_dist = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+    if os.path.exists(frontend_dist):
+        # API 라우트 이후에 마운트 (API 우선)
+        app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="static-assets")
+        
+        # SPA fallback — 알려지지 않은 경로는 index.html로
+        @app.get("/{full_path:path}")
+        async def serve_spa(full_path: str):
+            file_path = os.path.join(frontend_dist, full_path)
+            if os.path.isfile(file_path):
+                return FileResponse(file_path)
+            return FileResponse(os.path.join(frontend_dist, "index.html"))
+
     return app
 
 

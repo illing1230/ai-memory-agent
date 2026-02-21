@@ -8,11 +8,13 @@ import aiosqlite
 
 from src.chat.repository import ChatRepository
 from src.memory.repository import MemoryRepository
+from src.memory.pipeline import MemoryPipeline
+from src.memory.entity_repository import EntityRepository
 from src.user.repository import UserRepository
 from src.document.repository import DocumentRepository
 from src.shared.exceptions import NotFoundException, ForbiddenException
 from src.shared.vector_store import search_vectors, upsert_vector
-from src.shared.providers import get_embedding_provider, get_llm_provider
+from src.shared.providers import get_embedding_provider, get_llm_provider, get_reranker_provider
 from src.config import get_settings
 import uuid
 
@@ -24,21 +26,22 @@ AI_USER_NAME = "AI Assistant"
 # 슬래시 커맨드 패턴
 COMMAND_PATTERN = r"^/(\w+)\s*(.*)"
 
-# Re-ranking 파라미터
-SIMILARITY_ALPHA = 0.6  # 유사도 가중치
-RECENCY_BETA = 0.4  # 최신성 가중치
-RECENCY_DECAY_DAYS = 30  # 30일 이상이면 recency = 0
-
 
 class ChatService:
     """대화방 관련 비즈니스 로직"""
+
+    # room_id → pending asyncio.Task (debounce 타이머)
+    _extraction_timers: dict[str, "asyncio.Task"] = {}
+    EXTRACTION_DEBOUNCE_SEC: float = 5.0
 
     def __init__(self, db: aiosqlite.Connection):
         self.repo = ChatRepository(db)
         self.memory_repo = MemoryRepository(db)
         self.user_repo = UserRepository(db)
         self.document_repo = DocumentRepository(db)
+        self.entity_repo = EntityRepository(db)
         self.settings = get_settings()
+        self.memory_pipeline = MemoryPipeline(memory_repo=self.memory_repo)
 
     # ==================== Chat Room ====================
 
@@ -58,7 +61,6 @@ class ChatService:
                 "memory": {
                     "include_this_room": True,
                     "other_chat_rooms": [],
-                    "include_personal": False,
                 },
                 "rag": {
                     "collections": [],
@@ -168,12 +170,6 @@ class ChatService:
                 old_val = "사용" if old_memory.get("include_this_room") else "사용 안 함"
                 new_val = "사용" if new_memory.get("include_this_room") else "사용 안 함"
                 changes.append(f"• 이 대화방 메모리: {old_val} → {new_val}")
-            
-            # include_personal 변경 확인
-            if old_memory.get("include_personal") != new_memory.get("include_personal"):
-                old_val = "사용" if old_memory.get("include_personal") else "사용 안 함"
-                new_val = "사용" if new_memory.get("include_personal") else "사용 안 함"
-                changes.append(f"• 개인 메모리: {old_val} → {new_val}")
             
             # other_chat_rooms 변경 확인
             old_rooms = set(old_memory.get("other_chat_rooms", []))
@@ -350,25 +346,27 @@ class ChatService:
         }
         
         if "ai" in mentions:
-            # AI 응답 생성 (비동기)
+            # AI 응답 생성 (비동기) — 내부에서 백그라운드 메모리 추출도 수행
             ai_response = await self._generate_ai_response(
                 room=room,
                 user_id=user_id,
                 user_message=content,
             )
-            
+
             # AI 응답 저장
             assistant_message = await self.repo.create_message(
                 chat_room_id=chat_room_id,
                 user_id=AI_USER_ID,
                 content=ai_response["response"],
                 role="assistant",
+                sources=ai_response.get("sources"),
             )
             result["assistant_message"] = assistant_message
-            
-            # 메모리 추출 결과는 백그라운드에서 처리되므로 여기서는 포함하지 않음
-            # 추출된 메모리는 WebSocket으로 알림 전송됨
-        
+        else:
+            # @ai 멘션 없는 일반 메시지 → debounce 후 메모리 추출
+            if self.settings.auto_extract_memory and len(content) >= self.settings.min_message_length_for_extraction:
+                self._schedule_extraction(room=room, user_id=user_id)
+
         return result
 
     async def _handle_command(
@@ -422,189 +420,30 @@ class ChatService:
         
         return result
 
-    async def _extract_topic_key(self, content: str) -> str:
-        """LLM을 사용하여 topic_key 추출 (단순화)"""
-        try:
-            llm_provider = get_llm_provider()
-            prompt = f"""다음 메모리 내용에서 핵심 주제(topic)를 3-5단어로 요약해주세요.
-주제는 구체적이고 간결해야 합니다.
-
-메모리: {content}
-
-주제:"""
-            
-            response = await llm_provider.generate(
-                prompt=prompt,
-                system_prompt="당신은 메모리의 핵심 주제를 추출하는 전문가입니다.",
-                temperature=0.3,
-                max_tokens=50,
-            )
-            
-            topic_key = response.strip()
-            
-            # 응답이 비어있으면 내용의 첫 20자 사용
-            if not topic_key:
-                print(f"topic_key 응답이 비어있음, 내용의 첫 20자 사용")
-                return content[:20]
-            
-            return topic_key
-        except Exception as e:
-            print(f"topic_key 추출 실패: {e}")
-            import traceback
-            traceback.print_exc()
-            # 실패하면 내용의 첫 20자를 topic_key로 사용
-            return content[:20]
-
-    async def _check_memory_relationship(
-        self,
-        new_content: str,
-        existing_memories: list[dict[str, Any]],
-    ) -> tuple[str, dict[str, Any] | None]:
-        """LLM을 사용하여 기존 메모리와의 관계 판정"""
-        if not existing_memories:
-            return "UNRELATED", None
-        
-        try:
-            llm_provider = get_llm_provider()
-            
-            # 기존 메모리 요약
-            existing_summary = "\n".join([
-                f"- {m['content'][:100]}..." 
-                for m in existing_memories[:3]
-            ])
-            
-            prompt = f"""새로운 메모리와 기존 메모리의 관계를 판단해주세요.
-
-새 메모리: {new_content}
-
-기존 메모리:
-{existing_summary}
-
-관계를 다음 중 하나로만 답변해주세요:
-- UPDATE: 기존 정보를 완전히 대체
-- SUPPLEMENT: 기존 정보에 추가
-- CONTRADICTION: 기존 정보와 상반됨
-- UNRELATED: 관계 없음
-
-관계:"""
-            
-            response = await llm_provider.generate(
-                prompt=prompt,
-                system_prompt="당신은 메모리 간의 관계를 판단하는 전문가입니다.",
-                temperature=0.1,
-                max_tokens=20,
-            )
-            
-            relationship = response.strip().upper()
-            
-            # UPDATE인 경우 가장 최근 메모리 반환
-            if relationship == "UPDATE" and existing_memories:
-                return relationship, existing_memories[0]
-            
-            return relationship, None
-        except Exception as e:
-            print(f"메모리 관계 판정 실패: {e}")
-            return "UNRELATED", None
-
     async def _cmd_remember(
         self,
         room: dict[str, Any],
         user_id: str,
         content: str,
     ) -> tuple[str, list[dict]]:
-        """/remember - 메모리 저장 (개인 + 대화방)"""
+        """/remember - 메모리 저장 (개인 + 대화방) - MemoryPipeline 위임"""
         if not content:
             return "❌ 저장할 내용을 입력하세요.\n\n예: `/remember 김과장은 오전 회의를 선호한다`", []
-        
+
         try:
-            # 1. topic_key 추출
-            topic_key = await self._extract_topic_key(content)
-            print(f"추출된 topic_key: {topic_key}")
-            
-            # 2. 같은 topic_key를 가진 기존 메모리 검색
-            existing_memories = await self.memory_repo.get_memories_by_topic_key(
-                topic_key=topic_key,
-                owner_id=user_id,
-                limit=5,
-            )
-            
-            # 3. 기존 메모리와의 관계 판정
-            relationship, superseded_memory = await self._check_memory_relationship(
-                new_content=content,
-                existing_memories=existing_memories,
-            )
-            print(f"메모리 관계: {relationship}")
-            
-            # 4. UPDATE인 경우 기존 메모리를 superseded 처리
-            if relationship == "UPDATE" and superseded_memory:
-                await self.memory_repo.update_superseded(
-                    memory_id=superseded_memory["id"],
-                    superseded_by="",  # 새 메모리 ID는 저장 후 업데이트
-                )
-                print(f"기존 메모리 {superseded_memory['id']}를 superseded로 표시")
-            
-            embedding_provider = get_embedding_provider()
-            vector = await embedding_provider.embed(content)
-            
-            saved_memories = []
-            saved_scopes = []
-            
-            # 1. 개인 메모리 저장
-            vector_id_personal = str(uuid.uuid4())
-            memory_personal = await self.memory_repo.create_memory(
+            saved_memories, relationship = await self.memory_pipeline.save_manual(
                 content=content,
-                owner_id=user_id,
-                scope="personal",
-                vector_id=vector_id_personal,
-                chat_room_id=None,
-                category="fact",
-                importance="medium",
-                topic_key=topic_key,
+                user_id=user_id,
+                room=room,
             )
-            await upsert_vector(vector_id_personal, vector, {
-                "memory_id": memory_personal["id"],
-                "scope": "personal",
-                "owner_id": user_id,
-            })
-            saved_memories.append(memory_personal)
-            saved_scopes.append("개인")
-            
-            # 2. 대화방 메모리 저장
-            vector_id_chatroom = str(uuid.uuid4())
-            memory_chatroom = await self.memory_repo.create_memory(
-                content=content,
-                owner_id=user_id,
-                scope="chatroom",
-                vector_id=vector_id_chatroom,
-                chat_room_id=room["id"],
-                category="fact",
-                importance="medium",
-                topic_key=topic_key,
-            )
-            await upsert_vector(vector_id_chatroom, vector, {
-                "memory_id": memory_chatroom["id"],
-                "scope": "chatroom",
-                "owner_id": user_id,
-                "chat_room_id": room["id"],
-            })
-            saved_memories.append(memory_chatroom)
-            saved_scopes.append("대화방")
-            
-            # UPDATE인 경우 superseded_by 업데이트
-            if relationship == "UPDATE" and superseded_memory:
-                await self.memory_repo.update_superseded(
-                    memory_id=superseded_memory["id"],
-                    superseded_by=memory_chatroom["id"],
-                )
-            
-            scope_label = " + ".join(saved_scopes)
-            response = f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: {scope_label}"
-            
+
+            response = f"✅ 메모리가 저장되었습니다!\n\n📝 {content}\n\n범위: 개인 + 대화방"
+
             if relationship == "UPDATE":
                 response += f"\n\nℹ️ 기존 메모리가 최신 정보로 업데이트되었습니다."
-            
+
             return response, saved_memories
-            
+
         except Exception as e:
             print(f"메모리 저장 실패: {e}")
             return f"❌ 메모리 저장 실패: {str(e)}", []
@@ -656,10 +495,10 @@ class ChatService:
         """/search - 메모리 검색"""
         if not query:
             return "❌ 검색어를 입력하세요.\n\n예: `/search 회의 선호`"
-        
+
         try:
             context_sources = room.get("context_sources", {})
-            memories = await self._search_relevant_memories(query, user_id, room["id"], context_sources)
+            memories = await self.memory_pipeline.search(query, user_id, room["id"], context_sources)
             
             if not memories:
                 return f"🔍 '{query}'와 관련된 메모리를 찾을 수 없습니다."
@@ -777,31 +616,39 @@ AI가 해당 메모리들도 참조합니다."""
         user_message: str,
     ) -> dict[str, Any]:
         """AI 응답 생성 (우선순위: 대화 > RAG 문서 > 메모리) - 스트리밍 지원"""
+        # @ai 멘션 제거 (LLM에 전달할 때 불필요)
+        clean_message = re.sub(r"@ai\s*", "", user_message, flags=re.IGNORECASE).strip()
+
         # Step 1: 최근 대화 (최우선)
         recent_messages = await self.repo.get_recent_messages(room["id"], limit=20)
-        
+
         # Step 2: RAG 문서 검색 (높은 우선순위)
         document_chunks = await self._search_relevant_documents(
-            query=user_message,
+            query=clean_message,
             chat_room_id=room["id"],
+            user_id=user_id,
         )
-        
-        # Step 3: 메모리 검색 (보조)
-        relevant_memories = await self._search_relevant_memories(
-            query=user_message,
+
+        # Step 3: 메모리 검색 (보조) - MemoryPipeline 위임
+        relevant_memories = await self.memory_pipeline.search(
+            query=clean_message,
             user_id=user_id,
             current_room_id=room["id"],
             context_sources=room.get("context_sources", {}),
         )
         
-        system_prompt = self._build_system_prompt(relevant_memories, document_chunks)
+        # 사용자 이름 조회
+        user_info = await self.user_repo.get_user(user_id)
+        user_name = user_info["name"] if user_info else None
+
+        system_prompt = self._build_system_prompt(relevant_memories, document_chunks, user_name=user_name)
         conversation_context = self._build_conversation(recent_messages)
         
         full_prompt = f"""[최근 대화 내용]
 {conversation_context}
 
 [현재 질문]
-{user_message}
+{clean_message}
 
 위 대화 내용을 참고하여 현재 질문에 답변해주세요."""
         
@@ -831,7 +678,9 @@ AI가 해당 메모리들도 참조합니다."""
                     },
                 )
         except Exception as e:
+            import traceback
             print(f"스트리밍 응답 실패: {e}")
+            print(f"스트리밍 traceback: {traceback.format_exc()}")
             # 스트리밍 실패 시 일반 generate로 폴백
             full_response = await llm_provider.generate(
                 prompt=full_prompt,
@@ -840,6 +689,61 @@ AI가 해당 메모리들도 참조합니다."""
                 max_tokens=1000,
             )
         
+        # 소스 정보 수집 — 실제 참조된 것만 필터링
+        MIN_SCORE = 0.1          # 절대 최소 점수
+        RELATIVE_RATIO = 0.4     # 최고 점수 대비 비율
+
+        filtered_memories = []
+        if relevant_memories:
+            top_score = max(m["score"] for m in relevant_memories)
+            threshold = max(MIN_SCORE, top_score * RELATIVE_RATIO)
+            filtered_memories = [m for m in relevant_memories if m["score"] >= threshold]
+
+        filtered_documents = []
+        if document_chunks:
+            top_doc_score = max(d["score"] for d in document_chunks)
+            doc_threshold = max(MIN_SCORE, top_doc_score * RELATIVE_RATIO)
+            filtered_documents = [d for d in document_chunks if d["score"] >= doc_threshold]
+
+        sources_data = {
+            "documents": [
+                {
+                    "document_id": d["document_id"],
+                    "document_name": d["document_name"],
+                    "content": d["content"][:200],
+                    "score": d["score"],
+                }
+                for d in filtered_documents
+            ],
+            "memories": [
+                {
+                    "memory_id": m["memory"]["id"],
+                    "content": m["memory"]["content"][:200],
+                    "scope": m["memory"]["scope"],
+                    "score": m["score"],
+                    "source_name": (
+                        m.get("source_info", {}).get("chat_room_name")
+                        or m.get("source_info", {}).get("agent_instance_name")
+                        or "개인"
+                    ),
+                }
+                for m in filtered_memories
+            ],
+        }
+
+        # 스트리밍 완료 후 sources 전송
+        from src.websocket.manager import manager
+        await manager.broadcast_to_room(
+            room["id"],
+            {
+                "type": "message:stream_end",
+                "data": {
+                    "room_id": room["id"],
+                    "sources": sources_data,
+                },
+            },
+        )
+
         # 백그라운드에서 Vector DB 저장과 메모리 추출 처리
         import asyncio
         asyncio.create_task(self._save_ai_response_and_extract_memories(
@@ -849,34 +753,33 @@ AI가 해당 메모리들도 참조합니다."""
             room=room,
             user_id=user_id,
         ))
-        
+
         return {
             "response": full_response,
             "extracted_memories": [],  # 백그라운드에서 처리되므로 빈 리스트 반환
+            "sources": sources_data,
         }
 
     async def _search_relevant_documents(
         self,
         query: str,
         chat_room_id: str,
+        user_id: str | None = None,
         limit: int = 5,
     ) -> list[dict[str, Any]]:
-        """대화방에 연결된 문서에서 관련 청크 검색 (RAG)"""
+        """대화방에 연결된 문서에서 관련 청크 검색 (하이브리드: 벡터 + 키워드 + Reranker)"""
         doc_ids = await self.document_repo.get_linked_document_ids(chat_room_id)
         if not doc_ids:
             return []
 
+        # --- 벡터 검색 ---
+        vector_results = []
         try:
             embedding_provider = get_embedding_provider()
             query_vector = await embedding_provider.embed(query)
-        except Exception as e:
-            print(f"문서 검색용 임베딩 실패: {e}")
-            return []
-
-        try:
-            results = await search_vectors(
+            vector_results = await search_vectors(
                 query_vector=query_vector,
-                limit=limit,
+                limit=limit * 3,  # 하이브리드 합산을 위해 더 많이 가져옴
                 filter_conditions={
                     "scope": "document",
                     "document_id": doc_ids,
@@ -884,227 +787,136 @@ AI가 해당 메모리들도 참조합니다."""
             )
         except Exception as e:
             print(f"문서 벡터 검색 실패: {e}")
-            return []
 
-        enriched = []
-        for r in results:
+        # --- 엔티티 그래프 기반 쿼리 확장 + 키워드 검색 ---
+        keyword_results = []
+        expanded_query = query
+        if user_id:
+            try:
+                matched = await self.entity_repo.find_entities_by_query(query, user_id)
+                entity_ids = [e["id"] for e in matched]
+                related_ids = await self.entity_repo.get_related_entity_ids(entity_ids, user_id) if entity_ids else []
+
+                all_entity_ids = list(set(entity_ids + related_ids))
+                if all_entity_ids:
+                    all_entities = await self.entity_repo.get_entities_by_ids(all_entity_ids)
+                    entity_names = [e["name"] for e in all_entities]
+                    expanded_query = f"{query} {' '.join(entity_names)}"
+                    print(f"문서 검색 쿼리 확장: {query} → {expanded_query}")
+            except Exception as e:
+                print(f"엔티티 쿼리 확장 실패: {e}")
+
+        try:
+            keyword_results = await self.document_repo.search_chunks_by_keyword(
+                query=expanded_query, document_ids=doc_ids, limit=limit * 3,
+            )
+        except Exception as e:
+            print(f"문서 키워드 검색 실패: {e}")
+
+        # --- RRF (Reciprocal Rank Fusion) 합산 ---
+        def rrf_score(rank: int, k: int = 60) -> float:
+            return 1.0 / (k + rank)
+
+        scores: dict[tuple, float] = {}  # (doc_id, chunk_index) → total_score
+        chunk_data: dict[tuple, dict] = {}  # (doc_id, chunk_index) → payload/content
+
+        for rank, r in enumerate(vector_results):
             doc_id = r["payload"].get("document_id")
             chunk_idx = r["payload"].get("chunk_index")
+            key = (doc_id, chunk_idx)
+            scores[key] = scores.get(key, 0) + rrf_score(rank)
+            if key not in chunk_data:
+                chunk_data[key] = {"source": "vector", "payload": r["payload"], "vector_score": r["score"]}
+
+        for rank, r in enumerate(keyword_results):
+            doc_id = r["document_id"]
+            # 키워드 결과에서 chunk_index 조회 (FTS에는 chunk_id만 있으므로 DB 조회 필요)
+            chunk_idx = r.get("chunk_index")
+            key = (doc_id, chunk_idx)
+            scores[key] = scores.get(key, 0) + rrf_score(rank)
+            if key not in chunk_data:
+                chunk_data[key] = {"source": "keyword", "content": r.get("content", ""), "keyword_score": r.get("score", 0)}
+
+        if not scores:
+            return []
+
+        # 상위 N개 선택
+        sorted_keys = sorted(scores.keys(), key=lambda k: scores[k], reverse=True)[:limit * 2]
+
+        # --- Enrichment ---
+        enriched = []
+        for key in sorted_keys:
+            doc_id, chunk_idx = key
+            data = chunk_data.get(key, {})
+
+            # 청크 내용 조회
+            content = data.get("content", "")
+            if not content:
+                chunks = await self.document_repo.get_chunks(doc_id)
+                for c in chunks:
+                    if c["chunk_index"] == chunk_idx:
+                        content = c["content"]
+                        break
+
             doc = await self.document_repo.get_document(doc_id)
 
-            chunks = await self.document_repo.get_chunks(doc_id)
-            chunk_content = ""
-            for c in chunks:
-                if c["chunk_index"] == chunk_idx:
-                    chunk_content = c["content"]
-                    break
-
             enriched.append({
-                "content": chunk_content,
-                "score": r["score"],
+                "content": content,
+                "score": scores[key],
                 "document_name": doc["name"] if doc else "Unknown",
                 "chunk_index": chunk_idx,
                 "document_id": doc_id,
             })
 
+        # --- Reranker 적용 ---
+        reranker = get_reranker_provider()
+        if reranker and len(enriched) > 1:
+            try:
+                documents = [e["content"] for e in enriched]
+                reranked = await reranker.rerank(query=query, documents=documents, top_n=limit)
+                reranked_enriched = []
+                for item in reranked:
+                    idx = item["index"]
+                    if idx < len(enriched):
+                        entry = enriched[idx].copy()
+                        entry["vector_score"] = entry["score"]
+                        entry["score"] = item["relevance_score"]
+                        reranked_enriched.append(entry)
+                enriched = reranked_enriched
+                print(f"문서 Reranker 적용: {len(enriched)}개 리랭킹 완료")
+            except Exception as e:
+                print(f"문서 Reranker 실패, RRF 점수 사용: {e}")
+                enriched = enriched[:limit]
+        else:
+            enriched = enriched[:limit]
+
         return enriched
-
-    def _calculate_recency_score(self, created_at: str) -> float:
-        """최신성 점수 계산"""
-        try:
-            # created_at 파싱 (timezone 정보 유지)
-            created_dt = datetime.fromisoformat(created_at)
-            
-            # timezone이 없으면 UTC로 처리
-            if created_dt.tzinfo is None:
-                created_dt = created_dt.replace(tzinfo=timezone.utc)
-            
-            # 현재 시간 (UTC)
-            now = datetime.now(timezone.utc)
-            
-            # 시간 차이 계산
-            days_old = (now - created_dt).days
-            
-            # 30일 이상이면 0, 그렇지 않으면 선형 감쇠
-            if days_old >= RECENCY_DECAY_DAYS:
-                return 0.0
-            else:
-                return max(0.0, 1.0 - (days_old / RECENCY_DECAY_DAYS))
-        except Exception as e:
-            print(f"최신성 점수 계산 실패: {e}")
-            return 0.5  # 실패하면 중간값 반환
-
-    async def _search_relevant_memories(
-        self,
-        query: str,
-        user_id: str,
-        current_room_id: str,
-        context_sources: dict | None,
-    ) -> list[dict[str, Any]]:
-        """컨텍스트 소스 기반 메모리 검색 (re-ranking + superseded 필터링)"""
-        # context_sources가 None이면 기본값 사용
-        if context_sources is None:
-            context_sources = {}
-        
-        memory_config = context_sources.get("memory", {})
-        
-        # 디버깅: context_sources 확인
-        print(f"\n========== 메모리 검색 시작 ==========")
-        print(f"현재 대화방 ID: {current_room_id}")
-        print(f"context_sources: {context_sources}")
-        print(f"memory_config: {memory_config}")
-        print(f"include_this_room: {memory_config.get('include_this_room', True)}")
-        print(f"other_chat_rooms: {memory_config.get('other_chat_rooms', [])}")
-        
-        embedding_provider = get_embedding_provider()
-        query_vector = await embedding_provider.embed(query)
-        
-        all_memories = []
-        
-        # 1. 이 대화방 메모리 (기본) - 사용자별 필터링
-        if memory_config.get("include_this_room", True):
-            try:
-                print(f"\n[1] 이 대화방({current_room_id}) 메모리 검색 중... (사용자: {user_id})")
-                results = await search_vectors(
-                    query_vector=query_vector,
-                    limit=5,
-                    filter_conditions={
-                        "chat_room_id": current_room_id,
-                        "owner_id": user_id  # 사용자별 필터링 추가
-                    },
-                )
-                print(f"    검색 결과: {len(results)}개")
-                for r in results:
-                    print(f"    - score: {r['score']:.3f}, payload: {r['payload']}")
-                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
-                    if memory:
-                        # superseded된 메모리 필터링
-                        if not memory.get("superseded", False):
-                            all_memories.append({"memory": memory, "score": r["score"]})
-                        else:
-                            print(f"    - superseded된 메모리 제외: {memory['id']}")
-            except Exception as e:
-                print(f"    실패: {e}")
-        
-        # 2. 다른 대화방 메모리 - 사용자별 필터링
-        other_rooms = memory_config.get("other_chat_rooms", [])
-        print(f"\n[2] 다른 대화방 검색 대상: {other_rooms}")
-        for room_id in other_rooms:
-            try:
-                print(f"    대화방({room_id}) 검색 중... (사용자: {user_id})")
-                results = await search_vectors(
-                    query_vector=query_vector,
-                    limit=3,
-                    filter_conditions={
-                        "chat_room_id": room_id,
-                        "owner_id": user_id  # 사용자별 필터링 추가
-                    },
-                )
-                print(f"    검색 결과: {len(results)}개")
-                for r in results:
-                    print(f"    - score: {r['score']:.3f}, payload: {r['payload']}")
-                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
-                    if memory:
-                        # superseded된 메모리 필터링
-                        if not memory.get("superseded", False):
-                            all_memories.append({"memory": memory, "score": r["score"]})
-                        else:
-                            print(f"    - superseded된 메모리 제외: {memory['id']}")
-            except Exception as e:
-                print(f"    실패: {e}")
-        
-        # 3. 내 개인 메모리 전체
-        if memory_config.get("include_personal", False):
-            try:
-                print(f"\n[3] 개인 메모리 검색 중...")
-                results = await search_vectors(
-                    query_vector=query_vector,
-                    limit=5,
-                    filter_conditions={"owner_id": user_id, "scope": "personal"},
-                )
-                print(f"    검색 결과: {len(results)}개")
-                for r in results:
-                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
-                    if memory:
-                        # superseded된 메모리 필터링
-                        if not memory.get("superseded", False):
-                            all_memories.append({"memory": memory, "score": r["score"]})
-                        else:
-                            print(f"    - superseded된 메모리 제외: {memory['id']}")
-            except Exception as e:
-                print(f"    실패: {e}")
-        
-        # 4. Agent 메모리
-        agent_instances = memory_config.get("agent_instances", [])
-        print(f"\n[4] Agent 메모리 검색 대상: {agent_instances}")
-        for agent_instance_id in agent_instances:
-            try:
-                print(f"    Agent({agent_instance_id}) 검색 중...")
-                results = await search_vectors(
-                    query_vector=query_vector,
-                    limit=3,
-                    filter_conditions={
-                        "owner_id": user_id,
-                        "scope": "agent",
-                        "agent_instance_id": agent_instance_id
-                    },
-                )
-                print(f"    검색 결과: {len(results)}개")
-                for r in results:
-                    memory = await self.memory_repo.get_memory(r["payload"].get("memory_id"))
-                    if memory:
-                        # superseded된 메모리 필터링
-                        if not memory.get("superseded", False):
-                            all_memories.append({"memory": memory, "score": r["score"]})
-                        else:
-                            print(f"    - superseded된 메모리 제외: {memory['id']}")
-            except Exception as e:
-                print(f"    실패: {e}")
-        
-        # Re-ranking: similarity × α + recency × β
-        for m in all_memories:
-            similarity_score = m["score"]
-            recency_score = self._calculate_recency_score(m["memory"]["created_at"])
-            final_score = (similarity_score * SIMILARITY_ALPHA) + (recency_score * RECENCY_BETA)
-            m["score"] = final_score
-            m["similarity_score"] = similarity_score
-            m["recency_score"] = recency_score
-        
-        # 중복 제거 및 정렬
-        seen = set()
-        unique_memories = []
-        for m in sorted(all_memories, key=lambda x: x["score"], reverse=True):
-            if m["memory"]["id"] not in seen:
-                seen.add(m["memory"]["id"])
-                unique_memories.append(m)
-        
-        print(f"\n========== 총 메모리 검색 결과: {len(unique_memories)}개 ==========")
-        for m in unique_memories:
-            print(f"  - {m['memory']['content'][:50]}... (final_score: {m['score']:.3f}, similarity: {m['similarity_score']:.3f}, recency: {m['recency_score']:.3f})")
-        print("")
-        
-        return unique_memories[:10]
 
     def _build_system_prompt(
         self,
         memories: list[dict[str, Any]],
         document_chunks: list[dict[str, Any]] | None = None,
+        user_name: str | None = None,
     ) -> str:
         """시스템 프롬프트 구성 (우선순위: RAG 문서 > 메모리)"""
         # 현재 날짜 (UTC+9)
         current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
-        
-        base_prompt = f"""당신은 팀의 AI 어시스턴트입니다.
-사용자들의 질문에 친절하고 정확하게 답변하세요.
-대화 내용을 잘 참고하여 맥락에 맞는 답변을 해주세요.
 
+        base_prompt = f"""당신의 이름은 {AI_USER_NAME}입니다.
+당신은 팀의 AI 어시스턴트로서, 사용자들의 질문에 친절하고 정확하게 답변합니다.
+반드시 한국어로 답변하세요. 절대로 중국어, 영어 등 다른 언어로 답변하지 마세요.
+절대로 자신을 Qwen, LLaMA, GPT 등 다른 AI 모델로 소개하지 마세요.
+"너 이름이 뭐야?" 또는 "누구야?"와 같이 당신의 정체를 묻는 질문에는 "{AI_USER_NAME}"라고 답변하세요.
+
+{f'시스템 기본 사용자명: {user_name}' if user_name else ''}
 현재 날짜: {current_date}
-날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요.
 
-[메모리 사용 가이드]
-- 여러 메모리에 상반된 정보가 있을 경우, 가장 최신 메모리를 우선 적용하세요.
-- 만약 최신 정보가 명확하지 않거나 충돌이 심각하다면, 사용자에게 확인을 요청하세요.
-- 메모리의 출처와 생성 시간을 고려하여 답변하세요."""
+[핵심 규칙 - 반드시 따르세요]
+1. 아래 [저장된 메모리] 섹션의 내용을 최우선으로 사용하세요.
+2. "내 이름이 뭐야?" → 메모리에 이름이 있으면 반드시 그 이름을 답하세요. 메모리에 없을 때만 시스템 기본 사용자명을 사용하세요.
+3. 사용자의 선호도, 관심사, 개인 정보에 대한 질문 → 메모리 내용 기반으로 답하세요.
+4. 여러 메모리에 상반된 정보가 있으면 최신 메모리를 우선 적용하세요.
+5. 날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요."""
 
         # RAG 문서 (높은 우선순위 - 먼저 배치)
         if document_chunks:
@@ -1151,134 +963,33 @@ AI가 해당 메모리들도 참조합니다."""
         room: dict[str, Any],
         user_id: str,
     ) -> tuple[str, list[dict[str, Any]]]:
-        """/memory - 최근 대화에서 메모리 추출 (SDK 방식으로 단순화)"""
+        """/memory - 최근 대화에서 메모리 추출 - MemoryPipeline 위임"""
         messages = await self.repo.get_recent_messages(room["id"], limit=20)
         if len(messages) < 2:
             return "💬 대화가 부족합니다. 메모리를 추출하려면 최소 2개 이상의 메시지가 필요합니다.", []
 
         try:
-            llm_provider = get_llm_provider()
-            
-            # 현재 날짜 (UTC+9)
-            current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
-            
-            # SDK 방식: 단순한 텍스트 추출
             recent = messages[-10:]
-            conversation_text = "\n".join(
-                f"{m.get('role', 'user')}: {m.get('content', '')}" 
-                for m in recent
+            saved_memories = await self.memory_pipeline.extract_and_save(
+                conversation=recent,
+                room=room,
+                user_id=user_id,
             )
-            
-            messages_for_llm = [
-                {
-                    "role": "system",
-                    "content": f"""대화에서 사용자의 중요한 정보, 선호도, 관심사를 추출하여 간결하게 요약해주세요. 여러 항목이 있으면 줄바꿈으로 구분하세요.
 
-중요: 추출된 정보에 날짜를 포함하세요. 예: "오늘(2026년 2월 6일) 불량률은 12%입니다"
+            if not saved_memories:
+                return "ℹ️ 추출할 메모리가 없습니다.", []
 
-현재 날짜: {current_date}""",
-                },
-                {
-                    "role": "user",
-                    "content": f"다음 대화를 분석해주세요:\n\n{conversation_text}"
-                },
-            ]
-            
-            extracted = (await llm_provider.generate(
-                prompt=messages_for_llm[1]["content"],
-                system_prompt=messages_for_llm[0]["content"],
-                temperature=0.3,
-                max_tokens=1000,  # 300 → 1000으로 증가
-            )).strip()
-            
-            if not extracted:
-                return "ℹ️ 추출할 메모리가 없습니다.", []
-            
-            # 줄바꿈으로 분리하여 개별 메모리로 저장
-            memory_items = [line.strip() for line in extracted.split('\n') if line.strip()]
-            
-            if not memory_items:
-                return "ℹ️ 추출할 메모리가 없습니다.", []
-            
+            lines = [f"🧠 {len(saved_memories)}개의 메모리가 추출되었습니다!\n"]
+            for m in saved_memories:
+                lines.append(f"• {m['content']}")
+
+            return "\n".join(lines), saved_memories
+
         except Exception as e:
             print(f"메모리 추출 실패: {e}")
             import traceback
             traceback.print_exc()
             return f"❌ 메모리 추출 실패: {e}", []
-
-        saved_memories = []
-        skipped_count = 0
-
-        for content in memory_items:
-            if len(content) < self.settings.min_message_length_for_extraction:
-                continue
-
-            # 중복 체크: 벡터 유사도 검색 (완화)
-            try:
-                embedding_provider = get_embedding_provider()
-                vector = await embedding_provider.embed(content)
-
-                duplicates = await search_vectors(
-                    query_vector=vector,
-                    limit=3,
-                    score_threshold=0.95,  # 0.85 → 0.95로 상향 (더 엄격한 중복 체크)
-                    filter_conditions={
-                        "owner_id": user_id,
-                        "chat_room_id": room["id"],
-                    },
-                )
-                
-                # 중복인지 확인 (유사도 0.95 이상이고 내용이 거의 동일한 경우만 중복으로 간주)
-                is_duplicate = False
-                for dup in duplicates:
-                    existing_memory = await self.memory_repo.get_memory(dup["payload"].get("memory_id"))
-                    if existing_memory:
-                        # 내용이 90% 이상 동일한 경우에만 중복으로 간주
-                        similarity = len(set(content) & set(existing_memory["content"])) / max(len(set(content)), len(set(existing_memory["content"])))
-                        if similarity > 0.9:
-                            is_duplicate = True
-                            print(f"중복 메모리 건너뜀기: 유사도 {dup['score']:.3f}, 내용 일치도 {similarity:.3f}")
-                            break
-                
-                if is_duplicate:
-                    skipped_count += 1
-                    continue
-
-                # 신규 메모리 저장
-                vector_id = str(uuid.uuid4())
-                memory = await self.memory_repo.create_memory(
-                    content=content,
-                    owner_id=user_id,
-                    scope="chatroom",
-                    vector_id=vector_id,
-                    chat_room_id=room["id"],
-                    category="fact",
-                    importance="medium",
-                )
-                await upsert_vector(vector_id, vector, {
-                    "memory_id": memory["id"],
-                    "scope": "chatroom",
-                    "owner_id": user_id,
-                    "chat_room_id": room["id"],
-                })
-                saved_memories.append(memory)
-            except Exception as e:
-                print(f"메모리 저장 실패: {e}")
-                continue
-
-        # 결과 메시지 생성
-        if not saved_memories and skipped_count == 0:
-            return "ℹ️ 추출할 메모리가 없습니다.", []
-
-        lines = []
-        if saved_memories:
-            lines.append(f"🧠 {len(saved_memories)}개의 메모리가 추출되었습니다!\n")
-            for m in saved_memories:
-                lines.append(f"• {m['content']}")
-        if skipped_count > 0:
-            lines.append(f"\nℹ️ 이미 저장된 메모리 {skipped_count}건은 건너뛰었습니다.")
-
-        return "\n".join(lines), saved_memories
 
     async def _extract_and_save_memories(
         self,
@@ -1286,116 +997,12 @@ AI가 해당 메모리들도 참조합니다."""
         room: dict[str, Any],
         user_id: str,
     ) -> list[dict[str, Any]]:
-        """대화에서 메모리 추출 및 저장 (chatroom scope)"""
-        try:
-            llm_provider = get_llm_provider()
-            
-            # 현재 날짜 (UTC+9)
-            current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
-            
-            conv_for_extraction = [
-                {"role": msg.get("role", "user"), "content": msg.get("content", "")}
-                for msg in conversation
-            ]
-            
-            # SDK 방식: 단순한 텍스트 추출
-            conversation_text = "\n".join(
-                f"{m.get('role', 'user')}: {m.get('content', '')}" 
-                for m in conv_for_extraction
-            )
-            
-            messages_for_llm = [
-                {
-                    "role": "system",
-                    "content": f"""대화에서 사용자의 중요한 정보, 선호도, 관심사를 추출하여 간결하게 요약해주세요. 여러 항목이 있으면 줄바꿈으로 구분하세요.
-
-중요: 추출된 정보에 날짜를 포함하세요. 예: "오늘(2026년 2월 6일) 불량률은 12%입니다"
-
-현재 날짜: {current_date}""",
-                },
-                {
-                    "role": "user",
-                    "content": f"다음 대화를 분석해주세요:\n\n{conversation_text}"
-                },
-            ]
-            
-            extracted_text = (await llm_provider.generate(
-                prompt=messages_for_llm[1]["content"],
-                system_prompt=messages_for_llm[0]["content"],
-                temperature=0.3,
-                max_tokens=1000,  # 300 → 1000으로 증가
-            )).strip()
-            
-            # 줄바꿈으로 분리
-            memory_items = [line.strip() for line in extracted_text.split('\n') if line.strip()]
-            
-        except Exception as e:
-            print(f"메모리 추출 실패: {e}")
-            return []
-        
-        saved_memories = []
-        for content in memory_items:
-            if len(content) < self.settings.min_message_length_for_extraction:
-                continue
-            
-            # 중복 체크: 벡터 유사도 검색 (완화)
-            try:
-                embedding_provider = get_embedding_provider()
-                vector = await embedding_provider.embed(content)
-
-                duplicates = await search_vectors(
-                    query_vector=vector,
-                    limit=3,
-                    score_threshold=0.95,  # 0.85 → 0.95로 상향 (더 엄격한 중복 체크)
-                    filter_conditions={
-                        "owner_id": user_id,
-                        "chat_room_id": room["id"],
-                    },
-                )
-                
-                # 중복인지 확인 (유사도 0.95 이상이고 내용이 거의 동일한 경우만 중복으로 간주)
-                is_duplicate = False
-                for dup in duplicates:
-                    existing_memory = await self.memory_repo.get_memory(dup["payload"].get("memory_id"))
-                    if existing_memory:
-                        # 내용이 90% 이상 동일한 경우에만 중복으로 간주
-                        similarity = len(set(content) & set(existing_memory["content"])) / max(len(set(content)), len(set(existing_memory["content"])))
-                        if similarity > 0.9:
-                            is_duplicate = True
-                            print(f"중복 메모리 건너뜀기: 유사도 {dup['score']:.3f}, 내용 일치도 {similarity:.3f}")
-                            break
-                
-                if is_duplicate:
-                    continue
-                
-                # 대화방 메모리로 저장
-                scope = "chatroom"
-                vector_id = str(uuid.uuid4())
-                
-                memory = await self.memory_repo.create_memory(
-                    content=content,
-                    owner_id=user_id,
-                    scope=scope,
-                    vector_id=vector_id,
-                    chat_room_id=room["id"],
-                    category="fact",
-                    importance="medium",
-                )
-                
-                payload = {
-                    "memory_id": memory["id"],
-                    "scope": scope,
-                    "owner_id": user_id,
-                    "chat_room_id": room["id"],
-                }
-                await upsert_vector(vector_id, vector, payload)
-                
-                saved_memories.append(memory)
-            except Exception as e:
-                print(f"메모리 저장 실패: {e}")
-                continue
-        
-        return saved_memories
+        """대화에서 메모리 추출 및 저장 - MemoryPipeline 위임"""
+        return await self.memory_pipeline.extract_and_save(
+            conversation=conversation,
+            room=room,
+            user_id=user_id,
+        )
 
     def _parse_mentions(self, content: str) -> list[str]:
         """멘션 파싱"""
@@ -1411,45 +1018,26 @@ AI가 해당 메모리들도 참조합니다."""
         room: dict[str, Any],
         user_id: str,
     ) -> None:
-        """백그라운드에서 AI 응답 저장과 메모리 추출 처리"""
+        """백그라운드에서 사용자 발화 기반 메모리 추출 처리 — 자체 DB 커넥션 사용"""
+        from src.shared.database import get_db_sync
+
+        db = None
         try:
-            # AI 응답을 Vector DB에 저장 (대화방 메모리)
-            embedding_provider = get_embedding_provider()
-            vector = await embedding_provider.embed(full_response)
-            vector_id = str(uuid.uuid4())
-            
-            # AI 응답을 대화방 메모리로 저장
-            memory = await self.memory_repo.create_memory(
-                content=full_response,
-                owner_id=user_id,
-                scope="chatroom",
-                vector_id=vector_id,
-                chat_room_id=room["id"],
-                category="ai_response",
-                importance="medium",
-            )
-            
-            # Vector DB에 저장
-            await upsert_vector(vector_id, vector, {
-                "memory_id": memory["id"],
-                "scope": "chatroom",
-                "owner_id": user_id,
-                "chat_room_id": room["id"],
-            })
-            
-            print(f"AI 응답을 Vector DB에 저장했습니다: {memory['id']}")
-        except Exception as e:
-            print(f"AI 응답 Vector DB 저장 실패: {e}")
-        
-        # 메모리 추출
-        try:
-            extracted_memories = await self._extract_and_save_memories(
-                conversation=recent_messages + [{"role": "user", "content": user_message}],
+            db = await get_db_sync()
+            bg_memory_repo = MemoryRepository(db)
+            bg_pipeline = MemoryPipeline(memory_repo=bg_memory_repo)
+
+            # 사용자 메시지만 포함하여 메모리 추출
+            user_messages_only = [
+                msg for msg in recent_messages if msg.get("role") == "user"
+            ] + [{"role": "user", "content": user_message}]
+
+            extracted_memories = await bg_pipeline.extract_and_save(
+                conversation=user_messages_only,
                 room=room,
                 user_id=user_id,
             )
-            
-            # 추출된 메모리가 있으면 WebSocket으로 알림 전송
+
             if extracted_memories:
                 from src.websocket.manager import manager
                 notification = {
@@ -1464,3 +1052,82 @@ AI가 해당 메모리들도 참조합니다."""
                 print(f"메모리 추출 알림 전송: {len(extracted_memories)}개")
         except Exception as e:
             print(f"메모리 추출 실패: {e}")
+        finally:
+            if db:
+                await db.close()
+
+    def _schedule_extraction(self, room: dict[str, Any], user_id: str) -> None:
+        """debounce 방식으로 메모리 추출 예약 — 연속 메시지는 마지막 메시지 후 N초 뒤 1회만 실행"""
+        import asyncio
+
+        room_id = room["id"]
+
+        # 기존 타이머 취소
+        existing = ChatService._extraction_timers.get(room_id)
+        if existing and not existing.done():
+            existing.cancel()
+            print(f"[debounce] 기존 타이머 취소: {room_id[:8]}...")
+
+        # 새 타이머 등록
+        ChatService._extraction_timers[room_id] = asyncio.create_task(
+            self._debounced_extract(room=room, user_id=user_id)
+        )
+
+    async def _debounced_extract(self, room: dict[str, Any], user_id: str) -> None:
+        """debounce 대기 후 메모리 추출 실행"""
+        import asyncio
+
+        room_id = room["id"]
+        try:
+            await asyncio.sleep(self.EXTRACTION_DEBOUNCE_SEC)
+        except asyncio.CancelledError:
+            return
+        finally:
+            ChatService._extraction_timers.pop(room_id, None)
+
+        print(f"[debounce] {self.EXTRACTION_DEBOUNCE_SEC}초 경과 → 메모리 추출 시작: {room_id[:8]}...")
+        await self._extract_memory_from_message(room=room, user_id=user_id)
+
+    async def _extract_memory_from_message(
+        self,
+        room: dict[str, Any],
+        user_id: str,
+    ) -> None:
+        """일반 메시지(비@ai)에서 백그라운드 메모리 추출 — 자체 DB 커넥션 사용"""
+        from src.shared.database import get_db_sync
+
+        db = None
+        try:
+            db = await get_db_sync()
+            bg_repo = ChatRepository(db)
+            bg_memory_repo = MemoryRepository(db)
+            bg_pipeline = MemoryPipeline(memory_repo=bg_memory_repo)
+
+            recent_messages = await bg_repo.get_recent_messages(room["id"], limit=10)
+            user_messages = [msg for msg in recent_messages if msg.get("role") == "user"]
+
+            if not user_messages:
+                return
+
+            extracted_memories = await bg_pipeline.extract_and_save(
+                conversation=user_messages,
+                room=room,
+                user_id=user_id,
+            )
+
+            if extracted_memories:
+                from src.websocket.manager import manager
+                await manager.broadcast_to_room(room["id"], {
+                    "type": "memory:extracted",
+                    "data": {
+                        "count": len(extracted_memories),
+                        "memories": extracted_memories,
+                        "room_id": room["id"],
+                    },
+                })
+                print(f"[일반 메시지] 메모리 추출 알림: {len(extracted_memories)}개")
+        except Exception as e:
+            print(f"[일반 메시지] 메모리 추출 실패: {e}")
+        finally:
+            if db:
+                await db.close()

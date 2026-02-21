@@ -36,8 +36,6 @@ async def create_memory(
         content=data.content,
         owner_id=user_id,
         scope=data.scope,
-        project_id=data.project_id,
-        department_id=data.department_id,
         chat_room_id=data.chat_room_id,
         source_message_id=data.source_message_id,
         category=data.category,
@@ -49,8 +47,6 @@ async def create_memory(
 @router.get("", response_model=list[MemoryListResult])
 async def list_memories(
     scope: str | None = None,
-    project_id: str | None = None,
-    department_id: str | None = None,
     agent_instance_id: str | None = None,
     limit: int = 100,
     offset: int = 0,
@@ -62,8 +58,6 @@ async def list_memories(
         results = await service.list_memories(
             user_id=user_id,
             scope=scope,
-            project_id=project_id,
-            department_id=department_id,
             agent_instance_id=agent_instance_id,
             limit=limit,
             offset=offset,
@@ -146,8 +140,6 @@ async def search_memories(
         limit=data.limit,
         score_threshold=data.score_threshold,
         scope=data.scope,
-        project_id=data.project_id,
-        department_id=data.department_id,
         agent_instance_id=data.agent_instance_id,
     )
 
@@ -176,7 +168,5 @@ async def extract_memories(
         conversation=data.conversation,
         owner_id=user_id,
         scope=data.scope,
-        project_id=data.project_id,
-        department_id=data.department_id,
         chat_room_id=data.chat_room_id,
     )

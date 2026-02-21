@@ -11,9 +11,6 @@ export async function getChatRoom(roomId: string): Promise<ChatRoom> {
 
 export interface CreateChatRoomParams {
   name: string
-  room_type?: 'personal' | 'project' | 'department'
-  project_id?: string
-  department_id?: string
 }
 
 export async function createChatRoom(params: CreateChatRoomParams): Promise<ChatRoom> {

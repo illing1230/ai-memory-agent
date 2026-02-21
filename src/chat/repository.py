@@ -149,14 +149,16 @@ class ChatRepository:
         content: str,
         role: Literal["user", "assistant"] = "user",
         mentions: list[str] | None = None,
+        sources: dict | None = None,
     ) -> dict[str, Any]:
         """메시지 생성"""
         message_id = str(uuid.uuid4())
         await self.db.execute(
-            """INSERT INTO chat_messages (id, chat_room_id, user_id, role, content, mentions)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO chat_messages (id, chat_room_id, user_id, role, content, mentions, sources)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (message_id, chat_room_id, user_id, role, content,
-             json.dumps(mentions) if mentions else None),
+             json.dumps(mentions) if mentions else None,
+             json.dumps(sources) if sources else None),
         )
         await self.db.commit()
         return await self.get_message(message_id)
@@ -164,7 +166,7 @@ class ChatRepository:
     async def get_message(self, message_id: str) -> dict[str, Any] | None:
         """메시지 조회"""
         cursor = await self.db.execute(
-            """SELECT m.*, u.name as user_name 
+            """SELECT m.*, u.name as user_name
                FROM chat_messages m
                LEFT JOIN users u ON m.user_id = u.id
                WHERE m.id = ?""",
@@ -175,6 +177,8 @@ class ChatRepository:
             data = dict(row)
             if data.get("mentions"):
                 data["mentions"] = json.loads(data["mentions"])
+            if data.get("sources"):
+                data["sources"] = json.loads(data["sources"])
             return data
         return None
 
@@ -186,7 +190,7 @@ class ChatRepository:
     ) -> list[dict[str, Any]]:
         """대화방 메시지 목록 조회"""
         cursor = await self.db.execute(
-            """SELECT m.*, u.name as user_name 
+            """SELECT m.*, u.name as user_name
                FROM chat_messages m
                LEFT JOIN users u ON m.user_id = u.id
                WHERE m.chat_room_id = ?
@@ -200,6 +204,8 @@ class ChatRepository:
             data = dict(row)
             if data.get("mentions"):
                 data["mentions"] = json.loads(data["mentions"])
+            if data.get("sources"):
+                data["sources"] = json.loads(data["sources"])
             results.append(data)
         return results
 
@@ -210,7 +216,7 @@ class ChatRepository:
     ) -> list[dict[str, Any]]:
         """최근 메시지 조회 (컨텍스트용)"""
         cursor = await self.db.execute(
-            """SELECT m.*, u.name as user_name 
+            """SELECT m.*, u.name as user_name
                FROM chat_messages m
                LEFT JOIN users u ON m.user_id = u.id
                WHERE m.chat_room_id = ?
@@ -224,6 +230,8 @@ class ChatRepository:
             data = dict(row)
             if data.get("mentions"):
                 data["mentions"] = json.loads(data["mentions"])
+            if data.get("sources"):
+                data["sources"] = json.loads(data["sources"])
             results.append(data)
         # 시간순 정렬 (오래된 것부터)
         return list(reversed(results))

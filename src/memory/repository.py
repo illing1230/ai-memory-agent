@@ -18,10 +18,8 @@ class MemoryRepository:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "project", "department", "chatroom", "agent"] = "personal",
+        scope: Literal["personal", "chatroom", "agent"] = "personal",
         vector_id: str | None = None,
-        project_id: str | None = None,
-        department_id: str | None = None,
         chat_room_id: str | None = None,
         source_message_id: str | None = None,
         category: str | None = None,
@@ -37,18 +35,16 @@ class MemoryRepository:
         now = datetime.utcnow().isoformat()
 
         await self.db.execute(
-            """INSERT INTO memories 
-               (id, content, vector_id, scope, owner_id, project_id, department_id,
+            """INSERT INTO memories
+               (id, content, vector_id, scope, owner_id,
                 chat_room_id, source_message_id, category, importance, metadata, topic_key, superseded, superseded_by, superseded_at, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 memory_id,
                 content,
                 vector_id,
                 scope,
                 owner_id,
-                project_id,
-                department_id,
                 chat_room_id,
                 source_message_id,
                 category,
@@ -82,8 +78,6 @@ class MemoryRepository:
         self,
         owner_id: str | None = None,
         scope: str | None = None,
-        project_id: str | None = None,
-        department_id: str | None = None,
         chat_room_id: str | None = None,
         agent_instance_id: str | None = None,
         limit: int = 100,
@@ -99,12 +93,6 @@ class MemoryRepository:
         if scope:
             conditions.append("scope = ?")
             params.append(scope)
-        if project_id:
-            conditions.append("project_id = ?")
-            params.append(project_id)
-        if department_id:
-            conditions.append("department_id = ?")
-            params.append(department_id)
         if chat_room_id:
             conditions.append("chat_room_id = ?")
             params.append(chat_room_id)
@@ -183,6 +171,10 @@ class MemoryRepository:
 
     async def delete_memory(self, memory_id: str) -> bool:
         """메모리 삭제"""
+        # 엔티티 링크 정리 (CASCADE로도 처리되지만 명시적으로 삭제)
+        await self.db.execute(
+            "DELETE FROM memory_entities WHERE memory_id = ?", (memory_id,)
+        )
         cursor = await self.db.execute(
             "DELETE FROM memories WHERE id = ?", (memory_id,)
         )
@@ -210,6 +202,81 @@ class MemoryRepository:
             results.append(data)
         return results
 
+    async def get_memories_by_ids(self, memory_ids: list[str]) -> list[dict[str, Any]]:
+        """memory_id 목록으로 메모리 배치 조회 (N+1 방지)"""
+        if not memory_ids:
+            return []
+
+        # 중복 제거
+        unique_ids = list(set(memory_ids))
+        placeholders = ",".join("?" * len(unique_ids))
+        cursor = await self.db.execute(
+            f"SELECT * FROM memories WHERE id IN ({placeholders})",
+            unique_ids,
+        )
+        rows = await cursor.fetchall()
+        results = []
+        for row in rows:
+            data = dict(row)
+            if data.get("metadata"):
+                data["metadata"] = json.loads(data["metadata"])
+            results.append(data)
+        return results
+
+    async def decay_unused_memories(self, days_threshold: int = 30) -> int:
+        """오래 사용되지 않은 메모리의 importance를 하향 조정 (lazy decay)
+        - high → medium (30일 미접근)
+        - medium → low (60일 미접근)
+        """
+        now = datetime.utcnow().isoformat()
+        # high → medium: last_accessed_at이 threshold일 이상 경과
+        cursor = await self.db.execute(
+            """UPDATE memories
+               SET importance = 'medium', updated_at = ?
+               WHERE importance = 'high'
+                 AND superseded = 0
+                 AND (
+                     (last_accessed_at IS NOT NULL AND julianday(?) - julianday(last_accessed_at) > ?)
+                     OR (last_accessed_at IS NULL AND julianday(?) - julianday(created_at) > ?)
+                 )""",
+            (now, now, days_threshold, now, days_threshold),
+        )
+        count_high = cursor.rowcount
+
+        # medium → low: 2x threshold
+        cursor = await self.db.execute(
+            """UPDATE memories
+               SET importance = 'low', updated_at = ?
+               WHERE importance = 'medium'
+                 AND superseded = 0
+                 AND (
+                     (last_accessed_at IS NOT NULL AND julianday(?) - julianday(last_accessed_at) > ?)
+                     OR (last_accessed_at IS NULL AND julianday(?) - julianday(created_at) > ?)
+                 )""",
+            (now, now, days_threshold * 2, now, days_threshold * 2),
+        )
+        count_medium = cursor.rowcount
+
+        if count_high + count_medium > 0:
+            await self.db.commit()
+            print(f"메모리 감쇠: high→medium {count_high}개, medium→low {count_medium}개")
+
+        return count_high + count_medium
+
+    async def update_access(self, memory_ids: list[str]) -> None:
+        """메모리 접근 추적: last_accessed_at, access_count 업데이트"""
+        if not memory_ids:
+            return
+        now = datetime.utcnow().isoformat()
+        for mid in memory_ids:
+            await self.db.execute(
+                """UPDATE memories
+                   SET last_accessed_at = ?, access_count = COALESCE(access_count, 0) + 1
+                   WHERE id = ?""",
+                (now, mid),
+            )
+        await self.db.commit()
+
     async def log_memory_access(
         self,
         memory_id: str,
@@ -230,15 +297,28 @@ class MemoryRepository:
         memory_id: str,
         superseded_by: str,
     ) -> dict[str, Any] | None:
-        """메모리를 superseded 상태로 업데이트"""
+        """메모리를 superseded 상태로 업데이트하고 Qdrant에서도 삭제"""
+        # 먼저 메모리 정보 조회 (vector_id 필요)
+        memory = await self.get_memory(memory_id)
+
         now = datetime.utcnow().isoformat()
         await self.db.execute(
-            """UPDATE memories 
+            """UPDATE memories
                SET superseded = 1, superseded_by = ?, superseded_at = ?
                WHERE id = ?""",
             (superseded_by, now, memory_id),
         )
         await self.db.commit()
+
+        # Qdrant에서도 삭제하여 검색에 노출되지 않도록 함
+        if memory and memory.get("vector_id"):
+            try:
+                from src.shared.vector_store import delete_vector
+                await delete_vector(memory["vector_id"])
+                print(f"Superseded 메모리 Qdrant 삭제: {memory_id}")
+            except Exception as e:
+                print(f"Superseded 메모리 Qdrant 삭제 실패: {e}")
+
         return await self.get_memory(memory_id)
 
     async def get_memories_by_topic_key(

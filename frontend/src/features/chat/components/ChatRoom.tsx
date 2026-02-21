@@ -12,6 +12,7 @@ import { useChatRoom, useMessages, useSendMessage, useChatRooms, useDeleteChatRo
 import { useAuthStore } from '@/features/auth/store/authStore'
 import { useUIStore } from '@/stores/uiStore'
 import { useWebSocket } from '@/hooks/useWebSocket'
+import { uploadDocument, linkDocumentToRoom } from '@/features/document/api/documentApi'
 import { cn } from '@/lib/utils'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -26,6 +27,7 @@ export function ChatRoom() {
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [showMembersPanel, setShowMembersPanel] = useState(false)
   const [showContextModal, setShowContextModal] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
 
   const { data: chatRooms = [] } = useChatRooms()
   const { data: room, isLoading: roomLoading } = useChatRoom(roomId)
@@ -107,6 +109,25 @@ export function ChatRoom() {
     }
   }, [isSending, stopTyping, isConnected, wsSendMessage, sendMessageMutation])
 
+  const handleFileUpload = useCallback(async (files: FileList) => {
+    if (!roomId) return
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      setUploadStatus(`${file.name} 업로드 중...`)
+      try {
+        const doc = await uploadDocument(file, roomId)
+        await linkDocumentToRoom(doc.id, roomId)
+        setUploadStatus(`${file.name} 업로드 완료`)
+      } catch (error) {
+        console.error('파일 업로드 실패:', error)
+        setUploadStatus(`${file.name} 업로드 실패`)
+      }
+    }
+
+    setTimeout(() => setUploadStatus(null), 3000)
+  }, [roomId])
+
   if (!roomId) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
@@ -163,15 +184,6 @@ export function ChatRoom() {
   if (contextSources?.other_chat_rooms?.length) {
     sourceLabels.push(`다른방(${contextSources.other_chat_rooms.length})`)
   }
-  if (contextSources?.include_personal) {
-    sourceLabels.push('개인전체⚠️')
-  }
-  if (contextSources?.projects?.length) {
-    sourceLabels.push(`프로젝트(${contextSources.projects.length})`)
-  }
-  if (contextSources?.departments?.length) {
-    sourceLabels.push(`부서(${contextSources.departments.length})`)
-  }
   if (sourceLabels.length === 0) {
     sourceLabels.push('이 대화방')
   }
@@ -183,7 +195,7 @@ export function ChatRoom() {
           <div className="flex items-center gap-3">
             <h1 className="font-semibold text-lg truncate">{room.name}</h1>
             <span className="px-2 py-0.5 text-xs rounded-full bg-background-secondary text-foreground-secondary shrink-0">
-              {room.room_type === 'personal' ? '개인' : room.room_type === 'project' ? '프로젝트' : '부서'}
+              개인
             </span>
             <Tooltip content={isConnected ? '실시간 연결됨' : '오프라인 (폴링 모드)'} side="bottom">
               <span className={cn(
@@ -258,8 +270,15 @@ export function ChatRoom() {
         typingUsers={typingUsers}
       />
 
-      <MessageInput 
-        onSend={handleSend} 
+      {uploadStatus && (
+        <div className="px-4 py-2 text-xs text-foreground-secondary bg-background-secondary border-t border-border">
+          {uploadStatus}
+        </div>
+      )}
+
+      <MessageInput
+        onSend={handleSend}
+        onFileUpload={handleFileUpload}
         disabled={isSending}
         onTyping={handleTyping}
       />
