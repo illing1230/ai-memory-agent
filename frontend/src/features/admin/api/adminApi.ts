@@ -6,6 +6,7 @@ import type {
   AdminDepartment,
   AdminProject,
   PaginatedMemories,
+  KnowledgeDashboard,
 } from '@/types'
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -46,4 +47,8 @@ export async function getAdminMemories(limit = 20, offset = 0): Promise<Paginate
 
 export async function deleteAdminMemory(memoryId: string): Promise<void> {
   await del('/admin/memories/' + memoryId)
+}
+
+export async function getKnowledgeDashboard(): Promise<KnowledgeDashboard> {
+  return get<KnowledgeDashboard>('/admin/knowledge-dashboard')
 }

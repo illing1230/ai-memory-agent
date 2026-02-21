@@ -16,6 +16,7 @@ from src.admin.schemas import (
     AdminDepartment,
     AdminProject,
     PaginatedMemories,
+    KnowledgeDashboard,
 )
 
 router = APIRouter()
@@ -134,3 +135,13 @@ async def delete_memory(
     service = AdminService(db)
     await service.delete_memory(memory_id)
     return {"message": "메모리가 삭제되었습니다"}
+
+
+@router.get("/knowledge-dashboard", response_model=KnowledgeDashboard)
+async def get_knowledge_dashboard(
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """팀 지식 대시보드"""
+    service = AdminService(db)
+    return await service.get_knowledge_dashboard()

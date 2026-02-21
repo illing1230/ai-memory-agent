@@ -10,6 +10,7 @@ import {
   deleteAdminChatRoom,
   getAdminMemories,
   deleteAdminMemory,
+  getKnowledgeDashboard,
 } from '../api/adminApi'
 
 export function useDashboardStats() {
@@ -97,5 +98,12 @@ export function useDeleteAdminMemory() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'memories'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
     },
+  })
+}
+
+export function useKnowledgeDashboard() {
+  return useQuery({
+    queryKey: ['admin', 'knowledge-dashboard'],
+    queryFn: getKnowledgeDashboard,
   })
 }

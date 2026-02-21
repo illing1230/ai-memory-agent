@@ -20,12 +20,16 @@
 
 ### RAG 문서
 - PDF/TXT 파일 업로드
-- 자동 텍스트 추출 + 청킹(800자, 100자 오버랩) + 임베딩
+- **시맨틱 청킹** — 의미 단위 분할 (코사인 유사도 기반 경계 감지)
+- **하이브리드 검색** — 벡터 검색(Qdrant) + 키워드 검색(SQLite FTS5) 결합
+- **Reranker** — Jina Reranker로 최종 결과 정밀 재순위
+- **엔티티 쿼리 확장** — 질문에서 추출한 엔티티로 검색 쿼리 보강
 - 문서-대화방 연결/해제 (다대다)
 - AI 응답 시 문서 컨텍스트 우선 참조
 
 ### 관리자
-- 대시보드 (전체 통계)
+- 시스템 대시보드 (전체 통계)
+- **팀 지식 대시보드** — 메모리 분포, 핫 토픽, 오래된 지식, 기여도 랭킹, 문서 통계
 - 사용자/대화방/메모리/부서/프로젝트 관리
 - 메모리 페이지네이션
 
@@ -38,6 +42,7 @@
 | **벡터 DB** | Qdrant |
 | **LLM** | OpenAI 호환 API (Qwen3-32B), Anthropic, Ollama |
 | **Embedding** | HuggingFace, OpenAI, Ollama |
+| **Reranker** | Jina Reranker API |
 | **프론트엔드** | React 18, TypeScript, Vite |
 | **상태관리** | Zustand (클라이언트), TanStack Query (서버) |
 | **스타일** | Tailwind CSS |
@@ -225,6 +230,7 @@ Frontend                          Backend
 | Method | Endpoint | 설명 |
 |--------|----------|------|
 | GET | `/api/v1/admin/dashboard` | 대시보드 통계 |
+| GET | `/api/v1/admin/knowledge-dashboard` | 팀 지식 대시보드 (메모리/엔티티/문서 집계) |
 | GET | `/api/v1/admin/users` | 사용자 목록 |
 | GET | `/api/v1/admin/chat-rooms` | 대화방 목록 |
 | GET | `/api/v1/admin/memories` | 메모리 목록 (페이지네이션) |
@@ -258,8 +264,8 @@ Frontend                          Backend
 AI가 응답할 때 다음 순서로 컨텍스트를 참조합니다:
 
 1. **대화 내용** (최우선) - 최근 20개 메시지
-2. **RAG 문서** (높은 우선순위) - 대화방에 연결된 문서 청크
-3. **저장된 메모리** (보조) - 설정된 컨텍스트 소스 기반
+2. **RAG 문서** (높은 우선순위) - 하이브리드 검색(벡터+FTS5)으로 연결 문서 청크 조회 → Reranker로 정밀 재순위
+3. **저장된 메모리** (보조) - 설정된 컨텍스트 소스 기반, 엔티티 쿼리 확장 적용
 
 ## 권한 체계
 

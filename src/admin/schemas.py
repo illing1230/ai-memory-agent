@@ -80,3 +80,57 @@ class PaginatedMemories(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# === 지식 대시보드 스키마 ===
+
+class MemoryStats(BaseModel):
+    """메모리 통계"""
+    total: int
+    active: int
+    superseded: int
+    by_scope: dict[str, int]
+    by_category: dict[str, int]
+    by_importance: dict[str, int]
+    recent_7d: int
+    recent_30d: int
+
+
+class HotTopic(BaseModel):
+    """핫 토픽 (자주 언급되는 엔티티)"""
+    entity_name: str
+    entity_type: str
+    mention_count: int
+
+
+class StaleKnowledge(BaseModel):
+    """오래된 지식 통계"""
+    no_access_30d: int
+    no_access_60d: int
+    no_access_90d: int
+    low_importance_stale: int
+
+
+class UserContribution(BaseModel):
+    """사용자 기여도"""
+    user_id: str
+    user_name: str
+    memories_created: int
+    memories_accessed: int
+
+
+class DocumentStats(BaseModel):
+    """문서 통계"""
+    total: int
+    by_type: dict[str, int]
+    by_status: dict[str, int]
+    total_chunks: int
+
+
+class KnowledgeDashboard(BaseModel):
+    """팀 지식 대시보드"""
+    memory_stats: MemoryStats
+    hot_topics: list[HotTopic]
+    stale_knowledge: StaleKnowledge
+    contributions: list[UserContribution]
+    document_stats: DocumentStats

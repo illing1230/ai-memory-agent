@@ -44,10 +44,8 @@ export interface Project {
 export interface ChatRoom {
   id: string
   name: string
-  room_type: 'personal' | 'project' | 'department'
+  room_type: 'personal'
   owner_id: string
-  project_id?: string
-  department_id?: string
   member_role?: 'owner' | 'admin' | 'member' | 'viewer'
   share_role?: 'viewer' | 'member' | null
   context_sources?: ContextSources
@@ -59,10 +57,8 @@ export interface ContextSources {
   memory?: {
     include_this_room?: boolean
     other_chat_rooms?: string[]
-    include_personal?: boolean
+
     agent_instances?: string[]
-    projects?: string[]
-    departments?: string[]
   }
   rag?: {
     collections?: string[]
@@ -81,6 +77,23 @@ export interface ChatRoomMember {
   joined_at: string
 }
 
+// 소스 참조 정보
+export interface MessageSource {
+  documents?: Array<{
+    document_id: string
+    document_name: string
+    content: string
+    score: number
+  }>
+  memories?: Array<{
+    memory_id: string
+    content: string
+    scope: string
+    score: number
+    source_name: string
+  }>
+}
+
 // 메시지
 export interface Message {
   id: string
@@ -90,6 +103,7 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
   mentions?: string[]
+  sources?: MessageSource
   created_at: string
 }
 
@@ -97,10 +111,8 @@ export interface Message {
 export interface Memory {
   id: string
   content: string
-  scope: 'personal' | 'chatroom' | 'project' | 'department' | 'agent'
+  scope: 'personal' | 'chatroom' | 'agent'
   owner_id: string
-  project_id?: string
-  department_id?: string
   chat_room_id?: string
   category?: string
   importance?: 'high' | 'medium' | 'low'
@@ -117,7 +129,6 @@ export interface MemoryListResult {
   memory: Memory
   source_info?: {
     chat_room_name?: string
-    project_name?: string
     agent_instance_name?: string
   }
 }
@@ -127,7 +138,6 @@ export interface MemorySearchResult {
   score: number
   source_info?: {
     chat_room_name?: string
-    project_name?: string
     agent_instance_name?: string
   }
 }
@@ -228,4 +238,51 @@ export interface DocumentLink {
   document_id: string
   chat_room_id: string
   linked_at: string
+}
+
+// 지식 대시보드
+export interface MemoryStats {
+  total: number
+  active: number
+  superseded: number
+  by_scope: Record<string, number>
+  by_category: Record<string, number>
+  by_importance: Record<string, number>
+  recent_7d: number
+  recent_30d: number
+}
+
+export interface HotTopic {
+  entity_name: string
+  entity_type: string
+  mention_count: number
+}
+
+export interface StaleKnowledge {
+  no_access_30d: number
+  no_access_60d: number
+  no_access_90d: number
+  low_importance_stale: number
+}
+
+export interface UserContribution {
+  user_id: string
+  user_name: string
+  memories_created: number
+  memories_accessed: number
+}
+
+export interface DocumentStats {
+  total: number
+  by_type: Record<string, number>
+  by_status: Record<string, number>
+  total_chunks: number
+}
+
+export interface KnowledgeDashboard {
+  memory_stats: MemoryStats
+  hot_topics: HotTopic[]
+  stale_knowledge: StaleKnowledge
+  contributions: UserContribution[]
+  document_stats: DocumentStats
 }
