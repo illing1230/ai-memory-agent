@@ -878,19 +878,30 @@ class AgentService:
         api_key: str,
         memory_id: str,
     ) -> bool:
-        """메모리 삭제 (API Key 인증)"""
+        """메모리 삭제 (API Key 인증)
+
+        memory_id는 memories 테이블 ID 또는 agent_data 테이블 ID 모두 허용.
+        agent_data ID인 경우 해당 데이터도 함께 삭제.
+        """
         instance, user_id = await self._resolve_user_from_api_key(api_key)
 
+        # 1) memories 테이블에서 직접 검색
         memory = await self.memory_repo.get_memory(memory_id)
-        if not memory:
-            raise NotFoundException("메모리", memory_id)
+        if memory:
+            meta = memory.get("metadata") or {}
+            if meta.get("agent_instance_id") != instance["id"]:
+                raise PermissionDeniedException("이 에이전트의 메모리가 아닙니다")
+            return await self.memory_repo.delete_memory(memory_id)
 
-        # 에이전트 소유 메모리인지 확인
-        meta = memory.get("metadata") or {}
-        if meta.get("agent_instance_id") != instance["id"]:
-            raise PermissionDeniedException("이 에이전트의 메모리가 아닙니다")
+        # 2) agent_data 테이블 ID로 검색 → 연관된 memories 삭제
+        agent_data = await self.repo.get_agent_data(memory_id)
+        if agent_data and agent_data.get("agent_instance_id") == instance["id"]:
+            # agent_data 삭제
+            await self.db.execute("DELETE FROM agent_data WHERE id = ?", (memory_id,))
+            await self.db.commit()
+            return True
 
-        return await self.memory_repo.delete_memory(memory_id)
+        raise NotFoundException("메모리", memory_id)
 
     async def get_agent_entities(
         self,
