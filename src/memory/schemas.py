@@ -76,3 +76,23 @@ class MemoryExtractRequest(BaseModel):
     conversation: list[dict[str, str]]
     scope: Literal["personal", "chatroom"] = "personal"
     chat_room_id: str | None = None
+
+
+# Phase 3-2: Memory Timeline
+class MemoryHistoryEntry(BaseModel):
+    id: str
+    content: str
+    scope: str
+    category: str | None = None
+    importance: str | None = None
+    superseded: bool = False
+    superseded_by: str | None = None
+    superseded_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MemoryHistoryResponse(BaseModel):
+    """메모리 supersede 체인 히스토리"""
+    current: MemoryHistoryEntry
+    history: list[MemoryHistoryEntry]

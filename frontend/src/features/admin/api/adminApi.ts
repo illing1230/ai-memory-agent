@@ -7,6 +7,9 @@ import type {
   AdminProject,
   PaginatedMemories,
   KnowledgeDashboard,
+  MchatStatus,
+  MchatChannel,
+  MchatUser,
 } from '@/types'
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -51,4 +54,21 @@ export async function deleteAdminMemory(memoryId: string): Promise<void> {
 
 export async function getKnowledgeDashboard(): Promise<KnowledgeDashboard> {
   return get<KnowledgeDashboard>('/admin/knowledge-dashboard')
+}
+
+// Mchat API
+export async function getMchatStatus(): Promise<MchatStatus> {
+  return get<MchatStatus>('/mchat/status')
+}
+
+export async function getMchatChannels(): Promise<MchatChannel[]> {
+  return get<MchatChannel[]>('/mchat/channels')
+}
+
+export async function toggleMchatChannelSync(mappingId: string): Promise<{ sync_enabled: boolean }> {
+  return put<{ sync_enabled: boolean }>('/mchat/channels/' + mappingId + '/sync')
+}
+
+export async function getMchatUsers(): Promise<MchatUser[]> {
+  return get<MchatUser[]>('/mchat/users')
 }

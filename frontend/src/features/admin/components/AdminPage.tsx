@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Shield, LayoutDashboard, Users, Building2, Briefcase, MessageSquare, Brain, BarChart3 } from 'lucide-react'
+import { Shield, LayoutDashboard, Users, Building2, Briefcase, MessageSquare, Brain, BarChart3, Radio } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { DashboardTab } from './DashboardTab'
@@ -9,8 +9,9 @@ import { DepartmentsTab } from './DepartmentsTab'
 import { ProjectsTab } from './ProjectsTab'
 import { ChatRoomsTab } from './ChatRoomsTab'
 import { MemoriesTab } from './MemoriesTab'
+import { MchatTab } from './MchatTab'
 
-type TabId = 'dashboard' | 'knowledge' | 'users' | 'departments' | 'projects' | 'chatrooms' | 'memories'
+type TabId = 'dashboard' | 'knowledge' | 'users' | 'departments' | 'projects' | 'chatrooms' | 'memories' | 'mchat'
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'projects', label: '프로젝트', icon: Briefcase },
   { id: 'chatrooms', label: '대화방', icon: MessageSquare },
   { id: 'memories', label: '메모리', icon: Brain },
+  { id: 'mchat', label: 'Mchat', icon: Radio },
 ]
 
 export function AdminPage() {
@@ -69,6 +71,7 @@ export function AdminPage() {
           {activeTab === 'projects' && <ProjectsTab />}
           {activeTab === 'chatrooms' && <ChatRoomsTab />}
           {activeTab === 'memories' && <MemoriesTab />}
+          {activeTab === 'mchat' && <MchatTab />}
         </div>
       </ScrollArea>
     </div>

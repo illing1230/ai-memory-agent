@@ -11,6 +11,10 @@ import {
   getAdminMemories,
   deleteAdminMemory,
   getKnowledgeDashboard,
+  getMchatStatus,
+  getMchatChannels,
+  toggleMchatChannelSync,
+  getMchatUsers,
 } from '../api/adminApi'
 
 export function useDashboardStats() {
@@ -105,5 +109,37 @@ export function useKnowledgeDashboard() {
   return useQuery({
     queryKey: ['admin', 'knowledge-dashboard'],
     queryFn: getKnowledgeDashboard,
+  })
+}
+
+export function useMchatStatus() {
+  return useQuery({
+    queryKey: ['mchat', 'status'],
+    queryFn: getMchatStatus,
+    refetchInterval: 30000,
+  })
+}
+
+export function useMchatChannels() {
+  return useQuery({
+    queryKey: ['mchat', 'channels'],
+    queryFn: getMchatChannels,
+  })
+}
+
+export function useToggleMchatChannelSync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (mappingId: string) => toggleMchatChannelSync(mappingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mchat', 'channels'] })
+    },
+  })
+}
+
+export function useMchatUsers() {
+  return useQuery({
+    queryKey: ['mchat', 'users'],
+    queryFn: getMchatUsers,
   })
 }

@@ -185,8 +185,8 @@ export function LoginForm() {
               onClick={() => {
                 setFormData({
                   name: '개발자',
-                  email: 'dev@test.local',
-                  password: 'dev123',
+                  email: 'admin@test.com',
+                  password: 'test123',
                 })
               }}
             >

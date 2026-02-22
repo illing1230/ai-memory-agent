@@ -286,7 +286,28 @@ class AgentService:
                 agent_instance_id=instance["id"],
                 metadata=metadata,
             )
-        
+
+        # Webhook 발행
+        event_type = "memory.created" if data_type == "memory" else "message.received"
+        if data_type in ("memory", "message"):
+            try:
+                from src.agent.webhook import WebhookService
+                webhook_svc = WebhookService(self.db)
+                await webhook_svc.fire_event(
+                    agent_instance_id=instance["id"],
+                    event_type=event_type,
+                    payload={
+                        "event_type": event_type,
+                        "agent_instance_id": instance["id"],
+                        "data_id": agent_data["id"],
+                        "data_type": data_type,
+                        "content": content[:200],
+                    },
+                    webhook_url=instance.get("webhook_url"),
+                )
+            except Exception:
+                pass
+
         return agent_data
 
     async def list_agent_data(
@@ -470,6 +491,33 @@ class AgentService:
                 if memory and not memory.get("superseded", False):
                     all_memories.append({"memory": memory, "score": r["score"]})
                     print(f"[DEBUG]   - memory_id={memory['id']}, score={r['score']:.3f}, content={memory['content'][:50]}...")
+
+        # 2-1. 교차 에이전트 메모리 (Phase 3-1)
+        for other_instance_id in context_sources.get("agent_instances", []):
+            # 접근 권한 확인: 공유된 에이전트만 허용
+            other_instance = await self.repo.get_agent_instance(other_instance_id)
+            if not other_instance:
+                continue
+            # 소유자이거나 공유받은 경우만 허용
+            try:
+                await self._check_agent_instance_access(other_instance, user_id)
+            except Exception:
+                continue
+
+            results = await search_vectors(
+                query_vector=query_vector,
+                limit=5,
+                filter_conditions={
+                    "scope": "agent",
+                    "agent_instance_id": other_instance_id,
+                },
+            )
+            for r in results:
+                memory = await self.memory_repo.get_memory(
+                    r["payload"].get("memory_id")
+                )
+                if memory and not memory.get("superseded", False):
+                    all_memories.append({"memory": memory, "score": r["score"]})
 
         # 3. 문서 메모리
         if context_sources.get("include_document", False):
@@ -736,9 +784,30 @@ class AgentService:
         # 소유자
         if instance["owner_id"] == user_id:
             return True
-        
-        # TODO: 공유 대상 체크
-        
+
+        # 사용자에게 직접 공유된 경우
+        shares = await self.repo.list_agent_instance_shares(
+            agent_instance_id=instance["id"],
+        )
+        for share in shares:
+            if share.get("shared_with_user_id") == user_id:
+                return True
+
+            # 프로젝트 공유 확인
+            if share.get("shared_with_project_id"):
+                if await self._check_project_member(user_id, share["shared_with_project_id"]):
+                    return True
+
+            # 부서 공유 확인
+            if share.get("shared_with_department_id"):
+                cursor = await self.db.execute(
+                    "SELECT department_id FROM users WHERE id = ?",
+                    (user_id,),
+                )
+                row = await cursor.fetchone()
+                if row and row["department_id"] == share["shared_with_department_id"]:
+                    return True
+
         raise PermissionDeniedException("Agent Instance에 접근할 권한이 없습니다")
 
     async def _check_same_department(self, user_id: str, developer_id: str) -> bool:
@@ -781,3 +850,85 @@ class AgentService:
         )
         row = await cursor.fetchone()
         return row["count"] > 0
+
+    # ==================== Phase 2-1: 사용량 통계 ====================
+
+    async def get_instance_stats(self, instance_id: str) -> dict[str, Any]:
+        """에이전트 인스턴스 통계 조회"""
+        return await self.repo.get_agent_data_stats(instance_id)
+
+    # ==================== Phase 2-3: 메모리 전용 API ====================
+
+    async def create_agent_memory(
+        self,
+        api_key: str,
+        content: str,
+        metadata: dict | None = None,
+    ) -> dict[str, Any]:
+        """메모리 전용 생성 (API Key 인증)"""
+        return await self.receive_agent_data(
+            api_key=api_key,
+            data_type="memory",
+            content=content,
+            metadata=metadata,
+        )
+
+    async def delete_agent_memory(
+        self,
+        api_key: str,
+        memory_id: str,
+    ) -> bool:
+        """메모리 삭제 (API Key 인증)"""
+        instance, user_id = await self._resolve_user_from_api_key(api_key)
+
+        memory = await self.memory_repo.get_memory(memory_id)
+        if not memory:
+            raise NotFoundException("메모리", memory_id)
+
+        # 에이전트 소유 메모리인지 확인
+        meta = memory.get("metadata") or {}
+        if meta.get("agent_instance_id") != instance["id"]:
+            raise PermissionDeniedException("이 에이전트의 메모리가 아닙니다")
+
+        return await self.memory_repo.delete_memory(memory_id)
+
+    async def get_agent_entities(
+        self,
+        api_key: str,
+    ) -> list[dict[str, Any]]:
+        """에이전트 소유자의 엔티티 그래프 조회 (API Key 인증)"""
+        instance, user_id = await self._resolve_user_from_api_key(api_key)
+
+        from src.memory.entity_repository import EntityRepository
+        entity_repo = EntityRepository(self.db)
+        return await entity_repo.list_entities(owner_id=user_id)
+
+    # ==================== Phase 2-2: API 로그 조회 ====================
+
+    async def list_api_logs(
+        self,
+        instance_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """API 호출 로그 조회"""
+        return await self.repo.list_api_logs(
+            agent_instance_id=instance_id,
+            limit=limit,
+            offset=offset,
+        )
+
+    # ==================== Phase 2-4: Webhook 이벤트 조회 ====================
+
+    async def list_webhook_events(
+        self,
+        instance_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Webhook 이벤트 목록"""
+        return await self.repo.list_webhook_events(
+            agent_instance_id=instance_id,
+            limit=limit,
+            offset=offset,
+        )

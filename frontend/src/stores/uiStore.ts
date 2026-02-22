@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+type GuidePanelInitialView = 'list' | 'agent-guide-doc' | 'usage-guide-doc'
+
 interface UIState {
   sidebarOpen: boolean
   sidebarWidth: number
@@ -8,7 +10,8 @@ interface UIState {
   createRoomModalOpen: boolean
   settingsModalOpen: boolean
   guidePanelOpen: boolean
-  
+  guidePanelInitialView: GuidePanelInitialView
+
   toggleSidebar: () => void
   setSidebarOpen: (open: boolean) => void
   setSidebarWidth: (width: number) => void
@@ -16,6 +19,7 @@ interface UIState {
   setCreateRoomModalOpen: (open: boolean) => void
   setSettingsModalOpen: (open: boolean) => void
   setGuidePanelOpen: (open: boolean) => void
+  openGuidePanel: (view?: GuidePanelInitialView) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -27,7 +31,8 @@ export const useUIStore = create<UIState>()(
       createRoomModalOpen: false,
       settingsModalOpen: false,
       guidePanelOpen: false,
-      
+      guidePanelInitialView: 'list' as GuidePanelInitialView,
+
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
@@ -50,6 +55,7 @@ export const useUIStore = create<UIState>()(
       setCreateRoomModalOpen: (createRoomModalOpen) => set({ createRoomModalOpen }),
       setSettingsModalOpen: (settingsModalOpen) => set({ settingsModalOpen }),
       setGuidePanelOpen: (guidePanelOpen) => set({ guidePanelOpen }),
+      openGuidePanel: (view) => set({ guidePanelOpen: true, guidePanelInitialView: view ?? 'list' }),
     }),
     {
       name: 'ui-storage',

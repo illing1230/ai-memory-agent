@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { X, ChevronRight, MessageSquare, Brain, Shield, Bot, ChevronDown, ExternalLink } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, ChevronRight, MessageSquare, Brain, Shield, Bot, ChevronDown, ArrowLeft, FileText } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 
 interface GuideCategory {
@@ -614,13 +614,22 @@ for r in results["results"]:
   },
 ]
 
+type DocView = 'usage-guide' | 'agent-guide'
+
+const docViewConfig: Record<DocView, { title: string; url: string }> = {
+  'usage-guide': { title: '사용 가이드 (전체)', url: '/guide.html' },
+  'agent-guide': { title: 'Agent 연동 가이드 (전체)', url: '/docs/agent-integration-guide.html' },
+}
+
 interface GuidePanelProps {
   isOpen: boolean
   onClose: () => void
+  initialView?: 'list' | 'agent-guide-doc' | 'usage-guide-doc'
 }
 
-export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
+export function GuidePanel({ isOpen, onClose, initialView }: GuidePanelProps) {
   const [selectedItem, setSelectedItem] = useState<GuideItem | null>(null)
+  const [docView, setDocView] = useState<DocView | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     sdk: true,
     chat: false,
@@ -628,26 +637,70 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
     permission: false,
   })
 
+  useEffect(() => {
+    if (isOpen && initialView) {
+      if (initialView === 'agent-guide-doc') {
+        setDocView('agent-guide')
+        setSelectedItem(null)
+      } else if (initialView === 'usage-guide-doc') {
+        setDocView('usage-guide')
+        setSelectedItem(null)
+      } else {
+        setDocView(null)
+      }
+    }
+    if (!isOpen) {
+      setDocView(null)
+      setSelectedItem(null)
+    }
+  }, [isOpen, initialView])
+
   const toggleCategory = (categoryId: string) => {
     setExpandedCategories((prev) => ({ ...prev, [categoryId]: !prev[categoryId] }))
   }
 
   if (!isOpen) return null
 
+  const handleBackToList = () => {
+    setDocView(null)
+    setSelectedItem(null)
+  }
+
   return (
     <div className="fixed inset-y-0 right-0 w-[700px] bg-background border-l border-border shadow-xl flex flex-col z-50">
       {/* 헤더 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-accent" />
-          <h2 className="font-semibold">사용 가이드</h2>
+          {docView ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={handleBackToList} className="gap-1 px-2">
+                <ArrowLeft className="h-4 w-4" />
+                돌아가기
+              </Button>
+              <span className="text-sm font-medium text-foreground-muted">
+                {docViewConfig[docView].title}
+              </span>
+            </>
+          ) : (
+            <>
+              <Bot className="h-5 w-5 text-accent" />
+              <h2 className="font-semibold">사용 가이드</h2>
+            </>
+          )}
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-5 w-5" />
         </Button>
       </div>
 
-      {/* 가이드 내용 */}
+      {/* docView: iframe */}
+      {docView ? (
+        <iframe
+          src={docViewConfig[docView].url}
+          className="flex-1 w-full border-0"
+          title={docViewConfig[docView].title}
+        />
+      ) : (
       <ScrollArea className="flex-1">
         <div className="p-4">
           {selectedItem ? (
@@ -716,20 +769,20 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
             <div className="mt-8 pt-6 border-t border-border space-y-3">
               <h4 className="text-sm font-semibold text-foreground-muted mb-3">전체 문서 보기</h4>
               <button
-                onClick={() => window.open('/guide.html', '_blank')}
+                onClick={() => setDocView('usage-guide')}
                 className="w-full flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors text-left"
               >
-                <ExternalLink className="h-4 w-4 text-accent shrink-0" />
+                <FileText className="h-4 w-4 text-accent shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">사용 가이드 (전체)</p>
                   <p className="text-xs text-foreground-muted">메모리 관리, 문서, 검색, 에이전트 활용</p>
                 </div>
               </button>
               <button
-                onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+                onClick={() => setDocView('agent-guide')}
                 className="w-full flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors text-left"
               >
-                <ExternalLink className="h-4 w-4 text-accent shrink-0" />
+                <FileText className="h-4 w-4 text-accent shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">Agent 연동 가이드 (전체)</p>
                   <p className="text-xs text-foreground-muted">Agent 클래스, 클라이언트 API, 코드 예시</p>
@@ -739,6 +792,7 @@ export function GuidePanel({ isOpen, onClose }: GuidePanelProps) {
           )}
         </div>
       </ScrollArea>
+      )}
     </div>
   )
 }

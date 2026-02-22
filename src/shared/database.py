@@ -411,6 +411,39 @@ CREATE TABLE IF NOT EXISTS mchat_summary_log (
 -- 요약 로그 인덱스
 CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_channel ON mchat_summary_log(mchat_channel_id);
 CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_created ON mchat_summary_log(created_at);
+
+-- Agent API 호출 감사 로그
+CREATE TABLE IF NOT EXISTS agent_api_logs (
+    id TEXT PRIMARY KEY,
+    agent_instance_id TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    method TEXT NOT NULL,
+    user_id TEXT,
+    external_user_id TEXT,
+    status_code INTEGER,
+    request_size INTEGER,
+    response_time_ms INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_api_logs_instance ON agent_api_logs(agent_instance_id);
+CREATE INDEX IF NOT EXISTS idx_api_logs_created ON agent_api_logs(created_at);
+
+-- Webhook 이벤트
+CREATE TABLE IF NOT EXISTS webhook_events (
+    id TEXT PRIMARY KEY,
+    agent_instance_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    attempts INTEGER DEFAULT 0,
+    last_attempt_at DATETIME,
+    response_status INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_instance ON webhook_events(agent_instance_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
 """
 
 
@@ -674,6 +707,58 @@ async def init_database() -> None:
             CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_channel ON mchat_summary_log(mchat_channel_id);
             CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_created ON mchat_summary_log(created_at);
         """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # agent_api_logs 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS agent_api_logs (
+                id TEXT PRIMARY KEY,
+                agent_instance_id TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                method TEXT NOT NULL,
+                user_id TEXT,
+                external_user_id TEXT,
+                status_code INTEGER,
+                request_size INTEGER,
+                response_time_ms INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_api_logs_instance ON agent_api_logs(agent_instance_id);
+            CREATE INDEX IF NOT EXISTS idx_api_logs_created ON agent_api_logs(created_at);
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # webhook_events 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS webhook_events (
+                id TEXT PRIMARY KEY,
+                agent_instance_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                attempts INTEGER DEFAULT 0,
+                last_attempt_at DATETIME,
+                response_status INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agent_instance_id) REFERENCES agent_instances(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_webhook_events_instance ON webhook_events(agent_instance_id);
+            CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status);
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # rate_limit_per_minute 컬럼 추가 (agent_instances)
+    try:
+        await _db_connection.execute("ALTER TABLE agent_instances ADD COLUMN rate_limit_per_minute INTEGER DEFAULT 60")
         await _db_connection.commit()
     except Exception:
         pass

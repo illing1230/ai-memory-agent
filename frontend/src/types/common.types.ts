@@ -286,3 +286,39 @@ export interface KnowledgeDashboard {
   contributions: UserContribution[]
   document_stats: DocumentStats
 }
+
+// Mchat 타입
+export interface MchatStatus {
+  status: 'connected' | 'disconnected' | 'disabled'
+  connected: boolean
+  bot_user_id: string | null
+  base_url: string | null
+  last_error: string | null
+  stats: {
+    messages_received: number
+    messages_responded: number
+    memories_extracted: number
+    errors: number
+  }
+}
+
+export interface MchatChannel {
+  id: string
+  mchat_channel_id: string
+  mchat_channel_name: string | null
+  mchat_team_id: string | null
+  agent_room_id: string
+  agent_room_name: string | null
+  sync_enabled: boolean
+  created_at: string
+}
+
+export interface MchatUser {
+  id: string
+  mchat_user_id: string
+  mchat_username: string | null
+  agent_user_id: string
+  agent_user_name: string | null
+  agent_user_email: string | null
+  created_at: string
+}

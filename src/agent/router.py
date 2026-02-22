@@ -23,6 +23,10 @@ from src.agent.schemas import (
     ExternalUserMappingResponse,
     AgentInstanceShareCreate,
     AgentInstanceShareResponse,
+    AgentInstanceStats,
+    AgentApiLogList,
+    AgentMemoryCreate,
+    WebhookEventResponse,
 )
 
 router = APIRouter()
@@ -249,16 +253,32 @@ async def receive_agent_data(
     data: AgentDataCreate,
     x_api_key: str = Header(..., alias="X-API-Key"),
     service: AgentService = Depends(get_agent_service),
+    db: aiosqlite.Connection = Depends(get_db),
 ):
     """Agent 데이터 수신 (API Key 인증)"""
+    import time
+    start = time.time()
     try:
-        return await service.receive_agent_data(
+        result = await service.receive_agent_data(
             api_key=x_api_key,
             data_type=data.data_type,
             content=data.content,
             external_user_id=data.external_user_id,
             metadata=data.metadata,
         )
+        # API 로그 기록
+        elapsed_ms = int((time.time() - start) * 1000)
+        from src.agent.middleware import ApiLogRecorder
+        recorder = ApiLogRecorder(db)
+        await recorder.log(
+            agent_instance_id=result["agent_instance_id"],
+            endpoint=f"/agents/{agent_id}/data",
+            method="POST",
+            status_code=200,
+            external_user_id=data.external_user_id,
+            response_time_ms=elapsed_ms,
+        )
+        return result
     except PermissionDeniedException as e:
         raise HTTPException(status_code=403, detail=e.message)
 
@@ -470,6 +490,129 @@ async def delete_agent_instance_share(
     try:
         await service.delete_agent_instance_share(share_id, user_id)
         return {"message": "공유가 삭제되었습니다"}
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+# ==================== Phase 2-1: Agent Instance Stats ====================
+
+@router.get("/agent-instances/{instance_id}/stats", response_model=AgentInstanceStats)
+async def get_agent_instance_stats(
+    instance_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: AgentService = Depends(get_agent_service),
+):
+    """에이전트 인스턴스 사용량 통계"""
+    try:
+        await service.get_agent_instance(instance_id, user_id)
+        return await service.get_instance_stats(instance_id)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+# ==================== Phase 2-2: API Audit Logs ====================
+
+@router.get("/agent-instances/{instance_id}/api-logs", response_model=AgentApiLogList)
+async def get_agent_api_logs(
+    instance_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    user_id: str = Depends(get_current_user_id),
+    service: AgentService = Depends(get_agent_service),
+):
+    """에이전트 인스턴스 API 호출 로그"""
+    try:
+        await service.get_agent_instance(instance_id, user_id)
+        logs, total = await service.list_api_logs(instance_id, limit, offset)
+        return {"logs": logs, "total": total}
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+# ==================== Phase 2-3: Memory Dedicated Endpoints ====================
+
+@router.post("/agents/{agent_id}/memories", response_model=AgentDataResponse)
+async def create_agent_memory(
+    agent_id: str,
+    data: AgentMemoryCreate,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    service: AgentService = Depends(get_agent_service),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """메모리 전용 생성 (API Key 인증)"""
+    import time
+    start = time.time()
+    try:
+        result = await service.create_agent_memory(
+            api_key=x_api_key,
+            content=data.content,
+            metadata=data.metadata,
+        )
+        elapsed_ms = int((time.time() - start) * 1000)
+        from src.agent.middleware import ApiLogRecorder
+        recorder = ApiLogRecorder(db)
+        await recorder.log(
+            agent_instance_id=result["agent_instance_id"],
+            endpoint=f"/agents/{agent_id}/memories",
+            method="POST",
+            status_code=200,
+            response_time_ms=elapsed_ms,
+        )
+        return result
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+@router.delete("/agents/{agent_id}/memories/{memory_id}")
+async def delete_agent_memory(
+    agent_id: str,
+    memory_id: str,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    service: AgentService = Depends(get_agent_service),
+):
+    """메모리 삭제 (API Key 인증)"""
+    try:
+        await service.delete_agent_memory(api_key=x_api_key, memory_id=memory_id)
+        return {"message": "메모리가 삭제되었습니다"}
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+@router.get("/agents/{agent_id}/entities")
+async def get_agent_entities(
+    agent_id: str,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    service: AgentService = Depends(get_agent_service),
+):
+    """에이전트 소유자의 Entity 그래프 조회 (API Key 인증)"""
+    try:
+        return await service.get_agent_entities(api_key=x_api_key)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
+# ==================== Phase 2-4: Webhook Events ====================
+
+@router.get("/agent-instances/{instance_id}/webhook-events", response_model=list[WebhookEventResponse])
+async def list_webhook_events(
+    instance_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    user_id: str = Depends(get_current_user_id),
+    service: AgentService = Depends(get_agent_service),
+):
+    """Webhook 이벤트 목록 조회"""
+    try:
+        await service.get_agent_instance(instance_id, user_id)
+        return await service.list_webhook_events(instance_id, limit, offset)
     except NotFoundException as e:
         raise HTTPException(status_code=404, detail=e.message)
     except PermissionDeniedException as e:

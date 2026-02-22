@@ -243,3 +243,22 @@ class EntityRepository:
             (memory_id,),
         )
         await self.db.commit()
+
+    async def list_entities(
+        self,
+        owner_id: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict]:
+        """사용자 소유 엔티티 목록 (관계 포함)"""
+        cursor = await self.db.execute(
+            """SELECT e.*, COUNT(me.id) as mention_count
+               FROM entities e
+               LEFT JOIN memory_entities me ON me.entity_id = e.id
+               WHERE e.owner_id = ?
+               GROUP BY e.id
+               ORDER BY mention_count DESC
+               LIMIT ? OFFSET ?""",
+            (owner_id, limit, offset),
+        )
+        return [dict(row) for row in await cursor.fetchall()]

@@ -1,5 +1,7 @@
 """FastAPI 애플리케이션 엔트리포인트"""
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -9,6 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import get_settings
 from src.shared.database import init_database, close_database
 from src.shared.vector_store import init_vector_store, close_vector_store, is_vector_store_available
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
+logger = logging.getLogger("main")
 
 
 @asynccontextmanager
@@ -20,13 +28,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_database()
     await init_vector_store()
 
+    # Mchat worker 시작
+    mchat_task = None
+    if settings.mchat_enabled and settings.mchat_token:
+        from src.mchat.worker import start_mchat_worker
+        mchat_task = asyncio.create_task(start_mchat_worker())
+        mchat_status = "✅ (starting)"
+    else:
+        mchat_status = "❌ (disabled)"
+
     # 서비스 상태 출력
     qdrant_status = "✅" if is_vector_store_available() else "❌"
     print(f"🚀 AI Memory Agent 시작 (환경: {settings.app_env})")
     print(f"   - SQLite: ✅")
     print(f"   - Qdrant: {qdrant_status}")
+    print(f"   - Mchat: {mchat_status}")
 
     yield
+
+    # Mchat worker 종료
+    if mchat_task:
+        from src.mchat.worker import stop_mchat_worker
+        await stop_mchat_worker()
+        mchat_task.cancel()
+        try:
+            await mchat_task
+        except asyncio.CancelledError:
+            pass
 
     # 종료 시 정리
     await close_database()
@@ -48,6 +76,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Rate Limiting 미들웨어
+    from src.shared.rate_limiter import RateLimitMiddleware
+    app.add_middleware(RateLimitMiddleware)
+
     # CORS 설정
     app.add_middleware(
         CORSMiddleware,
@@ -68,6 +100,7 @@ def create_app() -> FastAPI:
     from src.document.router import router as document_router
     from src.share.router import router as share_router
     from src.agent.router import router as agent_router
+    from src.mchat.router import router as mchat_router
 
     # REST API 라우터
     app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
@@ -79,6 +112,7 @@ def create_app() -> FastAPI:
     app.include_router(document_router, prefix="/api/v1/documents", tags=["documents"])
     app.include_router(share_router, prefix="/api/v1", tags=["shares"])
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
+    app.include_router(mchat_router, prefix="/api/v1/mchat", tags=["mchat"])
 
     # WebSocket 라우터
     app.include_router(websocket_router, prefix="/ws", tags=["websocket"])

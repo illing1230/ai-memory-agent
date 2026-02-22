@@ -134,3 +134,30 @@ class KnowledgeDashboard(BaseModel):
     stale_knowledge: StaleKnowledge
     contributions: list[UserContribution]
     document_stats: DocumentStats
+
+
+# === Phase 3-3: Knowledge Quality Report ===
+
+class TopEntity(BaseModel):
+    name: str
+    entity_type: str
+    mention_count: int
+
+
+class AgentContribution(BaseModel):
+    agent_id: str
+    agent_name: str
+    memory_count: int = 0
+    last_active: Optional[str] = None
+
+
+class KnowledgeQualityReport(BaseModel):
+    """전사 지식 품질 리포트"""
+    total_memories: int = 0
+    stale_memories_count: int = 0
+    duplicate_candidates_count: int = 0
+    superseded_chain_count: int = 0
+    scope_distribution: dict[str, int] = {}
+    category_distribution: dict[str, int] = {}
+    top_entities: list[TopEntity] = []
+    agent_contribution: list[AgentContribution] = []

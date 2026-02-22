@@ -17,7 +17,9 @@ from src.admin.schemas import (
     AdminProject,
     PaginatedMemories,
     KnowledgeDashboard,
+    KnowledgeQualityReport,
 )
+from src.agent.schemas import AgentDashboard, AgentApiLogList
 
 router = APIRouter()
 
@@ -145,3 +147,51 @@ async def get_knowledge_dashboard(
     """팀 지식 대시보드"""
     service = AdminService(db)
     return await service.get_knowledge_dashboard()
+
+
+# ==================== Phase 2-1: Agent Dashboard ====================
+
+@router.get("/agent-dashboard", response_model=AgentDashboard)
+async def get_agent_dashboard(
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """에이전트 대시보드"""
+    service = AdminService(db)
+    return await service.get_agent_dashboard()
+
+
+# ==================== Phase 2-2: Admin API Logs ====================
+
+@router.get("/agent-api-logs", response_model=AgentApiLogList)
+async def get_admin_agent_api_logs(
+    instance_id: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """관리자용 전체 API 로그 조회"""
+    service = AdminService(db)
+    logs, total = await service.get_admin_api_logs(
+        instance_id=instance_id,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        offset=offset,
+    )
+    return {"logs": logs, "total": total}
+
+
+# ==================== Phase 3-3: Knowledge Quality Report ====================
+
+@router.get("/knowledge-quality-report", response_model=KnowledgeQualityReport)
+async def get_knowledge_quality_report(
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """전사 지식 품질 리포트"""
+    service = AdminService(db)
+    return await service.get_knowledge_quality_report()

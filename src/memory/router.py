@@ -16,6 +16,7 @@ from src.memory.schemas import (
     MemorySearchResult,
     MemoryListResult,
     MemoryExtractRequest,
+    MemoryHistoryResponse,
 )
 
 router = APIRouter()
@@ -170,3 +171,28 @@ async def extract_memories(
         scope=data.scope,
         chat_room_id=data.chat_room_id,
     )
+
+
+# ==================== Phase 3-2: Memory Timeline ====================
+
+@router.get("/{memory_id}/history", response_model=MemoryHistoryResponse)
+async def get_memory_history(
+    memory_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: MemoryService = Depends(get_memory_service),
+):
+    """메모리 supersede 체인 히스토리 조회"""
+    try:
+        memory = await service.get_memory(memory_id, user_id)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=e.message)
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    history = await service.repo.get_memory_history(memory_id)
+
+    # current는 요청된 메모리, history는 전체 체인 (current 포함)
+    return {
+        "current": memory,
+        "history": history,
+    }

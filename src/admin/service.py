@@ -285,3 +285,113 @@ class AdminService:
             "by_status": by_status,
             "total_chunks": total_chunks,
         }
+
+    # === Phase 2-1: Agent Dashboard ===
+
+    async def get_agent_dashboard(self) -> dict:
+        """에이전트 대시보드 통계"""
+        from src.agent.repository import AgentRepository
+        repo = AgentRepository(self.db)
+        return await repo.get_all_instances_stats()
+
+    # === Phase 2-2: Admin API Logs ===
+
+    async def get_admin_api_logs(
+        self,
+        instance_id: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """관리자용 전체 API 로그"""
+        from src.agent.repository import AgentRepository
+        repo = AgentRepository(self.db)
+        return await repo.list_api_logs(
+            agent_instance_id=instance_id,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+        )
+
+    # === Phase 3-3: Knowledge Quality Report ===
+
+    async def get_knowledge_quality_report(self) -> dict:
+        """전사 지식 품질 리포트"""
+        now = datetime.utcnow()
+        d30 = (now - timedelta(days=30)).isoformat()
+
+        # 총 메모리
+        cursor = await self.db.execute("SELECT COUNT(*) as cnt FROM memories WHERE superseded = 0")
+        total_memories = (await cursor.fetchone())["cnt"]
+
+        # 30일 미접근 (stale)
+        cursor = await self.db.execute(
+            """SELECT COUNT(*) as cnt FROM memories
+               WHERE superseded = 0
+                 AND (last_accessed_at IS NULL OR last_accessed_at < ?)""",
+            (d30,),
+        )
+        stale_memories_count = (await cursor.fetchone())["cnt"]
+
+        # 유사 메모리 후보 수 (supersede 관계가 있는 것)
+        cursor = await self.db.execute(
+            "SELECT COUNT(*) as cnt FROM memories WHERE superseded_by IS NOT NULL"
+        )
+        duplicate_candidates_count = (await cursor.fetchone())["cnt"]
+
+        # Supersede 체인 수
+        cursor = await self.db.execute(
+            "SELECT COUNT(DISTINCT superseded_by) as cnt FROM memories WHERE superseded_by IS NOT NULL"
+        )
+        superseded_chain_count = (await cursor.fetchone())["cnt"]
+
+        # Scope 분포
+        cursor = await self.db.execute(
+            """SELECT COALESCE(scope, 'unknown') as scope, COUNT(*) as cnt
+               FROM memories WHERE superseded = 0 GROUP BY scope"""
+        )
+        scope_distribution = {row["scope"]: row["cnt"] for row in await cursor.fetchall()}
+
+        # Category 분포
+        cursor = await self.db.execute(
+            """SELECT COALESCE(category, 'uncategorized') as category, COUNT(*) as cnt
+               FROM memories WHERE superseded = 0 GROUP BY category"""
+        )
+        category_distribution = {row["category"]: row["cnt"] for row in await cursor.fetchall()}
+
+        # Top 엔티티
+        cursor = await self.db.execute(
+            """SELECT e.name, e.entity_type, COUNT(me.id) as mention_count
+               FROM entities e
+               JOIN memory_entities me ON me.entity_id = e.id
+               GROUP BY e.id
+               ORDER BY mention_count DESC
+               LIMIT 20"""
+        )
+        top_entities = [dict(row) for row in await cursor.fetchall()]
+
+        # Agent별 기여
+        cursor = await self.db.execute(
+            """SELECT ai.id as agent_id, ai.name as agent_name,
+                      COUNT(CASE WHEN ad.data_type = 'memory' THEN 1 END) as memory_count,
+                      MAX(ad.created_at) as last_active
+               FROM agent_instances ai
+               LEFT JOIN agent_data ad ON ad.agent_instance_id = ai.id
+               GROUP BY ai.id
+               ORDER BY memory_count DESC
+               LIMIT 20"""
+        )
+        agent_contribution = [dict(row) for row in await cursor.fetchall()]
+
+        return {
+            "total_memories": total_memories,
+            "stale_memories_count": stale_memories_count,
+            "duplicate_candidates_count": duplicate_candidates_count,
+            "superseded_chain_count": superseded_chain_count,
+            "scope_distribution": scope_distribution,
+            "category_distribution": category_distribution,
+            "top_entities": top_entities,
+            "agent_contribution": agent_contribution,
+        }

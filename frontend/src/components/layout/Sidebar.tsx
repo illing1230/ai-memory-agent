@@ -112,7 +112,7 @@ export function Sidebar() {
 
         <div className="mt-auto space-y-1">
           <Tooltip content="사용 가이드" side="right">
-            <Button variant="ghost" size="icon" onClick={() => useUIStore.getState().setGuidePanelOpen(true)}>
+            <Button variant="ghost" size="icon" onClick={() => useUIStore.getState().openGuidePanel()}>
               <HelpCircle className="h-4 w-4" />
             </Button>
           </Tooltip>
@@ -301,7 +301,7 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => useUIStore.getState().setGuidePanelOpen(true)}
+              onClick={() => useUIStore.getState().openGuidePanel()}
             >
               <HelpCircle className="h-4 w-4" />
             </Button>
@@ -310,7 +310,7 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+              onClick={() => useUIStore.getState().openGuidePanel('agent-guide-doc')}
             >
               <Book className="h-4 w-4" />
             </Button>

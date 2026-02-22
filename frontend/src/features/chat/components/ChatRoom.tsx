@@ -218,10 +218,10 @@ export function ChatRoom() {
         
         <div className="flex items-center gap-1 shrink-0">
           <Tooltip content="Agent 연동 가이드" side="bottom">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => window.open('/docs/agent-integration-guide.html', '_blank')}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => useUIStore.getState().openGuidePanel('agent-guide-doc')}
             >
               <Book className="h-4 w-4" />
             </Button>

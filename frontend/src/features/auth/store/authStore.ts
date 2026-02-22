@@ -65,7 +65,7 @@ export function setDevUser() {
   const devUser: User = {
     id: 'dev-user-001',
     name: '개발자',
-    email: 'dev@test.local',
+    email: 'admin@test.com',
     role: 'admin',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

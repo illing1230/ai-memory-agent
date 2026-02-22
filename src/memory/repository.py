@@ -321,6 +321,48 @@ class MemoryRepository:
 
         return await self.get_memory(memory_id)
 
+    async def get_memory_history(self, memory_id: str) -> list[dict[str, Any]]:
+        """메모리의 supersede 체인 히스토리 순회
+
+        현재 메모리에서 시작하여 superseded_by를 따라가며 최신 버전을 찾고,
+        그 반대 방향(과거)으로도 탐색하여 전체 체인 반환.
+        """
+        history = []
+        seen = set()
+
+        # 현재 메모리에서 과거 방향 탐색 (이 메모리를 supersede한 이전 메모리들)
+        current_id = memory_id
+        while current_id and current_id not in seen:
+            memory = await self.get_memory(current_id)
+            if not memory:
+                break
+            seen.add(current_id)
+            history.append(memory)
+
+            # 이 메모리를 supersede한 이전 메모리 찾기
+            cursor = await self.db.execute(
+                "SELECT id FROM memories WHERE superseded_by = ?",
+                (current_id,),
+            )
+            row = await cursor.fetchone()
+            current_id = row["id"] if row else None
+
+        # 현재 메모리에서 미래 방향 탐색 (superseded_by 체인)
+        current_memory = await self.get_memory(memory_id)
+        if current_memory and current_memory.get("superseded_by"):
+            next_id = current_memory["superseded_by"]
+            while next_id and next_id not in seen:
+                memory = await self.get_memory(next_id)
+                if not memory:
+                    break
+                seen.add(next_id)
+                history.append(memory)
+                next_id = memory.get("superseded_by")
+
+        # 시간순 정렬 (가장 오래된 것 먼저)
+        history.sort(key=lambda m: m.get("created_at", ""))
+        return history
+
     async def get_memories_by_topic_key(
         self,
         topic_key: str,

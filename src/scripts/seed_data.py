@@ -19,7 +19,7 @@ DEPARTMENTS = [
 
 USERS = [
     # 개발자 테스트 계정 (프론트엔드 dev-user-001과 매칭)
-    {"id": "dev-user-001", "name": "개발자", "email": "dev@test.local", "dept_idx": 1, "role": "admin"},
+    {"id": "dev-user-001", "name": "개발자", "email": "admin@test.com", "dept_idx": 1, "role": "admin"},
     # 품질팀
     {"name": "김품질", "email": "kim.quality@samsung.com", "dept_idx": 0},
     {"name": "이검사", "email": "lee.inspector@samsung.com", "dept_idx": 0},

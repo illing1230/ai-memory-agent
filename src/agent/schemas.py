@@ -67,6 +67,7 @@ class AgentInstanceResponse(AgentInstanceBase):
     owner_id: str
     api_key: str
     status: Literal["active", "inactive"]
+    rate_limit_per_minute: int = 60
     created_at: datetime
     updated_at: datetime
 
@@ -133,6 +134,7 @@ class AgentMemoryContextSources(BaseModel):
     include_agent: bool = False
     include_document: bool = False
     chat_rooms: list[str] = []
+    agent_instances: list[str] = []  # 교차 에이전트 메모리 검색
 
 
 class AgentMemorySearchRequest(BaseModel):
@@ -184,3 +186,74 @@ class AgentInstanceShareResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==================== Phase 2 스키마 ====================
+
+# 2-1: Agent Instance 통계
+class AgentInstanceStats(BaseModel):
+    memory_count: int = 0
+    message_count: int = 0
+    log_count: int = 0
+    total_data_count: int = 0
+    last_active: datetime | None = None
+
+
+class TopAgent(BaseModel):
+    id: str
+    name: str
+    memory_count: int = 0
+    last_active: datetime | None = None
+
+
+class DailyActivity(BaseModel):
+    date: str
+    memory_count: int = 0
+    message_count: int = 0
+
+
+class AgentDashboard(BaseModel):
+    total_instances: int = 0
+    active_instances: int = 0
+    total_memories: int = 0
+    total_messages: int = 0
+    top_agents: list[TopAgent] = []
+    daily_activity: list[DailyActivity] = []
+
+
+# 2-2: API 감사 로그
+class AgentApiLog(BaseModel):
+    id: str
+    agent_instance_id: str
+    endpoint: str
+    method: str
+    user_id: str | None = None
+    external_user_id: str | None = None
+    status_code: int | None = None
+    request_size: int | None = None
+    response_time_ms: int | None = None
+    created_at: datetime
+
+
+class AgentApiLogList(BaseModel):
+    logs: list[AgentApiLog]
+    total: int
+
+
+# 2-3: 메모리 전용 생성
+class AgentMemoryCreate(BaseModel):
+    content: str
+    metadata: dict | None = None
+
+
+# 2-4: Webhook 이벤트
+class WebhookEventResponse(BaseModel):
+    id: str
+    agent_instance_id: str
+    event_type: str
+    payload: dict | None = None
+    status: str = "pending"
+    attempts: int = 0
+    last_attempt_at: datetime | None = None
+    response_status: int | None = None
+    created_at: datetime

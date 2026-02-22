@@ -286,6 +286,53 @@ AI가 응답할 때 다음 순서로 컨텍스트를 참조합니다:
 | `/invite <이메일>` | 멤버 초대 (관리자만) |
 | `/help` | 도움말 |
 
+## For Agent Developers (SDK)
+
+사내 AI 에이전트에 메모리 기능을 추가하려면 SDK를 사용하세요.
+
+### SDK 설치
+
+```bash
+cd ai_memory_agent_sdk
+pip install -e .
+```
+
+### 빠른 시작
+
+```python
+from ai_memory_agent_sdk import Agent
+
+agent = Agent(
+    api_key="sk_your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="my-bot",
+    llm_provider="openai",
+    llm_url="https://api.openai.com/v1",
+    llm_api_key="sk-...",
+    model="gpt-4o-mini",
+)
+
+# 대화 (메모리 자동 검색 + LLM 호출)
+response = agent.message("안녕하세요!")
+
+# 메모리 추출 → 서버 저장
+agent.memory()
+
+# 메모리 검색
+results = agent.search("검색어")
+```
+
+### Docker로 서버 실행
+
+```bash
+docker-compose up -d
+# api (8000) + qdrant (6333) + frontend (3000)
+```
+
+자세한 내용: [Quickstart 가이드](docs/quickstart.md)
+
+---
+
 ## 개발
 
 ```bash

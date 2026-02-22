@@ -576,3 +576,249 @@ class AgentRepository:
         )
         await self.db.commit()
         return cursor.rowcount > 0
+
+    # ==================== Agent Data Stats (Phase 2-1) ====================
+
+    async def get_agent_data_stats(self, agent_instance_id: str) -> dict:
+        """에이전트 인스턴스의 데이터 통계"""
+        stats = {}
+        for data_type in ("memory", "message", "log"):
+            cursor = await self.db.execute(
+                "SELECT COUNT(*) as cnt FROM agent_data WHERE agent_instance_id = ? AND data_type = ?",
+                (agent_instance_id, data_type),
+            )
+            row = await cursor.fetchone()
+            stats[f"{data_type}_count"] = row["cnt"] if row else 0
+
+        cursor = await self.db.execute(
+            "SELECT COUNT(*) as cnt FROM agent_data WHERE agent_instance_id = ?",
+            (agent_instance_id,),
+        )
+        row = await cursor.fetchone()
+        stats["total_data_count"] = row["cnt"] if row else 0
+
+        cursor = await self.db.execute(
+            "SELECT MAX(created_at) as last_active FROM agent_data WHERE agent_instance_id = ?",
+            (agent_instance_id,),
+        )
+        row = await cursor.fetchone()
+        stats["last_active"] = row["last_active"] if row else None
+
+        return stats
+
+    async def get_all_instances_stats(self) -> dict:
+        """전체 에이전트 대시보드 통계"""
+        # 총 인스턴스
+        cursor = await self.db.execute("SELECT COUNT(*) as cnt FROM agent_instances")
+        total = (await cursor.fetchone())["cnt"]
+
+        # 활성 인스턴스
+        cursor = await self.db.execute(
+            "SELECT COUNT(*) as cnt FROM agent_instances WHERE status = 'active'"
+        )
+        active = (await cursor.fetchone())["cnt"]
+
+        # 총 메모리/메시지
+        cursor = await self.db.execute(
+            "SELECT COUNT(*) as cnt FROM agent_data WHERE data_type = 'memory'"
+        )
+        total_memories = (await cursor.fetchone())["cnt"]
+
+        cursor = await self.db.execute(
+            "SELECT COUNT(*) as cnt FROM agent_data WHERE data_type = 'message'"
+        )
+        total_messages = (await cursor.fetchone())["cnt"]
+
+        # Top agents
+        cursor = await self.db.execute(
+            """SELECT ai.id, ai.name,
+                      COUNT(CASE WHEN ad.data_type = 'memory' THEN 1 END) as memory_count,
+                      MAX(ad.created_at) as last_active
+               FROM agent_instances ai
+               LEFT JOIN agent_data ad ON ad.agent_instance_id = ai.id
+               GROUP BY ai.id
+               ORDER BY memory_count DESC
+               LIMIT 10"""
+        )
+        top_agents = [dict(row) for row in await cursor.fetchall()]
+
+        # Daily activity (last 30 days)
+        cursor = await self.db.execute(
+            """SELECT DATE(created_at) as date,
+                      COUNT(CASE WHEN data_type = 'memory' THEN 1 END) as memory_count,
+                      COUNT(CASE WHEN data_type = 'message' THEN 1 END) as message_count
+               FROM agent_data
+               WHERE created_at >= DATE('now', '-30 days')
+               GROUP BY DATE(created_at)
+               ORDER BY date DESC"""
+        )
+        daily_activity = [dict(row) for row in await cursor.fetchall()]
+
+        return {
+            "total_instances": total,
+            "active_instances": active,
+            "total_memories": total_memories,
+            "total_messages": total_messages,
+            "top_agents": top_agents,
+            "daily_activity": daily_activity,
+        }
+
+    # ==================== API Audit Log (Phase 2-2) ====================
+
+    async def create_api_log(
+        self,
+        agent_instance_id: str,
+        endpoint: str,
+        method: str,
+        user_id: str | None = None,
+        external_user_id: str | None = None,
+        status_code: int | None = None,
+        request_size: int | None = None,
+        response_time_ms: int | None = None,
+    ) -> dict:
+        """API 호출 로그 생성"""
+        log_id = str(uuid.uuid4())
+        await self.db.execute(
+            """INSERT INTO agent_api_logs
+               (id, agent_instance_id, endpoint, method, user_id, external_user_id,
+                status_code, request_size, response_time_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (log_id, agent_instance_id, endpoint, method, user_id,
+             external_user_id, status_code, request_size, response_time_ms),
+        )
+        await self.db.commit()
+        return {"id": log_id}
+
+    async def list_api_logs(
+        self,
+        agent_instance_id: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """API 호출 로그 목록"""
+        conditions = []
+        params: list = []
+
+        if agent_instance_id:
+            conditions.append("agent_instance_id = ?")
+            params.append(agent_instance_id)
+        if date_from:
+            conditions.append("created_at >= ?")
+            params.append(date_from)
+        if date_to:
+            conditions.append("created_at <= ?")
+            params.append(date_to)
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+
+        # Total count
+        cursor = await self.db.execute(
+            f"SELECT COUNT(*) as cnt FROM agent_api_logs WHERE {where}", params,
+        )
+        total = (await cursor.fetchone())["cnt"]
+
+        # Data
+        cursor = await self.db.execute(
+            f"""SELECT * FROM agent_api_logs WHERE {where}
+                ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+            params + [limit, offset],
+        )
+        logs = [dict(row) for row in await cursor.fetchall()]
+        return logs, total
+
+    # ==================== Webhook Events (Phase 2-4) ====================
+
+    async def create_webhook_event(
+        self,
+        agent_instance_id: str,
+        event_type: str,
+        payload: str,
+    ) -> dict:
+        """Webhook 이벤트 생성"""
+        event_id = str(uuid.uuid4())
+        await self.db.execute(
+            """INSERT INTO webhook_events (id, agent_instance_id, event_type, payload)
+               VALUES (?, ?, ?, ?)""",
+            (event_id, agent_instance_id, event_type, payload),
+        )
+        await self.db.commit()
+        return await self.get_webhook_event(event_id)
+
+    async def get_webhook_event(self, event_id: str) -> dict | None:
+        """Webhook 이벤트 조회"""
+        cursor = await self.db.execute(
+            "SELECT * FROM webhook_events WHERE id = ?", (event_id,),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        data = dict(row)
+        if data.get("payload"):
+            try:
+                data["payload"] = json.loads(data["payload"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return data
+
+    async def update_webhook_event(
+        self,
+        event_id: str,
+        status: str,
+        attempts: int,
+        response_status: int | None = None,
+    ) -> None:
+        """Webhook 이벤트 상태 업데이트"""
+        await self.db.execute(
+            """UPDATE webhook_events
+               SET status = ?, attempts = ?, last_attempt_at = CURRENT_TIMESTAMP,
+                   response_status = ?
+               WHERE id = ?""",
+            (status, attempts, response_status, event_id),
+        )
+        await self.db.commit()
+
+    async def list_webhook_events(
+        self,
+        agent_instance_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Webhook 이벤트 목록"""
+        cursor = await self.db.execute(
+            """SELECT * FROM webhook_events
+               WHERE agent_instance_id = ?
+               ORDER BY created_at DESC
+               LIMIT ? OFFSET ?""",
+            (agent_instance_id, limit, offset),
+        )
+        events = []
+        for row in await cursor.fetchall():
+            data = dict(row)
+            if data.get("payload"):
+                try:
+                    data["payload"] = json.loads(data["payload"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            events.append(data)
+        return events
+
+    async def get_pending_webhook_events(self, max_attempts: int = 3) -> list[dict]:
+        """미처리 webhook 이벤트 조회"""
+        cursor = await self.db.execute(
+            """SELECT * FROM webhook_events
+               WHERE status IN ('pending', 'failed') AND attempts < ?
+               ORDER BY created_at ASC LIMIT 50""",
+            (max_attempts,),
+        )
+        events = []
+        for row in await cursor.fetchall():
+            data = dict(row)
+            if data.get("payload"):
+                try:
+                    data["payload"] = json.loads(data["payload"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            events.append(data)
+        return events
