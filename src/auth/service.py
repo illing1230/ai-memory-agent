@@ -110,3 +110,54 @@ class AuthService:
     def verify_token(self, token: str) -> Optional[str]:
         """토큰 검증"""
         return verify_access_token(token)
+
+    async def sso_login(
+        self,
+        email: str,
+        name: str,
+        sso_provider: str,
+        sso_id: str,
+        department_id: Optional[str] = None,
+    ) -> dict:
+        """SSO 로그인 (기존 사용자 매칭 또는 자동 생성)"""
+        # 1) 이메일로 기존 사용자 조회
+        user = await self.user_repo.get_user_by_email(email)
+
+        if user:
+            # SSO 메타데이터 업데이트 (이름이 변경됐을 수 있음)
+            if user.get("name") != name:
+                await self.db.execute(
+                    "UPDATE users SET name = ? WHERE id = ?",
+                    (name, user["id"]),
+                )
+                await self.db.commit()
+                user["name"] = name
+        else:
+            # 2) 신규 사용자 자동 생성 (비밀번호 없음 — SSO 전용)
+            user = await self.user_repo.create_user(
+                name=name,
+                email=email,
+                department_id=department_id,
+            )
+
+        # SSO 메타데이터 저장 (sso_provider, sso_id)
+        await self.db.execute(
+            """UPDATE users SET sso_provider = ?, sso_id = ? WHERE id = ?""",
+            (sso_provider, sso_id, user["id"]),
+        )
+        await self.db.commit()
+
+        # 토큰 생성
+        access_token = create_access_token(user["id"])
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user["id"],
+                "name": user.get("name", name),
+                "email": user.get("email", email),
+                "department_id": user.get("department_id", department_id),
+                "role": user.get("role", "user"),
+            },
+        }

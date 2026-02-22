@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from typing import Optional
 import aiosqlite
 
-from src.auth.schemas import LoginRequest, LoginResponse, RegisterRequest, UserInfo
+from src.auth.schemas import LoginRequest, LoginResponse, RegisterRequest, UserInfo, SSOLoginRequest
 from src.auth.service import AuthService
 from src.shared.database import get_db
 from src.shared.exceptions import NotFoundException, ForbiddenException
@@ -62,6 +62,29 @@ async def get_me(
         return user
     except (NotFoundException, ForbiddenException) as e:
         raise HTTPException(status_code=401, detail=str(e))
+
+
+@router.post("/sso", response_model=LoginResponse)
+async def sso_login(
+    request: SSOLoginRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """SSO 로그인 (SAML/OIDC/OAuth2)
+
+    SSO 인증 완료 후 사용자 정보를 전달하면,
+    기존 사용자를 매칭하거나 자동 생성하여 토큰을 발급합니다.
+    """
+    try:
+        result = await auth_service.sso_login(
+            email=request.email,
+            name=request.name,
+            sso_provider=request.sso_provider,
+            sso_id=request.sso_id,
+            department_id=request.department_id,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/verify")

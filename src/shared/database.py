@@ -763,6 +763,18 @@ async def init_database() -> None:
     except Exception:
         pass
 
+    # SSO 컬럼 추가 (users)
+    try:
+        await _db_connection.execute("ALTER TABLE users ADD COLUMN sso_provider TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+    try:
+        await _db_connection.execute("ALTER TABLE users ADD COLUMN sso_id TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
     print(f"✅ SQLite 데이터베이스 초기화 완료: {db_path}")
 
 

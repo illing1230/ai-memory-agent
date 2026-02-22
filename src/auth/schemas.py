@@ -32,3 +32,12 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     department_id: Optional[str] = None
+
+
+class SSOLoginRequest(BaseModel):
+    """SSO 로그인 요청"""
+    email: str
+    name: str
+    sso_provider: str  # "saml", "oidc", "oauth2" 등
+    sso_id: str  # SSO 시스템에서의 고유 ID
+    department_id: Optional[str] = None
