@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     mchat_url: str = "https://mchat.samsung.com"
     mchat_token: str | None = None
     mchat_enabled: bool = False
+    mchat_ssl_verify: bool = True             # 로컬: True(HTTP), Samsung: False(HTTPS+자체인증)
+    mchat_bot_name: str = "ai-memory-bot"     # Bot display name
+    mchat_respond_to_all_dm: bool = True      # DM에서 @ai 없이도 응답
+    mchat_summary_enabled: bool = False         # 채널 대화 자동 요약 기능
+    mchat_summary_default_interval_hours: int = 24  # 기본 요약 주기 (시간)
 
     # Proxy 설정 (내부망 직접 접속용)
     no_proxy: str = "10.244.*,localhost,127.0.0.1"

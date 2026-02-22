@@ -363,6 +363,54 @@ CREATE INDEX IF NOT EXISTS idx_agent_shares_instance ON agent_instance_shares(ag
 CREATE INDEX IF NOT EXISTS idx_agent_shares_user ON agent_instance_shares(shared_with_user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_shares_project ON agent_instance_shares(shared_with_project_id);
 CREATE INDEX IF NOT EXISTS idx_agent_shares_department ON agent_instance_shares(shared_with_department_id);
+
+-- Mchat 사용자 매핑 테이블
+CREATE TABLE IF NOT EXISTS mchat_user_mapping (
+    id TEXT PRIMARY KEY,
+    mchat_user_id TEXT UNIQUE NOT NULL,
+    mchat_username TEXT,
+    agent_user_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_user_id) REFERENCES users(id)
+);
+
+-- Mchat 채널 매핑 테이블
+CREATE TABLE IF NOT EXISTS mchat_channel_mapping (
+    id TEXT PRIMARY KEY,
+    mchat_channel_id TEXT UNIQUE NOT NULL,
+    mchat_channel_name TEXT,
+    mchat_team_id TEXT,
+    agent_room_id TEXT NOT NULL,
+    sync_enabled BOOLEAN DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (agent_room_id) REFERENCES chat_rooms(id)
+);
+
+-- Mchat 인덱스
+CREATE INDEX IF NOT EXISTS idx_mchat_user_mapping_mchat_user ON mchat_user_mapping(mchat_user_id);
+CREATE INDEX IF NOT EXISTS idx_mchat_user_mapping_agent_user ON mchat_user_mapping(agent_user_id);
+CREATE INDEX IF NOT EXISTS idx_mchat_channel_mapping_mchat_channel ON mchat_channel_mapping(mchat_channel_id);
+CREATE INDEX IF NOT EXISTS idx_mchat_channel_mapping_agent_room ON mchat_channel_mapping(agent_room_id);
+CREATE INDEX IF NOT EXISTS idx_mchat_channel_mapping_sync ON mchat_channel_mapping(sync_enabled);
+
+-- Mchat 채널 대화 요약 로그 테이블
+CREATE TABLE IF NOT EXISTS mchat_summary_log (
+    id TEXT PRIMARY KEY,
+    mchat_channel_id TEXT NOT NULL,
+    channel_name TEXT,
+    period_start_ms INTEGER NOT NULL,
+    period_end_ms INTEGER NOT NULL,
+    message_count INTEGER DEFAULT 0,
+    participant_count INTEGER DEFAULT 0,
+    summary_content TEXT NOT NULL,
+    memory_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (memory_id) REFERENCES memories(id)
+);
+
+-- 요약 로그 인덱스
+CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_channel ON mchat_summary_log(mchat_channel_id);
+CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_created ON mchat_summary_log(created_at);
 """
 
 
@@ -559,6 +607,73 @@ async def init_database() -> None:
             """CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts
                USING fts5(content, chunk_id UNINDEXED, document_id UNINDEXED)"""
         )
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # mchat 매핑 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS mchat_user_mapping (
+                id TEXT PRIMARY KEY,
+                mchat_user_id TEXT UNIQUE NOT NULL,
+                mchat_username TEXT,
+                agent_user_id TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agent_user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS mchat_channel_mapping (
+                id TEXT PRIMARY KEY,
+                mchat_channel_id TEXT UNIQUE NOT NULL,
+                mchat_channel_name TEXT,
+                mchat_team_id TEXT,
+                agent_room_id TEXT NOT NULL,
+                sync_enabled BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agent_room_id) REFERENCES chat_rooms(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_mchat_user_mapping_mchat_user ON mchat_user_mapping(mchat_user_id);
+            CREATE INDEX IF NOT EXISTS idx_mchat_user_mapping_agent_user ON mchat_user_mapping(agent_user_id);
+            CREATE INDEX IF NOT EXISTS idx_mchat_channel_mapping_mchat_channel ON mchat_channel_mapping(mchat_channel_id);
+            CREATE INDEX IF NOT EXISTS idx_mchat_channel_mapping_agent_room ON mchat_channel_mapping(agent_room_id);
+            CREATE INDEX IF NOT EXISTS idx_mchat_channel_mapping_sync ON mchat_channel_mapping(sync_enabled);
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # mchat_channel_mapping에 summary 컬럼 추가 (기존 DB 마이그레이션)
+    try:
+        await _db_connection.execute("ALTER TABLE mchat_channel_mapping ADD COLUMN summary_enabled BOOLEAN DEFAULT 0")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    try:
+        await _db_connection.execute("ALTER TABLE mchat_channel_mapping ADD COLUMN summary_interval_hours INTEGER DEFAULT 24")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # mchat_summary_log 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS mchat_summary_log (
+                id TEXT PRIMARY KEY,
+                mchat_channel_id TEXT NOT NULL,
+                channel_name TEXT,
+                period_start_ms INTEGER NOT NULL,
+                period_end_ms INTEGER NOT NULL,
+                message_count INTEGER DEFAULT 0,
+                participant_count INTEGER DEFAULT 0,
+                summary_content TEXT NOT NULL,
+                memory_id TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (memory_id) REFERENCES memories(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_channel ON mchat_summary_log(mchat_channel_id);
+            CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_created ON mchat_summary_log(created_at);
+        """)
         await _db_connection.commit()
     except Exception:
         pass
