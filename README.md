@@ -97,7 +97,7 @@ cp .env.example .env
 
 ```env
 # DB
-SQLITE_DB_PATH=./data/sqlite/memory.db
+SQLITE_DB_PATH=./data/memory.db
 
 # Qdrant (선택)
 QDRANT_URL=http://localhost:6333
@@ -151,7 +151,7 @@ python -m src.scripts.seed_data
 ### 6. DB 초기화
 
 ```bash
-rm data/sqlite/memory.db     # Linux/Mac
+rm data/memory.db     # Linux/Mac
 del data\sqlite\memory.db    # Windows
 ```
 

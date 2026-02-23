@@ -9,7 +9,7 @@ services:
       - "8000:8000"
     environment:
       - APP_ENV=production
-      - SQLITE_DB_PATH=/app/data/sqlite/memory.db
+      - SQLITE_DB_PATH=/app/data/memory.db
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_COLLECTION=ai-memory-agent
     volumes:

@@ -39,7 +39,7 @@ env/
 .env.*.local
 
 # Data
-data/sqlite/*.db
+data/*.db
 data/qdrant/
 
 # Test

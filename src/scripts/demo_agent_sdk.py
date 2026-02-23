@@ -24,7 +24,7 @@ from pathlib import Path
 
 def get_api_key_from_db() -> tuple[str, str] | None:
     """DB에서 '품질 모니터링 봇'의 API 키와 ID를 조회"""
-    db_path = Path("data/sqlite/memory.db")
+    db_path = Path("data/memory.db")
     if not db_path.exists():
         return None
 

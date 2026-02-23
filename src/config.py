@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     # Database
-    sqlite_db_path: str = "./data/sqlite/memory.db"
+    sqlite_db_path: str = "./data/memory.db"
 
     # Qdrant
     qdrant_url: str = "http://localhost:6333"

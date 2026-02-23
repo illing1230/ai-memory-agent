@@ -4,7 +4,7 @@
 
 ```bash
 # 1. DB 초기화 + 시드 데이터
-rm -f data/sqlite/memory.db*
+rm -f data/memory.db*
 python -m src.scripts.seed_demo
 
 # 2. 데모 문서 자동 생성 (seed_demo에 포함)
