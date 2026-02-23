@@ -198,7 +198,18 @@
                 <li><a href="#memory">3. 메모리 관리</a></li>
                 <li><a href="#document">4. 문서 관리</a></li>
                 <li><a href="#search">5. 지식 검색</a></li>
-                <li><a href="#agent">6. 에이전트 활용</a></li>
+                <li>
+                    <a href="#agent">6. 에이전트 활용</a>
+                    <ul style="margin-top: 4px; margin-bottom: 0;">
+                        <li><a href="#agent-intro">6.1 에이전트란?</a></li>
+                        <li><a href="#agent-instance">6.2 Agent Instance 생성</a></li>
+                        <li><a href="#agent-sdk-install">6.3 SDK 설치</a></li>
+                        <li><a href="#agent-sdk-integration">6.4 SDK 연동</a></li>
+                        <li><a href="#agent-examples">6.5 사용 예시</a></li>
+                        <li><a href="#agent-advanced">6.6 고급 기능</a></li>
+                        <li><a href="#agent-troubleshooting">6.7 문제 해결</a></li>
+                    </ul>
+                </li>
                 <li><a href="#tips">7. 활용 팁</a></li>
             </ul>
         </div>
@@ -439,29 +450,294 @@
         </ul>
         
         <h2 id="agent">6. 에이전트 활용</h2>
-        
-        <h3>6.1 에이전트란?</h3>
-        <p>에이전트는 AI Memory Agent SDK를 사용하여 외부 시스템과 통합할 수 있는 기능입니다. 에이전트를 통해 대화 내용을 자동으로 메모리로 저장할 수 있습니다.</p>
-        
-        <h3>6.2 에이전트 메모리 확인</h3>
-        
+
+        <h3 id="agent-intro">6.1 에이전트란?</h3>
+        <p>에이전트는 AI Memory Agent SDK를 사용하여 외부 AI 에이전트(챗봇, 가상 비서 등)에 지능적인 메모리 관리 기능을 통합할 수 있는 기능입니다. SDK를 통해 대화 내용을 자동으로 메모리로 저장하고, 필요할 때 검색하여 활용할 수 있습니다.</p>
+
+        <div class="feature-box">
+            <strong>SDK 주요 기능:</strong>
+            <ul>
+                <li>고수준 Agent 클래스 (LLM 호출 + 메모리 통합)</li>
+                <li>메모리, 메시지, 로그 데이터 전송</li>
+                <li>시맨틱 메모리 검색</li>
+                <li>동기 및 비동기 클라이언트 지원</li>
+                <li>자동 재시도 및 에러 처리</li>
+                <li>타입 안전한 API</li>
+                <li>간편한 사용자 매핑</li>
+            </ul>
+        </div>
+
+        <p>에이전트가 저장한 메모리는 지식 목록 페이지의 "에이전트" 탭에서 인스턴스별로 그룹화되어 확인할 수 있습니다.</p>
+
+        <h3 id="agent-instance">6.2 Agent Instance 생성</h3>
+        <p>SDK를 사용하려면 먼저 Agent Instance를 생성하고 API Key를 발급받아야 합니다.</p>
+
         <div class="step">
             <span class="step-number">1</span>
-            <strong>지식 목록 → 에이전트 탭</strong>
-            <p>지식 목록 페이지에서 "에이전트" 탭을 클릭합니다.</p>
+            <strong>AI Memory Agent 웹 대시보드 접속</strong>
+            <p>브라우저에서 AI Memory Agent 대시보드에 접속합니다.</p>
         </div>
-        
+
         <div class="step">
             <span class="step-number">2</span>
-            <strong>에이전트별 그룹화</strong>
-            <p>에이전트 인스턴스별로 메모리가 그룹화되어 표시됩니다.</p>
+            <strong>Agent Marketplace 이동</strong>
+            <p>사이드바에서 "Agent" → "Marketplace"를 클릭합니다.</p>
         </div>
-        
-        <h3>6.3 테스트 챗봇 사용</h3>
+
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Agent Instance 생성</strong>
+            <p>원하는 Agent Type을 선택하고 "Instance 생성" 버튼을 클릭합니다.</p>
+        </div>
+
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>API Key 확인</strong>
+            <p>생성된 Agent Instance의 API Key를 복사합니다. 이 API Key는 SDK 연동에 필요합니다.</p>
+        </div>
+
+        <div class="warning-box">
+            <strong>⚠️ 중요:</strong> API Key는 안전하게 보관하세요. 유출 시 타인이 귀하의 Agent Instance에 접근할 수 있습니다.
+        </div>
+
+        <h3 id="agent-sdk-install">6.3 SDK 설치</h3>
+
+        <p><strong>필수 요구사항:</strong> Python 3.8+, AI Memory Agent 서버 접속 가능, Agent Instance API Key</p>
+
+        <h4>pip로 설치</h4>
+        <pre><code>pip install ai-memory-agent-sdk</code></pre>
+
+        <h4>개발 모드로 설치 (소스 코드에서)</h4>
+        <pre><code>cd ai-memory-agent
+pip install -e ai_memory_agent_sdk</code></pre>
+
+        <h4>환경 변수 설정</h4>
+        <pre><code># .env
+AI_MEMORY_AGENT_API_KEY=sk_your_api_key_here
+AI_MEMORY_AGENT_BASE_URL=http://localhost:8000</code></pre>
+
+        <h3 id="agent-sdk-integration">6.4 SDK 연동</h3>
+
+        <h4>6.4.1 Agent 클래스 (Agent API)</h4>
+        <p>Agent 클래스는 LLM 호출, 대화 관리, 메모리 저장/검색을 통합한 Agent API입니다. 외부 챗봇을 빠르게 구축할 때 권장됩니다.</p>
+        <pre><code>from ai_memory_agent_sdk import Agent
+
+agent = Agent(
+    api_key="your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="your_agent_id",
+    llm_provider="openai",  # openai / anthropic / ollama
+    llm_url="http://localhost:8080/v1",
+    llm_api_key="your_llm_key",
+    model="your-model-name",
+)
+
+# 대화 (자동으로 메시지 저장 + 메모리 검색)
+response = agent.message("안녕하세요!")
+print(response)
+
+# 수동 메모리 추출
+agent.memory()
+
+# 메모리 검색
+results = agent.search("커피 선호도")
+
+# 접근 가능한 메모리 소스 조회
+sources = agent.sources()
+
+# 저장된 데이터 조회
+data = agent.data(limit=20)
+
+# 대화 초기화
+agent.clear()</code></pre>
+
+        <h4>6.4.2 동기 클라이언트 (Client API)</h4>
+        <pre><code>from ai_memory_agent_sdk import AIMemoryAgentSyncClient
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
+
+# 클라이언트 초기화
+client = AIMemoryAgentSyncClient(
+    api_key="your_api_key",
+    base_url="http://localhost:8000",
+    agent_id="your_agent_id"
+)
+
+# 메모리 전송
+result = client.send_memory(
+    content="사용자가 커피를 좋아합니다",
+    metadata={
+        "source": "chatbot",
+        "category": "preference"
+    }
+)
+
+print(f"메모리 ID: {result['id']}")</code></pre>
+
+        <h4>6.4.3 비동기 클라이언트</h4>
+        <pre><code>import asyncio
+from ai_memory_agent_sdk import AIMemoryAgentClient
+
+async def main():
+    # 클라이언트 초기화
+    async with AIMemoryAgentClient(
+        api_key="your_api_key",
+        base_url="http://localhost:8000",
+        agent_id="your_agent_id"
+    ) as client:
+        # 메모리 전송
+        result = await client.send_memory(
+            content="프로젝트 마감일은 3월 15일입니다",
+            metadata={
+                "source": "chatbot",
+                "category": "fact",
+                "importance": "high"
+            }
+        )
+        print(f"메모리 ID: {result['id']}")
+
+asyncio.run(main())</code></pre>
+
+        <h4>6.4.4 데이터 타입</h4>
+        <p>SDK는 세 가지 데이터 타입을 지원합니다:</p>
+
+        <table>
+            <tr>
+                <th>데이터 타입</th>
+                <th>메서드</th>
+                <th>용도</th>
+            </tr>
+            <tr>
+                <td>memory</td>
+                <td><code>send_memory()</code></td>
+                <td>중요한 정보 저장 (벡터화됨)</td>
+            </tr>
+            <tr>
+                <td>message</td>
+                <td><code>send_message()</code></td>
+                <td>대화 기록 저장</td>
+            </tr>
+            <tr>
+                <td>log</td>
+                <td><code>send_log()</code></td>
+                <td>시스템 로그 저장</td>
+            </tr>
+        </table>
+
+        <h3 id="agent-examples">6.5 사용 예시</h3>
+
+        <h4>6.5.1 챗봇에 메모리 기능 추가</h4>
+        <pre><code>from ai_memory_agent_sdk import AIMemoryAgentSyncClient
+
+class Chatbot:
+    def __init__(self, api_key: str, base_url: str, agent_id: str):
+        self.client = AIMemoryAgentSyncClient(
+            api_key=api_key,
+            base_url=base_url,
+            agent_id=agent_id
+        )
+
+    def process_message(self, user_input: str) -> str:
+        # 사용자 메시지를 메시지로 저장
+        self.client.send_message(
+            content=user_input,
+            metadata={"source": "chatbot"}
+        )
+
+        # AI 응답 생성
+        ai_response = self.generate_response(user_input)
+
+        # AI 응답을 메시지로 저장
+        self.client.send_message(
+            content=ai_response,
+            metadata={"source": "chatbot"}
+        )
+
+        return ai_response
+
+    def extract_memory(self, conversation: str) -> str:
+        # 대화에서 중요한 정보 추출
+        memory = self.analyze_conversation(conversation)
+
+        # 추출된 메모리를 저장
+        self.client.send_memory(
+            content=memory,
+            metadata={
+                "source": "chatbot",
+                "category": "preference",
+                "importance": "medium"
+            }
+        )
+
+        return memory</code></pre>
+
+        <h4>6.5.2 메모리 검색</h4>
+        <p>시맨틱 검색으로 저장된 메모리를 찾을 수 있습니다.</p>
+        <pre><code># 메모리 검색
+results = client.search_memories(
+    query="커피 선호도",
+    context_sources={
+        "chat_rooms": ["room_id_1"]
+    },
+    limit=10
+)
+
+print(f"검색 결과: {results['total']}건")
+for r in results["results"]:
+    print(f"  [{r['score']:.3f}] ({r['scope']}) {r['content'][:80]}")</code></pre>
+
+        <h4>6.5.3 사용자 매핑</h4>
+        <p>외부 시스템의 사용자 ID를 AI Memory Agent의 내부 사용자 ID와 매핑할 수 있습니다.</p>
+
+        <pre><code># 외부 사용자 ID로 메모리 전송
+client.send_memory(
+    content="사용자의 선호도 정보",
+    external_user_id="user_12345",  # 외부 시스템의 사용자 ID
+    metadata={
+        "source": "external_system",
+        "category": "preference"
+    }
+)</code></pre>
+
+        <h4>6.5.4 에러 처리</h4>
+        <pre><code>from ai_memory_agent_sdk import (
+    AIMemoryAgentSyncClient,
+    AuthenticationError,
+    APIError,
+    ConnectionError
+)
+
+try:
+    client = AIMemoryAgentSyncClient(
+        api_key="your_api_key",
+        base_url="http://localhost:8000",
+        agent_id="your_agent_id"
+    )
+
+    result = client.send_memory(
+        content="테스트 메모리",
+        metadata={"source": "test"}
+    )
+
+except AuthenticationError as e:
+    print(f"인증 오류: {e}")
+
+except APIError as e:
+    print(f"API 오류: {e}")
+
+except ConnectionError as e:
+    print(f"연결 오류: {e}")
+
+except Exception as e:
+    print(f"알 수 없는 오류: {e}")</code></pre>
+
+        <h4>6.5.5 테스트 챗봇</h4>
         <p>테스트 챗봇을 통해 에이전트 기능을 테스트할 수 있습니다.</p>
-        
+
         <pre><code>python tests/chatbot/test_chatbot.py</code></pre>
-        
+
         <div class="tip-box">
             <strong>💡 테스트 챗봇 명령어:</strong>
             <ul>
@@ -471,6 +747,108 @@
                 <li><code>/help</code>: 도움말</li>
             </ul>
         </div>
+
+        <h3 id="agent-advanced">6.6 고급 기능</h3>
+
+        <h4>6.6.1 헬스 체크</h4>
+        <pre><code># 서버 연결 상태 확인
+if client.health_check():
+    print("✅ 서버 연결 성공")
+else:
+    print("❌ 서버 연결 실패")</code></pre>
+
+        <h4>6.6.2 메타데이터 활용</h4>
+        <p>메타데이터를 활용하여 메모리를 분류하고 검색할 수 있습니다.</p>
+
+        <pre><code>client.send_memory(
+    content="프로젝트 기술 스택: Python, FastAPI, React",
+    metadata={
+        "source": "chatbot",
+        "category": "fact",
+        "importance": "high",
+        "project": "ai-memory-agent",
+        "tags": ["tech-stack", "project"]
+    }
+)</code></pre>
+
+        <h4>6.6.3 배치 처리</h4>
+        <pre><code>import asyncio
+from ai_memory_agent_sdk import AIMemoryAgentClient
+
+async def batch_send_memories(memories: list[str]):
+    async with AIMemoryAgentClient(
+        api_key="your_api_key",
+        base_url="http://localhost:8000",
+        agent_id="your_agent_id"
+    ) as client:
+        tasks = [
+            client.send_memory(content=memory)
+            for memory in memories
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"메모리 {i} 전송 실패: {result}")
+            else:
+                print(f"메모리 {i} 전송 성공: {result['id']}")
+
+# 사용 예시
+memories = [
+    "사용자는 Python을 선호합니다",
+    "프로젝트 마감일은 3월 15일입니다",
+    "팀 규모는 5명입니다"
+]
+
+asyncio.run(batch_send_memories(memories))</code></pre>
+
+        <h3 id="agent-troubleshooting">6.7 문제 해결</h3>
+
+        <div class="warning-box">
+            <strong>문제: 인증 오류 (401)</strong>
+            <ul>
+                <li>API Key가 올바른지 확인하세요</li>
+                <li>Agent Instance가 활성화되어 있는지 확인하세요</li>
+            </ul>
+        </div>
+
+        <div class="warning-box">
+            <strong>문제: 연결 오류</strong>
+            <ul>
+                <li>서버 URL이 올바른지 확인하세요</li>
+                <li>서버가 실행 중인지 확인하세요</li>
+                <li>방화벽 설정을 확인하세요</li>
+            </ul>
+        </div>
+
+        <div class="warning-box">
+            <strong>문제: 타임아웃</strong>
+            <ul>
+                <li>기본 타임아웃은 30초입니다</li>
+                <li>클라이언트 초기화 시 <code>timeout</code> 파라미터로 조정 가능합니다</li>
+            </ul>
+        </div>
+
+        <div class="tip-box">
+            <strong>💡 디버깅 팁:</strong>
+            <ol>
+                <li><strong>상세 로그 활성화:</strong> SDK 내부 로그를 확인하여 문제 진단</li>
+                <li><strong>헬스 체크:</strong> <code>health_check()</code>로 서버 상태 확인</li>
+                <li><strong>네트워크 테스트:</strong> <code>curl</code>로 API 직접 호출 테스트</li>
+                <li><strong>메타데이터 검증:</strong> 메타데이터가 올바른 형식인지 확인</li>
+            </ol>
+        </div>
+
+        <h4>API 직접 테스트</h4>
+        <pre><code># curl로 API 테스트
+curl -X POST http://localhost:8000/api/v1/agents/your_agent_id/data \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your_api_key" \
+  -d '{
+    "data_type": "memory",
+    "content": "테스트 메모리",
+    "metadata": {"source": "test"}
+  }'</code></pre>
         
         <h2 id="tips">7. 활용 팁</h2>
         

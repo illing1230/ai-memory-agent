@@ -16,7 +16,6 @@ import {
   LogOut,
   Shield,
   Bot,
-  Book,
   HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -304,15 +303,6 @@ export function Sidebar() {
               onClick={() => useUIStore.getState().openGuidePanel()}
             >
               <HelpCircle className="h-4 w-4" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Agent 연동 가이드" side="top">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => useUIStore.getState().openGuidePanel('agent-guide-doc')}
-            >
-              <Book className="h-4 w-4" />
             </Button>
           </Tooltip>
           <Tooltip content="로그아웃" side="top">

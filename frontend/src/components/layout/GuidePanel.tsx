@@ -614,17 +614,16 @@ for r in results["results"]:
   },
 ]
 
-type DocView = 'usage-guide' | 'agent-guide'
+type DocView = 'usage-guide'
 
 const docViewConfig: Record<DocView, { title: string; url: string }> = {
   'usage-guide': { title: '사용 가이드 (전체)', url: '/guide.html' },
-  'agent-guide': { title: 'Agent 연동 가이드 (전체)', url: '/docs/agent-integration-guide.html' },
 }
 
 interface GuidePanelProps {
   isOpen: boolean
   onClose: () => void
-  initialView?: 'list' | 'agent-guide-doc' | 'usage-guide-doc'
+  initialView?: 'list' | 'usage-guide-doc'
 }
 
 export function GuidePanel({ isOpen, onClose, initialView }: GuidePanelProps) {
@@ -639,10 +638,7 @@ export function GuidePanel({ isOpen, onClose, initialView }: GuidePanelProps) {
 
   useEffect(() => {
     if (isOpen && initialView) {
-      if (initialView === 'agent-guide-doc') {
-        setDocView('agent-guide')
-        setSelectedItem(null)
-      } else if (initialView === 'usage-guide-doc') {
+      if (initialView === 'usage-guide-doc') {
         setDocView('usage-guide')
         setSelectedItem(null)
       } else {
@@ -775,17 +771,7 @@ export function GuidePanel({ isOpen, onClose, initialView }: GuidePanelProps) {
                 <FileText className="h-4 w-4 text-accent shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">사용 가이드 (전체)</p>
-                  <p className="text-xs text-foreground-muted">메모리 관리, 문서, 검색, 에이전트 활용</p>
-                </div>
-              </button>
-              <button
-                onClick={() => setDocView('agent-guide')}
-                className="w-full flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-background-hover transition-colors text-left"
-              >
-                <FileText className="h-4 w-4 text-accent shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">Agent 연동 가이드 (전체)</p>
-                  <p className="text-xs text-foreground-muted">Agent 클래스, 클라이언트 API, 코드 예시</p>
+                  <p className="text-xs text-foreground-muted">메모리 관리, 문서, 검색, 에이전트 활용 및 SDK 연동</p>
                 </div>
               </button>
             </div>

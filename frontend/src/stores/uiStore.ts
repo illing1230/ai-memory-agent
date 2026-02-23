@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-type GuidePanelInitialView = 'list' | 'agent-guide-doc' | 'usage-guide-doc'
+type GuidePanelInitialView = 'list' | 'usage-guide-doc'
 
 interface UIState {
   sidebarOpen: boolean
