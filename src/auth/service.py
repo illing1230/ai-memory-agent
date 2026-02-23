@@ -126,16 +126,10 @@ class AuthService:
         if user:
             # 기존 사용자: role 유지
             existing_role = user.get("role", "user")
-            
-            # SSO 메타데이터 업데이트 (이름이 변경됐을 수 있음)
-            if user.get("name") != name:
-                await self.db.execute(
-                    "UPDATE users SET name = ? WHERE id = ?",
-                    (name, user["id"]),
-                )
-                await self.db.commit()
-                user["name"] = name
-            
+
+            # 기존 사용자의 이름 유지 (SSO에서 온 이름으로 덮어쓰지 않음)
+            name = user.get("name") or name
+
             # role 정보 업데이트
             user["role"] = existing_role
         else:

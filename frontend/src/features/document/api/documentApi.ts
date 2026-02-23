@@ -1,7 +1,7 @@
 import { get, del, post } from '@/lib/api'
 import type { Document, DocumentDetail, DocumentLink } from '@/types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export async function getDocuments(chatRoomId?: string): Promise<Document[]> {
   return get<Document[]>('/documents', chatRoomId ? { chat_room_id: chatRoomId } : undefined)

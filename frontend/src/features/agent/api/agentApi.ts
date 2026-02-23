@@ -289,7 +289,7 @@ export const agentApi = {
     agentId: string,
     apiKey: string
   ): Promise<MemorySourcesResponse> => {
-    const API_BASE_URL = 'http://localhost:8000/api/v1';
+    const API_BASE_URL = '/api/v1';
     const response = await fetch(`${API_BASE_URL}/agents/${agentId}/memory-sources`, {
       headers: {
         'Content-Type': 'application/json',

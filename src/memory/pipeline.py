@@ -99,8 +99,17 @@ class MemoryPipeline:
             except Exception as e:
                 print(f"[1] 실패: {e}")
 
-        # 1-2. 다른 대화방 메모리
-        other_rooms = memory_config.get("other_chat_rooms", [])
+        # 1-2. 다른 대화방 메모리 (기본: 사용자가 참여한 모든 대화방)
+        other_rooms = memory_config.get("other_chat_rooms", None)
+        if not other_rooms:
+            # 기본값: 사용자가 참여한 모든 대화방 조회 (현재 방 제외)
+            cursor = await self.memory_repo.db.execute(
+                "SELECT chat_room_id FROM chat_room_members WHERE user_id = ? AND chat_room_id != ?",
+                (user_id, current_room_id),
+            )
+            rows = await cursor.fetchall()
+            other_rooms = [row[0] for row in rows]
+            print(f"[2] 사용자 참여 대화방 자동 조회: {len(other_rooms)}개")
         for room_id in other_rooms:
             try:
                 results = await search_vectors(

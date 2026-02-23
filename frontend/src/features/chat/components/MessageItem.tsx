@@ -98,14 +98,14 @@ function SourcePanel({ sources }: { sources: MessageSource }) {
                 <span className="text-foreground-muted ml-1">({Math.round(doc.score * 100)}%)</span>
                 {doc.slide_image_url && (
                   <a
-                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}${doc.slide_image_url}`}
+                    href={`${import.meta.env.VITE_API_URL || '/api/v1'}${doc.slide_image_url}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block mt-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <img
-                      src={`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}${doc.slide_image_url}`}
+                      src={`${import.meta.env.VITE_API_URL || '/api/v1'}${doc.slide_image_url}`}
                       alt={`슬라이드 ${doc.slide_number}`}
                       className="w-48 rounded border border-border hover:opacity-80 transition-opacity"
                     />

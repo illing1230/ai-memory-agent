@@ -32,9 +32,10 @@ DEPARTMENTS = [
     {"name": "기획팀", "description": "제품 기획 및 전략 수립"},
 ]
 
-# 인덱스: 0=관리자, 1=김품질, 2=이검사, 3=박관리, 4=최개발, 5=정백엔드, 6=강프론트, 7=윤데이터, 8=한기획, 9=서전략, 10=임분석
+# 인덱스: 0=개발자, 1=hy.joo, 2=김품질, 3=이검사, 4=박관리, 5=최개발, 6=정백엔드, 7=강프론트, 8=윤데이터, 9=한기획, 10=서전략, 11=임분석
 USERS = [
-    {"id": "dev-user-001", "name": "관리자", "email": "admin@test.com", "dept_idx": 1, "role": "admin"},
+    {"id": "dev-user-001", "name": "개발자", "email": "local@test.com", "dept_idx": 1, "role": "admin"},
+    {"name": "hy.joo", "email": "admin@test.com", "dept_idx": 1, "role": "admin"},
     {"name": "김품질", "email": "kim.quality@company.com", "dept_idx": 0},
     {"name": "이검사", "email": "lee.inspector@company.com", "dept_idx": 0},
     {"name": "박관리", "email": "park.manager@company.com", "dept_idx": 0},
@@ -56,91 +57,100 @@ PROJECTS = [
 ]
 
 PROJECT_MEMBERS = {
-    0: [1, 2, 3],        # PLM 시스템 - 품질팀
-    1: [0, 4, 5, 6, 7],  # MemGate - 개발팀
-    2: [4, 5, 7],         # RAG 시스템 - 개발팀 일부
-    3: [1, 2, 8],         # 품질 대시보드
-    4: [8, 9, 10],        # 신제품 기획 - 기획팀
+    0: [2, 3, 4],          # PLM 시스템 - 품질팀
+    1: [0, 1, 5, 6, 7, 8], # MemGate - 개발자 + hy.joo + 개발팀
+    2: [5, 6, 8],           # RAG 시스템 - 개발팀 일부
+    3: [2, 3, 9],           # 품질 대시보드
+    4: [9, 10, 11],         # 신제품 기획 - 기획팀
 }
 
 CHAT_ROOMS = [
     # 개인
-    {"name": "관리자의 메모", "room_type": "personal", "owner_idx": 0},
-    {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 1},
-    {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 4},
-    {"name": "한기획의 메모", "room_type": "personal", "owner_idx": 8},
+    {"name": "hy.joo의 메모", "room_type": "personal", "owner_idx": 1},
+    {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 2},
+    {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 5},
+    {"name": "한기획의 메모", "room_type": "personal", "owner_idx": 9},
     # 프로젝트
-    {"name": "PLM 개발 채팅", "room_type": "project", "owner_idx": 1, "project_idx": 0},
-    {"name": "MemGate 개발 채팅", "room_type": "project", "owner_idx": 0, "project_idx": 1},
-    {"name": "RAG 논의", "room_type": "project", "owner_idx": 5, "project_idx": 2},
+    {"name": "PLM 개발 채팅", "room_type": "project", "owner_idx": 2, "project_idx": 0},
+    {"name": "MemGate 개발 채팅", "room_type": "project", "owner_idx": 1, "project_idx": 1},
+    {"name": "RAG 논의", "room_type": "project", "owner_idx": 6, "project_idx": 2},
     # 부서
-    {"name": "품질팀 공유", "room_type": "department", "owner_idx": 1, "dept_idx": 0},
-    {"name": "개발팀 공유", "room_type": "department", "owner_idx": 0, "dept_idx": 1},
-    {"name": "기획팀 공유", "room_type": "department", "owner_idx": 8, "dept_idx": 2},
+    {"name": "품질팀 공유", "room_type": "department", "owner_idx": 2, "dept_idx": 0},
+    {"name": "개발팀 공유", "room_type": "department", "owner_idx": 1, "dept_idx": 1},
+    {"name": "기획팀 공유", "room_type": "department", "owner_idx": 9, "dept_idx": 2},
 ]
 
 CHAT_ROOM_MEMBERS = {
-    0: [0],
-    1: [1],
-    2: [4],
-    3: [8],
-    4: [1, 2, 3],
-    5: [0, 4, 5, 6, 7],
-    6: [4, 5, 7],
-    7: [1, 2, 3, 0],   # 품질팀 공유 - 관리자도 포함(데모용)
-    8: [0, 4, 5, 6, 7],
-    9: [8, 9, 10],
+    0: [1],
+    1: [2],
+    2: [5],
+    3: [9],
+    4: [2, 3, 4],
+    5: [0, 1, 5, 6, 7, 8],
+    6: [5, 6, 8],
+    7: [2, 3, 4, 1],   # 품질팀 공유 - hy.joo도 포함(데모용)
+    8: [0, 1, 5, 6, 7, 8],
+    9: [9, 10, 11],
 }
 
 # ---- 메모리 ----
 MEMORIES = [
     # 개인 메모리
-    {"content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다", "scope": "personal", "owner_idx": 1, "category": "preference", "importance": "medium", "topic_key": "김품질 코드 리뷰 시간"},
-    {"content": "최개발은 Python보다 Rust를 선호한다", "scope": "personal", "owner_idx": 4, "category": "preference", "importance": "high", "topic_key": "최개발 언어 선호"},
-    {"content": "한기획은 매주 금요일에 주간 보고서를 작성한다", "scope": "personal", "owner_idx": 8, "category": "fact", "importance": "medium", "topic_key": "한기획 주간 보고서"},
-    {"content": "김품질은 커피보다 녹차를 선호한다", "scope": "personal", "owner_idx": 1, "category": "preference", "importance": "low", "topic_key": "김품질 음료 선호"},
-    {"content": "최개발의 업무 집중 시간은 오후 2시~5시이다", "scope": "personal", "owner_idx": 4, "category": "preference", "importance": "medium", "topic_key": "최개발 업무 시간"},
+    {"content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다", "scope": "personal", "owner_idx": 2, "category": "preference", "importance": "medium", "topic_key": "김품질 코드 리뷰 시간"},
+    {"content": "최개발은 Python보다 Rust를 선호한다", "scope": "personal", "owner_idx": 5, "category": "preference", "importance": "high", "topic_key": "최개발 언어 선호"},
+    {"content": "한기획은 매주 금요일에 주간 보고서를 작성한다", "scope": "personal", "owner_idx": 9, "category": "fact", "importance": "medium", "topic_key": "한기획 주간 보고서"},
+    {"content": "김품질은 커피보다 녹차를 선호한다", "scope": "personal", "owner_idx": 2, "category": "preference", "importance": "low", "topic_key": "김품질 음료 선호"},
+    {"content": "최개발의 업무 집중 시간은 오후 2시~5시이다", "scope": "personal", "owner_idx": 5, "category": "preference", "importance": "medium", "topic_key": "최개발 업무 시간"},
+
+    # 일정 메모리 (데모용)
+    {"content": "hy.joo는 내일(2월 25일) 오후 3시에 품질 검토 회의가 예정되어 있다", "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 5,
+     "category": "fact", "importance": "high", "topic_key": "hy.joo 회의 일정",
+     "entities": [{"name": "hy.joo", "type": "person"}]},
+    {"content": "개발자(dev)는 내일(2월 25일) 오후 2시에 아키텍처 리뷰 회의가 있다", "scope": "personal", "owner_idx": 0,
+     "category": "fact", "importance": "high", "topic_key": "개발자 회의 일정"},
+    {"content": "김품질은 내일(2월 25일) 오전 10시에 품질 감사 미팅이 있다", "scope": "personal", "owner_idx": 2,
+     "category": "fact", "importance": "high", "topic_key": "김품질 회의 일정"},
 
     # 대화방(프로젝트) 메모리 — 엔티티 포함
     {
         "content": "박관리가 PLM 시스템 프로젝트를 총괄 관리하고 있다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 4,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 4,
         "category": "relationship", "importance": "high", "topic_key": "박관리 PLM 관리",
         "entities": [{"name": "박관리", "type": "person"}, {"name": "PLM 시스템", "type": "project"}],
     },
     {
         "content": "김품질이 매주 월요일 품질검사 미팅에 참석한다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 4,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 4,
         "category": "fact", "importance": "high", "topic_key": "김품질 품질검사 미팅",
         "entities": [{"name": "김품질", "type": "person"}, {"name": "품질검사 미팅", "type": "meeting"}],
     },
     {
         "content": "품질검사 미팅은 PLM 시스템 프로젝트의 정기 회의이다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 4,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 4,
         "category": "fact", "importance": "medium", "topic_key": "품질검사 미팅 PLM",
         "entities": [{"name": "품질검사 미팅", "type": "meeting"}, {"name": "PLM 시스템", "type": "project"}],
     },
     {
         "content": "이검사가 PLM 시스템의 테스트 자동화를 담당하고 있다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 4,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 4,
         "category": "relationship", "importance": "high", "topic_key": "이검사 테스트 자동화",
         "entities": [{"name": "이검사", "type": "person"}, {"name": "PLM 시스템", "type": "project"}],
     },
     {
         "content": "최개발이 MemGate 프로젝트의 백엔드 아키텍처를 설계했다",
-        "scope": "chatroom", "owner_idx": 0, "chat_room_idx": 5,
+        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 5,
         "category": "fact", "importance": "high", "topic_key": "최개발 MemGate 아키텍처",
         "entities": [{"name": "최개발", "type": "person"}, {"name": "MemGate", "type": "project"}],
     },
     {
         "content": "정백엔드가 MemGate 프로젝트의 RAG 파이프라인을 구현 중이다",
-        "scope": "chatroom", "owner_idx": 0, "chat_room_idx": 5,
+        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 5,
         "category": "fact", "importance": "high", "topic_key": "정백엔드 RAG 구현",
         "entities": [{"name": "정백엔드", "type": "person"}, {"name": "MemGate", "type": "project"}],
     },
     {
         "content": "3월 릴리즈 일정이 MemGate 프로젝트의 첫 번째 마일스톤이다",
-        "scope": "chatroom", "owner_idx": 0, "chat_room_idx": 5,
+        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 5,
         "category": "decision", "importance": "high", "topic_key": "MemGate 3월 릴리즈",
         "entities": [{"name": "3월 릴리즈", "type": "date"}, {"name": "MemGate", "type": "project"}],
     },
@@ -149,59 +159,59 @@ MEMORIES = [
     # 김품질이 PLM 대화방(4)에서 남긴 메모리 → 품질팀 공유(7)에서 검색 시 엔티티로 연결
     {
         "content": "박관리가 PLM 시스템 v2.0 업그레이드 일정을 3월 말로 확정했다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 4,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 4,
         "category": "decision", "importance": "high", "topic_key": "PLM v2.0 일정",
         "entities": [{"name": "박관리", "type": "person"}, {"name": "PLM 시스템", "type": "project"}, {"name": "3월 릴리즈", "type": "date"}],
     },
     {
         "content": "이검사가 PLM 시스템의 자동 검사 모듈에서 외관검사 정확도를 95%까지 올렸다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 4,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 4,
         "category": "fact", "importance": "high", "topic_key": "이검사 외관검사 정확도",
         "entities": [{"name": "이검사", "type": "person"}, {"name": "PLM 시스템", "type": "project"}, {"name": "외관검사", "type": "topic"}],
     },
     # 품질팀 공유(7)에서의 메모리 — 다른 방이지만 엔티티로 연결됨
     {
         "content": "외관검사 기준이 2026년 1월부터 변경되어 스크래치 허용 한도가 0.3mm로 강화되었다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 7,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 7,
         "category": "fact", "importance": "high", "topic_key": "외관검사 기준 변경",
         "entities": [{"name": "외관검사", "type": "topic"}],
     },
     {
         "content": "김품질이 A라인 불량률 개선 프로젝트를 주도하고 있으며 목표는 1.5% 이하이다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 7,
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 7,
         "category": "fact", "importance": "high", "topic_key": "김품질 A라인 불량률",
         "entities": [{"name": "김품질", "type": "person"}, {"name": "A라인 불량률 개선", "type": "project"}],
     },
     # 개인 메모리 — 엔티티로 연결
     {
         "content": "박관리는 품질 감사 시 ISO 9001:2015 체크리스트를 항상 사용한다",
-        "scope": "personal", "owner_idx": 1, "category": "fact", "importance": "medium", "topic_key": "박관리 ISO 감사",
+        "scope": "personal", "owner_idx": 2, "category": "fact", "importance": "medium", "topic_key": "박관리 ISO 감사",
         "entities": [{"name": "박관리", "type": "person"}],
     },
     # MemGate 대화방(5)에서 — PLM 관련 엔티티 연결
     {
         "content": "MemGate의 문서 RAG 기능이 PLM 시스템 품질 매뉴얼 검색에도 활용될 예정이다",
-        "scope": "chatroom", "owner_idx": 0, "chat_room_idx": 5,
+        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 5,
         "category": "decision", "importance": "high", "topic_key": "MemGate PLM 연동",
         "entities": [{"name": "MemGate", "type": "project"}, {"name": "PLM 시스템", "type": "project"}],
     },
 ]
 
 ENTITY_RELATIONS = [
-    {"source": "박관리", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "MANAGES", "owner_idx": 1},
-    {"source": "김품질", "source_type": "person", "target": "품질검사 미팅", "target_type": "meeting", "relation": "ATTENDS", "owner_idx": 1},
-    {"source": "품질검사 미팅", "source_type": "meeting", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 1},
-    {"source": "이검사", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 1},
-    {"source": "최개발", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 0},
-    {"source": "정백엔드", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 0},
-    {"source": "3월 릴리즈", "source_type": "date", "target": "MemGate", "target_type": "project", "relation": "PART_OF", "owner_idx": 0},
+    {"source": "박관리", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "MANAGES", "owner_idx": 2},
+    {"source": "김품질", "source_type": "person", "target": "품질검사 미팅", "target_type": "meeting", "relation": "ATTENDS", "owner_idx": 2},
+    {"source": "품질검사 미팅", "source_type": "meeting", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 2},
+    {"source": "이검사", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 2},
+    {"source": "최개발", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 1},
+    {"source": "정백엔드", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 1},
+    {"source": "3월 릴리즈", "source_type": "date", "target": "MemGate", "target_type": "project", "relation": "PART_OF", "owner_idx": 1},
     # 크로스룸 엔티티 연결
-    {"source": "김품질", "source_type": "person", "target": "A라인 불량률 개선", "target_type": "project", "relation": "MANAGES", "owner_idx": 1},
-    {"source": "김품질", "source_type": "person", "target": "외관검사", "target_type": "topic", "relation": "RELATED_TO", "owner_idx": 1},
-    {"source": "이검사", "source_type": "person", "target": "외관검사", "target_type": "topic", "relation": "WORKS_ON", "owner_idx": 1},
-    {"source": "외관검사", "source_type": "topic", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 1},
-    {"source": "3월 릴리즈", "source_type": "date", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 1},
-    {"source": "MemGate", "source_type": "project", "target": "PLM 시스템", "target_type": "project", "relation": "RELATED_TO", "owner_idx": 0},
+    {"source": "김품질", "source_type": "person", "target": "A라인 불량률 개선", "target_type": "project", "relation": "MANAGES", "owner_idx": 2},
+    {"source": "김품질", "source_type": "person", "target": "외관검사", "target_type": "topic", "relation": "RELATED_TO", "owner_idx": 2},
+    {"source": "이검사", "source_type": "person", "target": "외관검사", "target_type": "topic", "relation": "WORKS_ON", "owner_idx": 2},
+    {"source": "외관검사", "source_type": "topic", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 2},
+    {"source": "3월 릴리즈", "source_type": "date", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 2},
+    {"source": "MemGate", "source_type": "project", "target": "PLM 시스템", "target_type": "project", "relation": "RELATED_TO", "owner_idx": 1},
 ]
 
 # ---- Agent Types ----
@@ -209,7 +219,7 @@ AGENT_TYPES = [
     {
         "name": "품질 모니터링",
         "description": "생산 라인 품질 데이터를 실시간 수집·분석하는 에이전트. 불량률, 공정 능력 지수 등을 모니터링하여 품질 이상 시 알림을 전송합니다.",
-        "developer_idx": 0,
+        "developer_idx": 1,
         "version": "1.0.0",
         "capabilities": ["memory", "message", "log"],
         "public_scope": "public",
@@ -218,7 +228,7 @@ AGENT_TYPES = [
     {
         "name": "기술문서 분석",
         "description": "기술 문서를 분석하고 핵심 내용을 요약하는 에이전트. PDF, PPTX 등의 문서를 자동으로 인덱싱하고 질의응답에 활용합니다.",
-        "developer_idx": 0,
+        "developer_idx": 1,
         "version": "1.0.0",
         "capabilities": ["memory", "log"],
         "public_scope": "public",
@@ -227,7 +237,7 @@ AGENT_TYPES = [
     {
         "name": "코드 리뷰 봇",
         "description": "코드 변경사항을 자동으로 리뷰하고 개선 사항을 제안하는 봇",
-        "developer_idx": 4,
+        "developer_idx": 5,
         "version": "1.0.0",
         "capabilities": ["memory", "message"],
         "public_scope": "project",
@@ -241,19 +251,19 @@ AGENT_INSTANCES = [
     {
         "name": "품질 모니터링 봇",
         "agent_type_idx": 0,
-        "owner_idx": 0,
+        "owner_idx": 1,
         "status": "active",
     },
     {
         "name": "기술문서 분석 봇",
         "agent_type_idx": 1,
-        "owner_idx": 0,
+        "owner_idx": 1,
         "status": "active",
     },
     {
         "name": "품질팀 전용 봇",
         "agent_type_idx": 0,
-        "owner_idx": 1,
+        "owner_idx": 2,
         "status": "active",
     },
 ]
@@ -264,7 +274,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 0,
         "external_user_id": "sensor-001",
-        "internal_user_idx": 0,
+        "internal_user_idx": 1,
         "data_type": "memory",
         "content": "오늘(2026-02-20) A라인 불량률 2.3%, 전일 대비 0.5% 증가. 주요 불량: 외관 스크래치",
         "metadata": {"source": "quality_system", "line": "A", "timestamp": "2026-02-20T17:00:00+09:00"},
@@ -272,7 +282,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 0,
         "external_user_id": "sensor-001",
-        "internal_user_idx": 0,
+        "internal_user_idx": 1,
         "data_type": "memory",
         "content": "B라인 CPK 지수 1.45로 안정 상태 유지 중 (기준: 1.33 이상)",
         "metadata": {"source": "quality_system", "line": "B", "timestamp": "2026-02-20T17:00:00+09:00"},
@@ -280,7 +290,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 0,
         "external_user_id": "sensor-002",
-        "internal_user_idx": 0,
+        "internal_user_idx": 1,
         "data_type": "log",
         "content": "A라인 외관검사 장비 교정 완료. 다음 교정일: 2026-03-20",
         "metadata": {"source": "quality_system", "timestamp": "2026-02-19T10:00:00+09:00"},
@@ -288,7 +298,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 0,
         "external_user_id": "sensor-001",
-        "internal_user_idx": 0,
+        "internal_user_idx": 1,
         "data_type": "memory",
         "content": "이번 주 전체 불량률 1.8%, 목표치(2.0%) 이내. C등급(경결함) 비율이 전체의 70% 차지",
         "metadata": {"source": "quality_system", "timestamp": "2026-02-21T09:00:00+09:00"},
@@ -297,7 +307,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 1,
         "external_user_id": "doc-scanner",
-        "internal_user_idx": 0,
+        "internal_user_idx": 1,
         "data_type": "memory",
         "content": "MemGate 아키텍처 문서 분석 결과: FastAPI + React + Qdrant 벡터 DB 구성. 주요 기능은 대화 메모리, 문서 RAG, 에이전트 연동",
         "metadata": {"source": "document_analysis", "document": "architecture.pdf", "timestamp": "2026-02-18T14:00:00+09:00"},
@@ -305,7 +315,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 1,
         "external_user_id": "doc-scanner",
-        "internal_user_idx": 0,
+        "internal_user_idx": 1,
         "data_type": "memory",
         "content": "API 명세서 업데이트: 문서 업로드 API에 PPTX 지원 추가, 슬라이드 이미지 조회 엔드포인트 신규",
         "metadata": {"source": "document_analysis", "document": "api_spec.md", "timestamp": "2026-02-22T11:00:00+09:00"},
@@ -314,7 +324,7 @@ AGENT_DATA = [
     {
         "agent_instance_idx": 2,
         "external_user_id": "quality-user-kim",
-        "internal_user_idx": 1,
+        "internal_user_idx": 2,
         "data_type": "memory",
         "content": "품질 검사는 매주 월요일과 목요일에 진행된다. 월요일은 A라인, 목요일은 B라인 집중 검사",
         "metadata": {"source": "chat", "timestamp": "2026-02-17T09:00:00+09:00"},
@@ -322,25 +332,25 @@ AGENT_DATA = [
 ]
 
 EXTERNAL_USER_MAPPINGS = [
-    {"agent_instance_idx": 0, "external_user_id": "sensor-001", "internal_user_idx": 0, "external_system_name": "quality_monitoring_system"},
-    {"agent_instance_idx": 0, "external_user_id": "sensor-002", "internal_user_idx": 0, "external_system_name": "quality_monitoring_system"},
-    {"agent_instance_idx": 1, "external_user_id": "doc-scanner", "internal_user_idx": 0, "external_system_name": "document_analysis_system"},
-    {"agent_instance_idx": 2, "external_user_id": "quality-user-kim", "internal_user_idx": 1, "external_system_name": "quality_system"},
+    {"agent_instance_idx": 0, "external_user_id": "sensor-001", "internal_user_idx": 1, "external_system_name": "quality_monitoring_system"},
+    {"agent_instance_idx": 0, "external_user_id": "sensor-002", "internal_user_idx": 1, "external_system_name": "quality_monitoring_system"},
+    {"agent_instance_idx": 1, "external_user_id": "doc-scanner", "internal_user_idx": 1, "external_system_name": "document_analysis_system"},
+    {"agent_instance_idx": 2, "external_user_id": "quality-user-kim", "internal_user_idx": 2, "external_system_name": "quality_system"},
 ]
 
 AGENT_INSTANCE_SHARES = [
-    {"agent_instance_idx": 0, "shared_with_user_idx": 1, "role": "viewer"},  # 품질 모니터링 봇 → 김품질
-    {"agent_instance_idx": 0, "shared_with_user_idx": 4, "role": "viewer"},  # 품질 모니터링 봇 → 최개발
-    {"agent_instance_idx": 1, "shared_with_user_idx": 4, "role": "member"},  # 기술문서 분석 봇 → 최개발
-    {"agent_instance_idx": 2, "shared_with_user_idx": 2, "role": "member"},  # 품질팀 전용 봇 → 이검사
+    {"agent_instance_idx": 0, "shared_with_user_idx": 2, "role": "viewer"},  # 품질 모니터링 봇 → 김품질
+    {"agent_instance_idx": 0, "shared_with_user_idx": 5, "role": "viewer"},  # 품질 모니터링 봇 → 최개발
+    {"agent_instance_idx": 1, "shared_with_user_idx": 5, "role": "member"},  # 기술문서 분석 봇 → 최개발
+    {"agent_instance_idx": 2, "shared_with_user_idx": 3, "role": "member"},  # 품질팀 전용 봇 → 이검사
 ]
 
 # ---- Mchat 매핑 ----
 MCHAT_USER_MAPPINGS = [
-    {"mchat_user_id": "mchat-kim-001", "mchat_username": "kim.quality", "agent_user_idx": 1},
-    {"mchat_user_id": "mchat-lee-002", "mchat_username": "lee.inspector", "agent_user_idx": 2},
-    {"mchat_user_id": "mchat-park-003", "mchat_username": "park.manager", "agent_user_idx": 3},
-    {"mchat_user_id": "mchat-admin-000", "mchat_username": "admin", "agent_user_idx": 0},
+    {"mchat_user_id": "mchat-kim-001", "mchat_username": "kim.quality", "agent_user_idx": 2},
+    {"mchat_user_id": "mchat-lee-002", "mchat_username": "lee.inspector", "agent_user_idx": 3},
+    {"mchat_user_id": "mchat-park-003", "mchat_username": "park.manager", "agent_user_idx": 4},
+    {"mchat_user_id": "mchat-admin-000", "mchat_username": "hy.joo", "agent_user_idx": 1},
 ]
 
 # Mchat 채널 매핑 (chat_room_idx로 MemGate 대화방과 연결)
@@ -372,10 +382,10 @@ MCHAT_SUMMARY_LOGS = [
 ]
 
 SHARES = [
-    {"resource_type": "project", "resource_idx": 0, "target_type": "user", "target_idx": 4, "role": "member", "created_by_idx": 1},
-    {"resource_type": "project", "resource_idx": 1, "target_type": "user", "target_idx": 1, "role": "viewer", "created_by_idx": 0},
-    {"resource_type": "chat_room", "resource_idx": 5, "target_type": "user", "target_idx": 1, "role": "viewer", "created_by_idx": 0},
-    {"resource_type": "chat_room", "resource_idx": 7, "target_type": "department", "target_idx": 1, "role": "viewer", "created_by_idx": 1},
+    {"resource_type": "project", "resource_idx": 0, "target_type": "user", "target_idx": 5, "role": "member", "created_by_idx": 2},
+    {"resource_type": "project", "resource_idx": 1, "target_type": "user", "target_idx": 2, "role": "viewer", "created_by_idx": 1},
+    {"resource_type": "chat_room", "resource_idx": 5, "target_type": "user", "target_idx": 2, "role": "viewer", "created_by_idx": 1},
+    {"resource_type": "chat_room", "resource_idx": 7, "target_type": "department", "target_idx": 1, "role": "viewer", "created_by_idx": 2},
 ]
 
 
@@ -671,7 +681,7 @@ async def seed_demo():
                 fname = f.name
                 content = f.read_bytes()
                 target_room_idx = 7 if fname.endswith(".pptx") else 5  # 품질팀 공유 / MemGate 개발 채팅
-                owner_idx = 1 if fname.endswith(".pptx") else 0  # 김품질 / 관리자
+                owner_idx = 2 if fname.endswith(".pptx") else 1  # 김품질 / hy.joo
 
                 try:
                     doc = await doc_service.upload_document(
@@ -707,9 +717,16 @@ async def seed_demo():
         print("=" * 60)
         print()
         print("📌 데모 로그인 계정:")
-        print(f"  관리자: admin@test.com / {test_password}")
+        print(f"  hy.joo: admin@test.com / {test_password}")
         print(f"  김품질: kim.quality@company.com / {test_password}")
         print(f"  최개발: choi.dev@company.com / {test_password}")
+        print()
+        print("📌 Agent Instance API Keys:")
+        for i, ai_inst in enumerate(AGENT_INSTANCES):
+            cur = await db.execute("SELECT api_key FROM agent_instances WHERE id = ?", (ainst_ids[i],))
+            row = await cur.fetchone()
+            key = row[0] if row else "N/A"
+            print(f"  {ai_inst['name']}: {key}")
         print()
         print("📌 주요 대화방:")
         for i, r in enumerate(CHAT_ROOMS):

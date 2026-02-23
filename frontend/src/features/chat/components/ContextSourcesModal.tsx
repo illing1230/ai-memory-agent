@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, AlertTriangle, Loader2, FileText, Upload, Link2, Unlink, Bot } from 'lucide-react'
-import { Button, ScrollArea } from '@/components/ui'
+import { Button } from '@/components/ui'
 
 import { get, put, post, del } from '@/lib/api'
 import type { ChatRoom, Document } from '@/types'
@@ -41,8 +41,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
   const [showUpload, setShowUpload] = useState(false)
   const [showLinkPicker, setShowLinkPicker] = useState(false)
 
-  // 설정 값
-  const [includeThisRoom, setIncludeThisRoom] = useState(true)
+  // 설정 값 (includeThisRoom은 항상 true, UI에서 제거)
   const [selectedRooms, setSelectedRooms] = useState<string[]>([])
   const [selectedAgentInstances, setSelectedAgentInstances] = useState<string[]>([])
 
@@ -82,11 +81,16 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
 
         // 기존 설정 로드
         const ctx = room.context_sources?.memory
-        if (ctx) {
-          setIncludeThisRoom(ctx.include_this_room ?? true)
-          setSelectedRooms(ctx.other_chat_rooms || [])
-          setSelectedAgentInstances(ctx.agent_instances || [])
+        const allOtherRoomIds = rooms.filter(r => r.id !== room.id).map(r => r.id)
+        if (ctx && Array.isArray(ctx.other_chat_rooms) && ctx.other_chat_rooms.length > 0) {
+          // 명시적으로 설정된 경우 해당 값 사용 (유효한 ID만 필터)
+          const validIds = ctx.other_chat_rooms.filter((id: string) => allOtherRoomIds.includes(id))
+          setSelectedRooms(validIds.length > 0 ? validIds : allOtherRoomIds)
+        } else {
+          // 기본값: 내가 참여한 모든 대화방 체크
+          setSelectedRooms(allOtherRoomIds)
         }
+        setSelectedAgentInstances(ctx?.agent_instances || [])
       } catch (e) {
         console.error('데이터 로드 실패:', e)
       } finally {
@@ -103,7 +107,7 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
     try {
       const contextSources: ContextSources = {
         memory: {
-          include_this_room: includeThisRoom,
+          include_this_room: true,
           other_chat_rooms: selectedRooms,
           agent_instances: selectedAgentInstances,
         },
@@ -200,25 +204,6 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
               </div>
             ) : (
               <div className="space-y-6">
-                {/* 기본: 이 대화방 */}
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">기본 메모리</h3>
-                  <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-background-hover cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={includeThisRoom}
-                      onChange={(e) => setIncludeThisRoom(e.target.checked)}
-                      className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
-                    />
-                    <div>
-                      <p className="text-sm font-medium">이 대화방 메모리</p>
-                      <p className="text-xs text-foreground-muted">
-                        현재 대화방에서 저장된 메모리
-                      </p>
-                    </div>
-                  </label>
-                </div>
-
                 {/* 다른 대화방 */}
                 {myChatRooms.length > 0 && (
                   <div className="space-y-2">

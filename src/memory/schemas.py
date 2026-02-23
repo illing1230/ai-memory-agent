@@ -52,6 +52,7 @@ class MemorySearchRequest(BaseModel):
 
 
 class SourceInfo(BaseModel):
+    owner_name: str | None = None
     chat_room_name: str | None = None
     agent_instance_name: str | None = None
 

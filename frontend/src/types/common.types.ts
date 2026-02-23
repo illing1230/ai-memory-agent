@@ -130,6 +130,7 @@ export interface Memory {
 export interface MemoryListResult {
   memory: Memory
   source_info?: {
+    owner_name?: string
     chat_room_name?: string
     agent_instance_name?: string
   }
@@ -139,6 +140,7 @@ export interface MemorySearchResult {
   memory: Memory
   score: number
   source_info?: {
+    owner_name?: string
     chat_room_name?: string
     agent_instance_name?: string
   }

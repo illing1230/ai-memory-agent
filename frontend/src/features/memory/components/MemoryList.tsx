@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download } from 'lucide-react'
+import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download, User } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -311,6 +311,12 @@ export function MemoryList() {
                               </p>
 
                               <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
+                                {sourceInfo?.owner_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    {sourceInfo.owner_name}
+                                  </span>
+                                )}
                                 {sourceInfo?.agent_instance_name && (
                                   <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
                                     <Bot className="h-3 w-3" />

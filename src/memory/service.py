@@ -109,15 +109,24 @@ class MemoryService:
             )
             all_memories.extend(personal)
 
-        # 2. 대화방 메모리 (scope=chatroom이고 owner가 나인 것)
+        # 2. 대화방 메모리 (사용자가 참여한 모든 대화방의 메모리)
         if scope is None or scope == "chatroom":
-            chatroom_memories = await self.repo.list_memories(
-                owner_id=user_id,
-                scope="chatroom",
-                agent_instance_id=agent_instance_id,
-                limit=limit,
+            # 사용자가 참여한 대화방 ID 목록 조회
+            cursor = await self.repo.db.execute(
+                "SELECT chat_room_id FROM chat_room_members WHERE user_id = ?",
+                (user_id,),
             )
-            all_memories.extend(chatroom_memories)
+            rows = await cursor.fetchall()
+            my_room_ids = [row[0] for row in rows]
+
+            for room_id in my_room_ids:
+                room_memories = await self.repo.list_memories(
+                    scope="chatroom",
+                    chat_room_id=room_id,
+                    agent_instance_id=agent_instance_id,
+                    limit=limit,
+                )
+                all_memories.extend(room_memories)
 
         # 3. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
         if scope is None or scope == "agent":
@@ -140,10 +149,22 @@ class MemoryService:
         # 최신순 정렬
         unique_memories.sort(key=lambda x: x["created_at"], reverse=True)
 
+        # owner_id → 이름 캐시 (N+1 방지)
+        owner_name_cache: dict[str, str] = {}
+
         # 출처 정보 추가
         memories_with_source = []
         for memory in unique_memories[:limit]:
             source_info = {}
+
+            # 소유자 이름
+            owner_id = memory.get("owner_id")
+            if owner_id:
+                if owner_id not in owner_name_cache:
+                    owner = await self.user_repo.get_user(owner_id)
+                    owner_name_cache[owner_id] = owner["name"] if owner else "알 수 없음"
+                source_info["owner_name"] = owner_name_cache[owner_id]
+
             if memory["scope"] == "chatroom" and memory.get("chat_room_id"):
                 from src.chat.repository import ChatRepository
                 chat_repo = ChatRepository(self.repo.db)

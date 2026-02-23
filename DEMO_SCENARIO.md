@@ -4,6 +4,7 @@
 
 ```bash
 # 1. DB 초기화 + 시드 데이터
+rm -f data/sqlite/memory.db*
 python -m src.scripts.seed_demo
 
 # 2. 데모 문서 자동 생성 (seed_demo에 포함)
@@ -18,9 +19,24 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 | 이름 | 이메일 | 비밀번호 | 역할 | 팀 |
 |------|--------|----------|------|-----|
-| 관리자 | admin@test.com | test123 | admin | 개발팀 |
+| hy.joo | admin@test.com | test123 | admin | 개발팀 |
 | 김품질 | kim.quality@company.com | test123 | user | 품질팀 |
 | 최개발 | choi.dev@company.com | test123 | user | 개발팀 |
+
+> **SSO/Mattermost 로그인**: 이메일 입력 후 "SSO 로그인" 또는 "Mattermost로 로그인" 버튼 클릭 시 해당 사용자로 즉시 로그인됩니다.
+
+---
+
+## 데모 0: 로그인 (1분)
+
+> **목적**: SSO와 Mattermost 로그인 버튼이 분리되어 있는 것을 보여줌
+
+1. 로그인 페이지 접속
+2. **"테스트 계정으로 채우기 (hy.joo)"** 클릭 → 이메일/비밀번호 자동 입력
+3. **"SSO 로그인"** 버튼 클릭 → hy.joo로 로그인 성공
+4. 로그아웃
+5. 다시 이메일에 `admin@test.com` 입력 → **"Mattermost로 로그인"** 클릭 → hy.joo로 로그인 성공
+6. 두 버튼이 별도 SSO 프로바이더(saml/mattermost)로 동작하는 것을 확인
 
 ---
 
@@ -28,7 +44,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 > **목적**: 대화방에서 AI와 대화하고, 메모리가 자동 추출/검색되는 것을 보여줌
 
-**로그인**: `admin@test.com` / `test123`
+**로그인**: hy.joo (`admin@test.com` / `test123`)
 
 1. **"개발팀 공유" 대화방** 입장
 2. 메시지 전송:
@@ -55,7 +71,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 > **목적**: 문서 RAG의 단순 검색과 엔티티 그래프 기반 쿼리 확장의 차이를 보여줌
 
-**로그인**: `admin@test.com` / `test123`
+**로그인**: hy.joo (`admin@test.com` / `test123`)
 
 ### 2-1. 단순 문서 RAG
 
@@ -91,7 +107,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 > **목적**: 엔티티 관계를 통해 서로 다른 대화방의 정보가 연결되는 것을 시각적으로 보여줌
 
-**로그인**: `kim.quality@company.com` / `test123`
+**로그인**: hy.joo (`admin@test.com` / `test123`) — 품질팀 공유 대화방에도 멤버로 포함되어 크로스룸 검색 시연 가능
 
 ### 시드 데이터 구조 설명
 
@@ -138,7 +154,9 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 > **목적**: PPTX 슬라이드가 이미지로 변환되어 검색·표시되는 것을 보여줌
 
-1. **"품질팀 공유" 대화방** 입장 (김품질 계정 또는 admin)
+**로그인**: hy.joo (계속 사용)
+
+1. **"품질팀 공유" 대화방** 입장
 2. **품질검사_매뉴얼.pptx** 확인 (시드에 포함됨)
 3. 문서 **미리보기** 클릭
    → 슬라이드 이미지가 순서대로 표시됨 (슬라이드 1~5)
@@ -162,7 +180,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 > **목적**: 외부 에이전트(봇)가 데이터를 수집하고, 에이전트 메모리가 대화에 활용되는 것을 보여줌
 
-1. **admin 계정** 로그인
+1. **hy.joo 계정** 로그인
 2. 좌측 **에이전트** 메뉴 이동
 3. 등록된 에이전트 확인:
    - **품질 모니터링 봇** (agent type: 품질 모니터링)
@@ -183,11 +201,51 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 데모 6: Mchat(Mattermost) 연동 (2분)
+## 데모 6: Agent SDK 연동 (3분)
+
+> **목적**: Agent SDK를 통해 외부 시스템에서 프로그래밍 방식으로 메모리를 저장/검색하는 것을 보여줌
+
+### 사전 준비
+
+```bash
+# SDK 설치 (아직 안 했다면)
+pip install -e ai_memory_agent_sdk/
+
+# 서버가 실행 중이어야 함
+```
+
+### 실행
+
+```bash
+python -m src.scripts.demo_agent_sdk
+```
+
+### 데모 흐름
+
+1. **서버 헬스 체크** → 서버 상태 확인
+2. **메모리 저장** (`send_memory`)
+   - "A라인 실시간 불량률 3.1%, 전일 대비 0.8% 상승"
+   - "B라인 CPK 지수 1.42 (기준: 1.33 이상)"
+3. **메모리 검색** (`search_memories`)
+   - "불량률" 검색 → 방금 저장한 메모리 반환
+4. **메시지 전송** (`send_message`)
+   - 품질 경고 알림 메시지 전송
+5. **로그 전송** (`send_log`)
+   - 작업 완료 로그 전송
+6. **에이전트 데이터 조회** (`get_agent_data`)
+   - 저장된 전체 데이터 확인
+7. **메모리 소스 조회** (`get_memory_sources`)
+   - 접근 가능한 대화방/문서 소스 확인
+
+> **핵심 포인트**: SDK를 통해 외부 시스템(품질 모니터링, 문서 분석 등)이 MemGate에 데이터를 자동으로 저장하고, 저장된 데이터가 대화방에서 AI 답변의 컨텍스트로 활용됨
+
+---
+
+## 데모 7: Mchat(Mattermost) 연동 (2분)
 
 > **목적**: Mattermost 채널과 연동하여 외부 메시지를 동기화하는 것을 보여줌
 
-1. **admin 계정** → 관리자 대시보드
+1. **hy.joo 계정** → 관리자 대시보드
 2. **Mchat 설정** 메뉴 확인:
    - 연결 상태 표시 (connected/disconnected)
    - 매핑된 채널 목록
@@ -204,12 +262,14 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 ## 데모 흐름 요약
 
 ```
-1. 대화방 + 메모리        →  AI 대화, /remember, /search
-2. RAG (TXT) + Entity    →  문서 검색 + 엔티티 그래프 쿼리 확장 비교
-3. Entity 크로스룸 검색   →  엔티티 관계로 다른 대화방 메모리 연결
-4. RAG (PPTX)            →  슬라이드 이미지 표시, 슬라이드 기반 답변
-5. Agent                 →  외부 봇 연동, 에이전트 메모리 활용
-6. Mchat                 →  Mattermost 채널 동기화
+0. 로그인                   →  SSO / Mattermost 버튼 분리 확인
+1. 대화방 + 메모리          →  AI 대화, /remember, /search
+2. RAG (TXT) + Entity      →  문서 검색 + 엔티티 그래프 쿼리 확장 비교
+3. Entity 크로스룸 검색     →  엔티티 관계로 다른 대화방 메모리 연결
+4. RAG (PPTX)              →  슬라이드 이미지 표시, 슬라이드 기반 답변
+5. Agent                   →  외부 봇 연동, 에이전트 메모리 활용
+6. Agent SDK               →  SDK로 메모리 저장/검색 자동화
+7. Mchat                   →  Mattermost 채널 동기화
 ```
 
 ### Entity 전략 요약 (데모 2, 3의 핵심)
@@ -242,4 +302,4 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
 6. Reranker → 최종 결과
 ```
 
-총 소요 시간: **약 18분**
+총 소요 시간: **약 22분**

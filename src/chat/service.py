@@ -641,7 +641,18 @@ AI가 해당 메모리들도 참조합니다."""
         user_info = await self.user_repo.get_user(user_id)
         user_name = user_info["name"] if user_info else None
 
-        system_prompt = self._build_system_prompt(relevant_memories, document_chunks, user_name=user_name)
+        # 메모리 소유자 이름 매핑 (현재 사용자와 다른 사용자 구분을 위해)
+        owner_names: dict[str, str] = {}
+        if relevant_memories:
+            owner_ids = {m["memory"].get("owner_id") for m in relevant_memories if m["memory"].get("owner_id")}
+            for oid in owner_ids:
+                if oid == user_id:
+                    owner_names[oid] = user_name or "나"
+                else:
+                    owner_info = await self.user_repo.get_user(oid)
+                    owner_names[oid] = owner_info["name"] if owner_info else "알 수 없음"
+
+        system_prompt = self._build_system_prompt(relevant_memories, document_chunks, user_name=user_name, owner_names=owner_names)
         conversation_context = self._build_conversation(recent_messages)
         
         full_prompt = f"""[최근 대화 내용]
@@ -915,6 +926,7 @@ AI가 해당 메모리들도 참조합니다."""
         memories: list[dict[str, Any]],
         document_chunks: list[dict[str, Any]] | None = None,
         user_name: str | None = None,
+        owner_names: dict[str, str] | None = None,
     ) -> str:
         """시스템 프롬프트 구성 (우선순위: RAG 문서 > 메모리)"""
         # 현재 날짜 (UTC+9)
@@ -926,15 +938,19 @@ AI가 해당 메모리들도 참조합니다."""
 절대로 자신을 Qwen, LLaMA, GPT 등 다른 AI 모델로 소개하지 마세요.
 "너 이름이 뭐야?" 또는 "누구야?"와 같이 당신의 정체를 묻는 질문에는 "{AI_USER_NAME}"라고 답변하세요.
 
-{f'시스템 기본 사용자명: {user_name}' if user_name else ''}
+[현재 대화 중인 사용자]
+사용자명: {user_name or '알 수 없음'}
+"나", "내", "제" 등 1인칭 표현은 반드시 이 사용자({user_name})를 가리킵니다.
+
 현재 날짜: {current_date}
 
 [핵심 규칙 - 반드시 따르세요]
-1. 아래 [저장된 메모리] 섹션의 내용을 최우선으로 사용하세요.
-2. "내 이름이 뭐야?" → 메모리에 이름이 있으면 반드시 그 이름을 답하세요. 메모리에 없을 때만 시스템 기본 사용자명을 사용하세요.
-3. 사용자의 선호도, 관심사, 개인 정보에 대한 질문 → 메모리 내용 기반으로 답하세요.
-4. 여러 메모리에 상반된 정보가 있으면 최신 메모리를 우선 적용하세요.
-5. 날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요."""
+1. 아래 [저장된 메모리]에는 여러 사용자의 메모리가 섞여 있을 수 있습니다. 각 메모리의 [소유자] 정보를 확인하세요.
+2. "내 이름이 뭐야?" → 현재 대화 중인 사용자명({user_name})을 답하세요.
+3. "나"에 대한 질문 → 현재 사용자({user_name})의 메모리만 참고하세요. 다른 사용자의 메모리를 현재 사용자 정보로 혼동하지 마세요.
+4. 다른 사용자에 대한 질문 (예: "hy.joo 일정") → 해당 사용자의 메모리를 참고하세요.
+5. 여러 메모리에 상반된 정보가 있으면 최신 메모리를 우선 적용하세요.
+6. 날짜 관련 질문에는 현재 날짜를 기준으로 답변해주세요."""
 
         # RAG 문서 (높은 우선순위 - 먼저 배치)
         if document_chunks:
@@ -953,7 +969,9 @@ AI가 해당 메모리들도 참조합니다."""
             for i, m in enumerate(memories, 1):
                 mem = m["memory"]
                 created_at = mem.get("created_at", "")
-                memory_text += f"{i}. {mem['content']} (유사도: {m['score']:.2f}, 생성일: {created_at[:10]})\n"
+                owner_id = mem.get("owner_id", "")
+                owner_label = (owner_names or {}).get(owner_id, "알 수 없음")
+                memory_text += f"{i}. [소유자: {owner_label}] {mem['content']} (유사도: {m['score']:.2f}, 생성일: {created_at[:10]})\n"
             base_prompt += memory_text
 
         return base_prompt

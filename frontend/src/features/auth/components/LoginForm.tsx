@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Brain, Mail, Lock, User, Loader2, MessageSquare } from 'lucide-react'
+import { Brain, Mail, Lock, User, Loader2, MessageSquare, Shield } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { useAuthStore } from '../store/authStore'
 import { login, register, ssoLogin } from '../api/authApi'
@@ -176,7 +176,7 @@ export function LoginForm() {
           {/* Dev Mode */}
           <div className="mt-6 pt-4 border-t border-border">
             <p className="text-xs text-foreground-muted text-center mb-2">
-              개발 모드에서는 비밀번호 없이 로그인됩니다
+              데모용 테스트 계정
             </p>
             <Button
               type="button"
@@ -184,18 +184,22 @@ export function LoginForm() {
               className="w-full text-xs"
               onClick={() => {
                 setFormData({
-                  name: '개발자',
+                  name: 'hy.joo',
                   email: 'admin@test.com',
                   password: 'test123',
                 })
               }}
             >
-              테스트 계정으로 채우기
+              테스트 계정으로 채우기 (hy.joo)
             </Button>
           </div>
 
-          {/* SSO Login */}
-          <div className="mt-6 pt-4 border-t border-border">
+          {/* SSO / Mattermost Login */}
+          <div className="mt-6 pt-4 border-t border-border space-y-2">
+            <p className="text-xs text-foreground-muted text-center mb-2">
+              외부 인증
+            </p>
+            {/* SSO (SAML) Login */}
             <Button
               type="button"
               variant="outline"
@@ -204,19 +208,50 @@ export function LoginForm() {
                 setError(null)
                 setIsLoading(true)
                 try {
-                  // 실제 SSO 통합은 서버 설정에 따라 다름
-                  // 여기서는 테스트용으로 SSO 로그인 시뮬레이션
+                  const email = formData.email || 'admin@test.com'
+                  const name = formData.name || email.split('@')[0]
                   const result = await ssoLogin({
-                    email: formData.email || 'admin@test.com',
-                    name: formData.name || 'SSO 사용자',
-                    sso_provider: 'mattermost',
-                    sso_id: 'sso-user-id',
+                    email,
+                    name,
+                    sso_provider: 'saml',
+                    sso_id: `saml-${email.replace('@', '-')}`,
                   })
                   storeLogin(result.user, result.access_token)
                   navigate('/chat')
                 } catch (err: unknown) {
                   const error = err as { response?: { data?: { detail?: string } } }
                   setError(error.response?.data?.detail || 'SSO 로그인 실패')
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+            >
+              <Shield className="h-4 w-4" />
+              {isLoading ? '처리 중...' : 'SSO 로그인'}
+            </Button>
+            {/* Mattermost Login */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={async () => {
+                setError(null)
+                setIsLoading(true)
+                try {
+                  const email = formData.email || 'admin@test.com'
+                  const name = formData.name || email.split('@')[0]
+                  const result = await ssoLogin({
+                    email,
+                    name,
+                    sso_provider: 'mattermost',
+                    sso_id: `mm-${email.replace('@', '-')}`,
+                  })
+                  storeLogin(result.user, result.access_token)
+                  navigate('/chat')
+                } catch (err: unknown) {
+                  const error = err as { response?: { data?: { detail?: string } } }
+                  setError(error.response?.data?.detail || 'Mattermost 로그인 실패')
                 } finally {
                   setIsLoading(false)
                 }
