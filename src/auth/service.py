@@ -124,6 +124,9 @@ class AuthService:
         user = await self.user_repo.get_user_by_email(email)
 
         if user:
+            # 기존 사용자: role 유지
+            existing_role = user.get("role", "user")
+            
             # SSO 메타데이터 업데이트 (이름이 변경됐을 수 있음)
             if user.get("name") != name:
                 await self.db.execute(
@@ -132,6 +135,9 @@ class AuthService:
                 )
                 await self.db.commit()
                 user["name"] = name
+            
+            # role 정보 업데이트
+            user["role"] = existing_role
         else:
             # 2) 신규 사용자 자동 생성 (비밀번호 없음 — SSO 전용)
             user = await self.user_repo.create_user(
@@ -139,6 +145,7 @@ class AuthService:
                 email=email,
                 department_id=department_id,
             )
+            # 신규 사용자는 기본 role 'user'
 
         # SSO 메타데이터 저장 (sso_provider, sso_id)
         await self.db.execute(
