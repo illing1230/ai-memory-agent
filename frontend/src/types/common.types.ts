@@ -84,6 +84,8 @@ export interface MessageSource {
     document_name: string
     content: string
     score: number
+    slide_number?: number
+    slide_image_url?: string
   }>
   memories?: Array<{
     memory_id: string
@@ -213,7 +215,7 @@ export interface PaginatedMemories {
 export interface Document {
   id: string
   name: string
-  file_type: 'pdf' | 'txt'
+  file_type: 'pdf' | 'txt' | 'pptx'
   file_size: number
   owner_id: string
   chat_room_id?: string
@@ -228,6 +230,8 @@ export interface DocumentChunk {
   content: string
   chunk_index: number
   vector_id?: string
+  slide_number?: number
+  slide_image_url?: string
 }
 
 export interface DocumentDetail extends Document {

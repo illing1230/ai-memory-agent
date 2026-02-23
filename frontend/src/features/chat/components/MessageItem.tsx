@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui'
 import { formatTime } from '@/lib/utils'
-import { Bot, ChevronRight, FileText, Brain } from 'lucide-react'
+import { Bot, ChevronRight, FileText, Brain, Image } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Message, MessageSource } from '@/types'
@@ -84,12 +84,36 @@ function SourcePanel({ sources }: { sources: MessageSource }) {
       {isOpen && (
         <div className="mt-1 pl-4 space-y-1 text-xs text-foreground-secondary">
           {sources.documents?.map((doc) => (
-            <div key={doc.document_id} className="flex items-start gap-1.5">
-              <FileText className="h-3 w-3 mt-0.5 shrink-0 text-accent" />
+            <div key={`${doc.document_id}-${doc.slide_number ?? ''}`} className="flex items-start gap-1.5">
+              {doc.slide_image_url ? (
+                <Image className="h-3 w-3 mt-0.5 shrink-0 text-accent" />
+              ) : (
+                <FileText className="h-3 w-3 mt-0.5 shrink-0 text-accent" />
+              )}
               <div className="min-w-0">
                 <span className="font-medium">{doc.document_name}</span>
+                {doc.slide_number && (
+                  <span className="text-foreground-muted ml-1">슬라이드 {doc.slide_number}</span>
+                )}
                 <span className="text-foreground-muted ml-1">({Math.round(doc.score * 100)}%)</span>
-                <p className="text-foreground-muted truncate">{doc.content}</p>
+                {doc.slide_image_url && (
+                  <a
+                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}${doc.slide_image_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block mt-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img
+                      src={`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}${doc.slide_image_url}`}
+                      alt={`슬라이드 ${doc.slide_number}`}
+                      className="w-48 rounded border border-border hover:opacity-80 transition-opacity"
+                    />
+                  </a>
+                )}
+                {!doc.slide_image_url && (
+                  <p className="text-foreground-muted truncate">{doc.content}</p>
+                )}
               </div>
             </div>
           ))}

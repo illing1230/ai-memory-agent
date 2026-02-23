@@ -3,6 +3,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 import aiosqlite
 
 from src.shared.database import get_db
@@ -30,7 +31,7 @@ async def upload_document(
     user_id: str = Depends(get_current_user_id),
     service: DocumentService = Depends(get_document_service),
 ):
-    """문서 업로드 (PDF, TXT)"""
+    """문서 업로드 (PDF, TXT, PPTX)"""
     content = await file.read()
     if len(content) > 50 * 1024 * 1024:  # 50MB 제한
         raise HTTPException(status_code=400, detail="파일 크기는 50MB 이하만 가능합니다")
@@ -84,6 +85,19 @@ async def get_document(
         return await service.get_document_detail(doc_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{doc_id}/slides/{slide_number}")
+async def get_slide_image(
+    doc_id: str,
+    slide_number: int,
+    service: DocumentService = Depends(get_document_service),
+):
+    """슬라이드 이미지 반환 (PNG)"""
+    image_path = service.get_slide_image_path(doc_id, slide_number)
+    if not image_path:
+        raise HTTPException(status_code=404, detail="슬라이드 이미지를 찾을 수 없습니다")
+    return FileResponse(image_path, media_type="image/png")
 
 
 @router.delete("/{doc_id}")

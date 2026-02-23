@@ -712,6 +712,8 @@ AI가 해당 메모리들도 참조합니다."""
                     "document_name": d["document_name"],
                     "content": d["content"][:200],
                     "score": d["score"],
+                    **({"slide_number": d["slide_number"]} if d.get("slide_number") else {}),
+                    **({"slide_image_url": d["slide_image_url"]} if d.get("slide_image_url") else {}),
                 }
                 for d in filtered_documents
             ],
@@ -851,11 +853,25 @@ AI가 해당 메모리들도 참조합니다."""
 
             # 청크 내용 조회
             content = data.get("content", "")
+            slide_number = None
+            slide_image_url = None
             if not content:
                 chunks = await self.document_repo.get_chunks(doc_id)
                 for c in chunks:
                     if c["chunk_index"] == chunk_idx:
                         content = c["content"]
+                        slide_number = c.get("slide_number")
+                        if slide_number:
+                            slide_image_url = f"/api/v1/documents/{doc_id}/slides/{slide_number}"
+                        break
+            else:
+                # 키워드 결과에서도 슬라이드 정보 조회
+                chunks = await self.document_repo.get_chunks(doc_id)
+                for c in chunks:
+                    if c["chunk_index"] == chunk_idx:
+                        slide_number = c.get("slide_number")
+                        if slide_number:
+                            slide_image_url = f"/api/v1/documents/{doc_id}/slides/{slide_number}"
                         break
 
             doc = await self.document_repo.get_document(doc_id)
@@ -866,6 +882,8 @@ AI가 해당 메모리들도 참조합니다."""
                 "document_name": doc["name"] if doc else "Unknown",
                 "chunk_index": chunk_idx,
                 "document_id": doc_id,
+                "slide_number": slide_number,
+                "slide_image_url": slide_image_url,
             })
 
         # --- Reranker 적용 ---

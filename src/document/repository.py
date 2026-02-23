@@ -17,7 +17,7 @@ class DocumentRepository:
     async def create_document(
         self,
         name: str,
-        file_type: Literal["pdf", "txt"],
+        file_type: Literal["pdf", "txt", "pptx"],
         file_size: int,
         owner_id: str,
         chat_room_id: str | None = None,
@@ -88,12 +88,14 @@ class DocumentRepository:
         content: str,
         chunk_index: int,
         vector_id: str,
+        slide_number: int | None = None,
+        slide_image_path: str | None = None,
     ) -> dict[str, Any]:
         chunk_id = str(uuid.uuid4())
         await self.db.execute(
-            """INSERT INTO document_chunks (id, document_id, content, chunk_index, vector_id)
-               VALUES (?, ?, ?, ?, ?)""",
-            (chunk_id, document_id, content, chunk_index, vector_id),
+            """INSERT INTO document_chunks (id, document_id, content, chunk_index, vector_id, slide_number, slide_image_path)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (chunk_id, document_id, content, chunk_index, vector_id, slide_number, slide_image_path),
         )
         await self.db.commit()
         return {
@@ -102,6 +104,8 @@ class DocumentRepository:
             "content": content,
             "chunk_index": chunk_index,
             "vector_id": vector_id,
+            "slide_number": slide_number,
+            "slide_image_path": slide_image_path,
         }
 
     async def get_chunks(self, document_id: str) -> list[dict[str, Any]]:

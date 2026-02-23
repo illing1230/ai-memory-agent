@@ -67,8 +67,14 @@ export interface DocumentSearchResult {
   document_id: string
   chunk_index: number
   file_type: string
+  slide_number?: number
+  slide_image_url?: string
 }
 
 export async function searchDocuments(query: string, limit: number = 10): Promise<DocumentSearchResult[]> {
   return get<DocumentSearchResult[]>('/documents/search', { query, limit })
+}
+
+export function getSlideImageUrl(docId: string, slideNumber: number): string {
+  return `${API_BASE_URL}/documents/${docId}/slides/${slideNumber}`
 }

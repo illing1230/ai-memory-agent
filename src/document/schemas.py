@@ -10,7 +10,7 @@ class DocumentResponse(BaseModel):
     """문서 응답"""
     id: str
     name: str
-    file_type: Literal["pdf", "txt"]
+    file_type: Literal["pdf", "txt", "pptx"]
     file_size: int
     owner_id: str
     chat_room_id: Optional[str] = None
@@ -26,6 +26,8 @@ class DocumentChunkResponse(BaseModel):
     content: str
     chunk_index: int
     vector_id: Optional[str] = None
+    slide_number: Optional[int] = None
+    slide_image_url: Optional[str] = None
 
 
 class DocumentDetailResponse(DocumentResponse):

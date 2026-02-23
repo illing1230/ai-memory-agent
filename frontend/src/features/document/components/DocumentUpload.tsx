@@ -13,8 +13,8 @@ export function DocumentUpload({ chatRoomId, onSuccess }: DocumentUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const uploadMutation = useUploadDocument()
 
-  const acceptedTypes = ['.pdf', '.txt']
-  const acceptedMimeTypes = ['application/pdf', 'text/plain']
+  const acceptedTypes = ['.pdf', '.txt', '.pptx']
+  const acceptedMimeTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.presentationml.presentation']
 
   const isValidFile = (file: File) => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase()
@@ -71,11 +71,11 @@ export function DocumentUpload({ chatRoomId, onSuccess }: DocumentUploadProps) {
         <p className="text-sm text-foreground-secondary">
           파일을 드래그하거나 클릭하여 업로드
         </p>
-        <p className="text-xs text-foreground-muted mt-1">PDF, TXT (최대 50MB)</p>
+        <p className="text-xs text-foreground-muted mt-1">PDF, TXT, PPTX (최대 50MB)</p>
         <input
           id="doc-file-input"
           type="file"
-          accept=".pdf,.txt"
+          accept=".pdf,.txt,.pptx"
           className="hidden"
           onChange={handleFileSelect}
         />

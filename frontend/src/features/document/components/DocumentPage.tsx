@@ -4,7 +4,7 @@ import { Button, Tooltip, ScrollArea } from '@/components/ui'
 import { useDocuments, useDeleteDocument } from '../hooks/useDocument'
 import { DocumentUpload } from './DocumentUpload'
 import { ShareModal } from '@/features/share/components/ShareModal'
-import { getDocument } from '../api/documentApi'
+import { getDocument, getSlideImageUrl } from '../api/documentApi'
 import type { Document, DocumentDetail } from '@/types'
 
 export function DocumentPage() {
@@ -76,7 +76,7 @@ export function DocumentPage() {
       <div className="border-b border-border px-6 py-4">
         <h1 className="text-lg font-semibold">문서 관리</h1>
         <p className="text-sm text-foreground-muted mt-1">
-          PDF, TXT 파일을 업로드하여 대화방에서 AI 컨텍스트로 활용할 수 있습니다.
+          PDF, TXT, PPTX 파일을 업로드하여 대화방에서 AI 컨텍스트로 활용할 수 있습니다.
         </p>
       </div>
 
@@ -241,12 +241,30 @@ export function DocumentPage() {
                       <div className="flex items-center gap-2 mb-2">
                         <ChevronRight className="h-4 w-4 text-accent" />
                         <span className="text-xs font-medium text-foreground-muted">
-                          Chunk {chunk.chunk_index + 1}
+                          {chunk.slide_number
+                            ? `슬라이드 ${chunk.slide_number}`
+                            : `Chunk ${chunk.chunk_index + 1}`}
                         </span>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                        {chunk.content}
-                      </p>
+                      {chunk.slide_image_url && (
+                        <a
+                          href={getSlideImageUrl(previewDoc.id, chunk.slide_number!)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block mb-3"
+                        >
+                          <img
+                            src={getSlideImageUrl(previewDoc.id, chunk.slide_number!)}
+                            alt={`슬라이드 ${chunk.slide_number}`}
+                            className="w-full rounded border border-border"
+                          />
+                        </a>
+                      )}
+                      {chunk.content.trim() && (
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground-secondary">
+                          {chunk.content}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS entity_relations (
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'txt')),
+    file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'txt', 'pptx')),
     file_size INTEGER NOT NULL,
     owner_id TEXT NOT NULL,
     chat_room_id TEXT,
@@ -198,6 +198,8 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     content TEXT NOT NULL,
     chunk_index INTEGER NOT NULL,
     vector_id TEXT,
+    slide_number INTEGER,
+    slide_image_path TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
 );
@@ -771,6 +773,30 @@ async def init_database() -> None:
         pass
     try:
         await _db_connection.execute("ALTER TABLE users ADD COLUMN sso_id TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # documents file_type에 pptx 추가 (CHECK 제약조건 재생성)
+    try:
+        await _db_connection.execute("CREATE TABLE documents_new (id TEXT PRIMARY KEY, name TEXT NOT NULL, file_type TEXT NOT NULL CHECK (file_type IN ('pdf', 'txt', 'pptx')), file_size INTEGER NOT NULL, owner_id TEXT NOT NULL, chat_room_id TEXT, status TEXT DEFAULT 'processing' CHECK (status IN ('processing', 'completed', 'failed')), chunk_count INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(id), FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE SET NULL)")
+        await _db_connection.execute("INSERT INTO documents_new SELECT * FROM documents")
+        await _db_connection.execute("DROP TABLE documents")
+        await _db_connection.execute("ALTER TABLE documents_new RENAME TO documents")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_owner ON documents(owner_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_chat_room ON documents(chat_room_id)")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # document_chunks에 slide_number, slide_image_path 컬럼 추가
+    try:
+        await _db_connection.execute("ALTER TABLE document_chunks ADD COLUMN slide_number INTEGER")
+        await _db_connection.commit()
+    except Exception:
+        pass
+    try:
+        await _db_connection.execute("ALTER TABLE document_chunks ADD COLUMN slide_image_path TEXT")
         await _db_connection.commit()
     except Exception:
         pass
