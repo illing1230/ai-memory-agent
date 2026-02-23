@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Brain, Mail, Lock, User, Loader2 } from 'lucide-react'
+import { Brain, Mail, Lock, User, Loader2, MessageSquare } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { useAuthStore } from '../store/authStore'
-import { login, register } from '../api/authApi'
+import { login, register, ssoLogin } from '../api/authApi'
 import { cn } from '@/lib/utils'
 
 type Mode = 'login' | 'register'
@@ -191,6 +191,40 @@ export function LoginForm() {
               }}
             >
               테스트 계정으로 채우기
+            </Button>
+          </div>
+
+          {/* SSO Login */}
+          <div className="mt-6 pt-4 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={async () => {
+                setError(null)
+                setIsLoading(true)
+                try {
+                  // 실제 SSO 통합은 서버 설정에 따라 다름
+                  // 여기서는 테스트용으로 SSO 로그인 시뮬레이션
+                  const result = await ssoLogin({
+                    email: formData.email || 'admin@test.com',
+                    name: formData.name || 'SSO 사용자',
+                    sso_provider: 'mattermost',
+                    sso_id: 'sso-user-id',
+                  })
+                  storeLogin(result.user, result.access_token)
+                  navigate('/chat')
+                } catch (err: unknown) {
+                  const error = err as { response?: { data?: { detail?: string } } }
+                  setError(error.response?.data?.detail || 'SSO 로그인 실패')
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+            >
+              <MessageSquare className="h-4 w-4" />
+              {isLoading ? '처리 중...' : 'Mattermost로 로그인'}
             </Button>
           </div>
         </div>

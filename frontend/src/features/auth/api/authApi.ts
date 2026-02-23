@@ -34,3 +34,15 @@ export async function getMe(): Promise<User> {
 export async function verifyToken(): Promise<{ valid: boolean; user_id: string | null }> {
   return post('/auth/verify')
 }
+
+export interface SSOLoginRequest {
+  email: string
+  name: string
+  sso_provider: string
+  sso_id: string
+  department_id?: string
+}
+
+export async function ssoLogin(params: SSOLoginRequest): Promise<AuthResponse> {
+  return post<AuthResponse>('/auth/sso', params)
+}
