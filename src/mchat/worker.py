@@ -86,6 +86,14 @@ async def get_or_create_agent_room(
         name=f"Mchat: {mchat_channel_name or mchat_channel_id[:8]}",
         owner_id=agent_user_id,
         room_type="personal",
+        context_sources={
+            "memory": {
+                "include_this_room": True,
+                "other_chat_rooms": [],
+                "agent_instances": [],
+            },
+            "rag": {"collections": [], "filters": {}},
+        },
     )
 
     await chat_repo.add_member(room["id"], agent_user_id, "owner")

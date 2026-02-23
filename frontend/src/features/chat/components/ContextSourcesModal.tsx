@@ -57,8 +57,9 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
         setMyChatRooms(rooms.filter(r => r.id !== room.id))
 
         // Agent Instance 목록 로드
+        let agents: AgentInstance[] = []
         try {
-          const agents = await agentApi.listAgentInstances()
+          agents = await agentApi.listAgentInstances()
           setMyAgentInstances(agents.filter(a => a.status === 'active'))
         } catch {
           setMyAgentInstances([])
@@ -90,7 +91,14 @@ export function ContextSourcesModal({ room, open, onClose, onSave }: ContextSour
           // 기본값: 내가 참여한 모든 대화방 체크
           setSelectedRooms(allOtherRoomIds)
         }
-        setSelectedAgentInstances(ctx?.agent_instances || [])
+        // agent instances 기본값: 모든 active 인스턴스 체크
+        const allAgentIds = agents.filter(a => a.status === 'active').map(a => a.id)
+        if (ctx && Array.isArray(ctx.agent_instances) && ctx.agent_instances.length > 0) {
+          const validIds = ctx.agent_instances.filter((id: string) => allAgentIds.includes(id))
+          setSelectedAgentInstances(validIds.length > 0 ? validIds : allAgentIds)
+        } else {
+          setSelectedAgentInstances(allAgentIds)
+        }
       } catch (e) {
         console.error('데이터 로드 실패:', e)
       } finally {

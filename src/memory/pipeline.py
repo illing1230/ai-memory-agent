@@ -136,8 +136,17 @@ class MemoryPipeline:
         except Exception as e:
             print(f"[3] 실패: {e}")
 
-        # 1-4. Agent 메모리
-        agent_instances = memory_config.get("agent_instances", [])
+        # 1-4. Agent 메모리 (기본: 사용자가 소유한 모든 agent 인스턴스)
+        agent_instances = memory_config.get("agent_instances", None)
+        if not agent_instances:
+            cursor = await self.memory_repo.db.execute(
+                "SELECT id FROM agent_instances WHERE owner_id = ?",
+                (user_id,),
+            )
+            rows = await cursor.fetchall()
+            agent_instances = [row[0] for row in rows]
+            if agent_instances:
+                print(f"[4] 사용자 Agent 인스턴스 자동 조회: {len(agent_instances)}개")
         for agent_instance_id in agent_instances:
             try:
                 results = await search_vectors(
@@ -402,6 +411,7 @@ class MemoryPipeline:
         conversation: list[dict[str, Any]],
         room: dict[str, Any],
         user_id: str,
+        user_name: str | None = None,
     ) -> list[dict[str, Any]]:
         """대화에서 메모리 추출 → LLM 분류(카테고리/중요도/개인여부) → 저장"""
         import json as _json
@@ -411,6 +421,17 @@ class MemoryPipeline:
 
             # 현재 날짜 (UTC+9)
             current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
+
+            # 사용자 이름 (없으면 DB에서 조회)
+            if not user_name:
+                try:
+                    cursor = await self.memory_repo.db.execute(
+                        "SELECT name FROM users WHERE id = ?", (user_id,)
+                    )
+                    row = await cursor.fetchone()
+                    user_name = row[0] if row else "사용자"
+                except Exception:
+                    user_name = "사용자"
 
             # 사용자 메시지만 필터링하여 추출
             conv_for_extraction = [
@@ -425,12 +446,15 @@ class MemoryPipeline:
 
             system_prompt = f"""대화에서 장기적으로 기억할 가치가 있는 정보를 추출하고 분류하세요.
 
+현재 발화자: {user_name}
+
 중요 규칙:
 - 사용자가 직접 말한 "사실/진술"만 추출. AI 응답 내용은 추출하지 마세요.
 - 사용자의 질문("~뭐야?", "~알려줘", "~해줘")은 추출하지 마세요. 질문은 기억할 정보가 아닙니다.
 - 대화에 없는 내용을 추론하거나 가정하지 마세요.
 - @ai 멘션은 무시하고, 그 뒤의 실제 내용을 분석하세요.
 - 추출할 메모리가 없으면 빈 배열 []을 반환하세요.
+- content에 "사용자"라고 쓰지 말고 반드시 실제 이름({user_name})을 사용하세요.
 
 반드시 추출해야 하는 정보:
 - 사용자의 이름, 소속, 역할, 직책 (예: "내 이름은 홍길동이야" → 반드시 추출)
@@ -483,9 +507,9 @@ class MemoryPipeline:
   }}
 ]
 
-예시 입출력:
-- 입력: "내 이름은 김철수야" → [{{"content": "사용자의 이름은 김철수", "category": "fact", "importance": "high", "is_personal": true, "entities": [{{"name": "김철수", "type": "person"}}], "relations": []}}]
-- 입력: "나는 매운 음식을 좋아해" → [{{"content": "매운 음식을 좋아함", "category": "preference", "importance": "medium", "is_personal": true, "entities": [], "relations": []}}]
+예시 입출력 (발화자가 "홍길동"인 경우):
+- 입력: "내 이름은 김철수야" → [{{"content": "홍길동의 이름은 김철수", "category": "fact", "importance": "high", "is_personal": true, "entities": [{{"name": "김철수", "type": "person"}}], "relations": []}}]
+- 입력: "나는 매운 음식을 좋아해" → [{{"content": "홍길동은 매운 음식을 좋아함", "category": "preference", "importance": "medium", "is_personal": true, "entities": [], "relations": []}}]
 - 입력: "김대리가 품질검사 미팅에 참석해야 해. 박관리님이 주관하는 3월 릴리즈 프로젝트 관련이야." → [{{"content": "({current_date}) 김대리가 품질검사 미팅에 참석 예정. 박관리님 주관 3월 릴리즈 프로젝트 관련", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "김대리", "type": "person"}}, {{"name": "품질검사 미팅", "type": "meeting"}}, {{"name": "박관리님", "type": "person"}}, {{"name": "3월 릴리즈 프로젝트", "type": "project"}}], "relations": [{{"source": "김대리", "target": "품질검사 미팅", "type": "ATTENDS"}}, {{"source": "박관리님", "target": "3월 릴리즈 프로젝트", "type": "MANAGES"}}, {{"source": "품질검사 미팅", "target": "3월 릴리즈 프로젝트", "type": "PART_OF"}}]}}]"""
 
             extracted_text = (await llm_provider.generate(
