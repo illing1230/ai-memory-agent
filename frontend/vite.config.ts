@@ -18,11 +18,11 @@ export default defineConfig({
     open: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://10.244.14.73:8000',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: 'ws://10.244.14.73:8000',
         ws: true,
       },
     },
