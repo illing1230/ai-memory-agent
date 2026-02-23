@@ -6,9 +6,8 @@ import logging
 import ssl
 from typing import Any, Callable, Optional
 
+import aiohttp
 import httpx
-import websockets
-from websockets.exceptions import ConnectionClosed
 
 from src.config import get_settings
 
@@ -61,7 +60,7 @@ class MchatClient:
         self._http_verify = self._ssl_context if isinstance(self._ssl_context, bool) else False
 
         # WebSocket 상태
-        self._ws: Optional[websockets.WebSocketClientProtocol] = None
+        self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
         self._ws_task: Optional[asyncio.Task] = None
         self._event_handlers: dict[str, list[Callable]] = {}
         self._running = False
@@ -226,7 +225,6 @@ class MchatClient:
         """WebSocket 연결 시작 (exponential backoff 재연결)"""
         self._running = True
 
-        # WebSocket URL 구성
         ws_scheme = "wss" if self.base_url.startswith("https") else "ws"
         ws_url = f"{ws_scheme}://{self.base_url.split('://', 1)[1]}/api/v4/websocket"
 
@@ -234,51 +232,52 @@ class MchatClient:
             try:
                 logger.info(f"Connecting to WebSocket: {ws_url}")
 
-                # SSL 설정 분기
-                ws_ssl = self._ssl_context if ws_scheme == "wss" else None
+                async with aiohttp.ClientSession() as session:
+                    async with session.ws_connect(
+                        ws_url,
+                        headers={"Authorization": f"Bearer {self.token}"},
+                        ssl=self._ssl_context if ws_scheme == "wss" else None,
+                        heartbeat=30,
+                    ) as ws:
+                        self._ws = ws
+                        self.connected = True
+                        self.last_error = None
+                        self._current_reconnect_delay = self._reconnect_delay
+                        logger.info("WebSocket connected!")
 
-                async with websockets.connect(
-                    ws_url,
-                    additional_headers={"Authorization": f"Bearer {self.token}"},
-                    ping_interval=30,
-                    ping_timeout=10,
-                    ssl=ws_ssl,
-                ) as ws:
-                    self._ws = ws
-                    self.connected = True
-                    self.last_error = None
-                    self._current_reconnect_delay = self._reconnect_delay  # 성공 시 리셋
-                    logger.info("WebSocket connected!")
+                        # 인증
+                        auth_challenge = {
+                            "seq": 1,
+                            "action": "authentication_challenge",
+                            "data": {"token": self.token},
+                        }
+                        await ws.send_str(json.dumps(auth_challenge))
 
-                    # 인증
-                    auth_challenge = {
-                        "seq": 1,
-                        "action": "authentication_challenge",
-                        "data": {"token": self.token},
-                    }
-                    await ws.send(json.dumps(auth_challenge))
+                        # 이벤트 수신 루프
+                        async for msg in ws:
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    event = json.loads(msg.data)
+                                    event_type = event.get("event", "unknown")
 
-                    # 이벤트 수신 루프
-                    async for message in ws:
-                        try:
-                            event = json.loads(message)
-                            event_type = event.get("event", "unknown")
+                                    if event_type == "posted" and "data" in event:
+                                        if "post" in event["data"]:
+                                            event["data"]["post"] = json.loads(
+                                                event["data"]["post"]
+                                            )
 
-                            if event_type == "posted" and "data" in event:
-                                if "post" in event["data"]:
-                                    event["data"]["post"] = json.loads(event["data"]["post"])
+                                    await self._emit(event_type, event)
 
-                            await self._emit(event_type, event)
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Invalid JSON: {msg.data[:100]}")
+                                except Exception as e:
+                                    logger.error(f"Event processing error: {e}")
+                            elif msg.type in (
+                                aiohttp.WSMsgType.CLOSED,
+                                aiohttp.WSMsgType.ERROR,
+                            ):
+                                break
 
-                        except json.JSONDecodeError:
-                            logger.warning(f"Invalid JSON received: {message[:100]}")
-                        except Exception as e:
-                            logger.error(f"Event processing error: {e}")
-
-            except ConnectionClosed as e:
-                self.connected = False
-                self.last_error = f"WebSocket closed: {e}"
-                logger.warning(self.last_error)
             except Exception as e:
                 self.connected = False
                 self.last_error = f"WebSocket error: {e}"
@@ -287,7 +286,6 @@ class MchatClient:
             if self._running:
                 logger.info(f"Reconnecting in {self._current_reconnect_delay}s...")
                 await asyncio.sleep(self._current_reconnect_delay)
-                # Exponential backoff
                 self._current_reconnect_delay = min(
                     self._current_reconnect_delay * 2,
                     self._reconnect_delay_max,
@@ -299,9 +297,9 @@ class MchatClient:
     async def disconnect_websocket(self):
         """WebSocket 연결 종료"""
         self._running = False
-        if self._ws:
+        if self._ws and not self._ws.closed:
             await self._ws.close()
-            self._ws = None
+        self._ws = None
         self.connected = False
 
     def start(self) -> asyncio.Task:
