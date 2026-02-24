@@ -399,13 +399,14 @@ class MemoryService:
         user_id: str,
     ) -> int:
         """대화방의 모든 메모리 삭제 (대화방 멤버만 가능)"""
-        # 멤버 확인
+        # owner만 삭제 가능
         cursor = await self.repo.db.execute(
-            "SELECT 1 FROM chat_room_members WHERE chat_room_id = ? AND user_id = ?",
+            "SELECT role FROM chat_room_members WHERE chat_room_id = ? AND user_id = ?",
             (chat_room_id, user_id),
         )
-        if not await cursor.fetchone():
-            raise PermissionDeniedException("대화방 멤버만 삭제할 수 있습니다")
+        row = await cursor.fetchone()
+        if not row or row[0] != 'owner':
+            raise PermissionDeniedException("대화방 소유자만 메모리를 전체 삭제할 수 있습니다")
 
         # 해당 대화방 메모리 조회
         cursor = await self.repo.db.execute(
