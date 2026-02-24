@@ -123,6 +123,10 @@ class MchatClient:
         """채널 멤버 목록"""
         return await self._request("GET", f"/api/v4/channels/{channel_id}/members")
 
+    async def delete_channel(self, channel_id: str) -> dict[str, Any]:
+        """채널 삭제"""
+        return await self._request("DELETE", f"/api/v4/channels/{channel_id}")
+
     async def get_teams(self) -> list[dict[str, Any]]:
         """내가 속한 팀 목록"""
         return await self._request("GET", "/api/v4/users/me/teams")

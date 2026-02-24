@@ -48,6 +48,7 @@ class OpenAILLMProvider(BaseLLMProvider):
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "reasoning_mode": False,  # reasoning 기능 끄기
         }
 
         try:
@@ -95,12 +96,27 @@ class OpenAILLMProvider(BaseLLMProvider):
                 content = message.get("content")
                 
                 # content가 None이거나 빈 문자열인 경우 처리
-                if content is None:
-                    print(f"[LLM] 응답 content가 None입니다. 전체 message: {message}")
+                if content is None or content == "":
+                    print(f"[LLM] 응답 content가 None이거나 비어있습니다. 전체 message: {message}")
                     # gpt-oss-120b 모델은 reasoning_content 필드를 사용
-                    content = message.get("reasoning_content", "")
-                    if content:
-                        print(f"[LLM] reasoning_content에서 응답을 찾았습니다")
+                    # 일부 모델은 reasoning 필드를 사용 (추론 과정이 아님)
+                    reasoning = message.get("reasoning_content") or message.get("reasoning", "")
+                    if reasoning:
+                        print(f"[LLM] reasoning/reasoning_content에서 응답을 찾았습니다 (길이: {len(reasoning)})")
+                        # reasoning 필드에서 JSON 배열 추출 시도
+                        # [ 로 시작해서 ] 로 끝나는 배열 추출
+                        # 가장 바깥의 ] 찾기
+                        last_bracket = reasoning.rfind("]")
+                        if last_bracket != -1:
+                            # 첫 [ 찾기
+                            first_bracket = reasoning.find("[")
+                            if first_bracket != -1 and first_bracket < last_bracket:
+                                content = reasoning[first_bracket:last_bracket + 1]
+                                print(f"[LLM] reasoning에서 JSON 배열 추출: {content[:100]}...")
+                            else:
+                                content = ""
+                        else:
+                            content = ""
                     else:
                         # 빈 문자열로 처리하여 계속 진행
                         content = ""
@@ -166,6 +182,7 @@ class OpenAILLMProvider(BaseLLMProvider):
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": True,  # 스트리밍 활성화
+            "reasoning_mode": False,  # reasoning 기능 끄기
         }
 
         try:
@@ -244,7 +261,7 @@ class OpenAILLMProvider(BaseLLMProvider):
             response = await self.generate(
                 prompt=prompt,
                 system_prompt="당신은 대화에서 중요한 정보를 추출하는 AI입니다. 반드시 유효한 JSON 배열만 응답하세요. 다른 텍스트는 포함하지 마세요.",
-                temperature=0.1,
+                temperature=0.0,
                 max_tokens=2000,
             )
         except Exception as e:

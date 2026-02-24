@@ -444,6 +444,23 @@ class MemoryPipeline:
                 for m in conv_for_extraction
             )
 
+            # 입력 전처리 힌트: 기술 정보 감지
+            _tech_indicators = ["http://", "https://", "base_url", "import ", "api_key", "model=", "```"]
+            if any(ind in conversation_text for ind in _tech_indicators):
+                conversation_text += (
+                    "\n\n[시스템 참고: 위 대화에 코드/URL/API 정보가 포함되어 있습니다. "
+                    "반드시 접속 정보(URL, 모델 경로, 주요 파라미터)를 별도 메모리로 분리 추출하세요. "
+                    "공지/사실 내용과 기술 접속 정보를 각각 별도 메모리로 나누세요.]"
+                )
+            # 입력 전처리 힌트: 긴 텍스트 감지
+            elif len(conversation_text) > 500:
+                conversation_text += (
+                    "\n\n[시스템 참고: 위 대화가 긴 내용을 포함하고 있습니다. "
+                    "서로 다른 주제/항목은 별도 메모리로 분리 추출하세요. "
+                    "하나의 메모리에 여러 주제를 합치지 마세요. "
+                    "각 항목의 구체적인 수치, 날짜, 이름을 빠뜨리지 마세요.]"
+                )
+
             system_prompt = f"""대화에서 장기적으로 기억할 가치가 있는 정보를 추출하고 분류하세요.
 
 현재 발화자: {user_name}
@@ -456,12 +473,28 @@ class MemoryPipeline:
 - 추출할 메모리가 없으면 빈 배열 []을 반환하세요.
 - content에 "사용자"라고 쓰지 말고 반드시 실제 이름({user_name})을 사용하세요.
 
+**핵심: 너무 간소화하지 말고, 중요한 정보는 모두 포함하세요**
+- 숫자, 날짜, 버전, 구체적인 값은 반드시 유지
+- "공지드립니다", "배포했다", "진행한다" 등의 동작/상태 표현 유지
+- 의도/목적 정보도 포함 (예: "공지용", "보고용")
+- 전체 맥락을 파악하지 않고 일부만 요약하지 마세요
+
+**기술 정보 보존 규칙 (매우 중요):**
+- URL, API 엔드포인트, base_url, 도메인 주소는 반드시 전체를 그대로 포함하세요.
+- 코드 예시가 포함된 경우, 핵심 사용법(URL, model 경로, 주요 파라미터)을 별도 메모리로 추출하세요.
+- 서버 주소, IP, 포트, 모델 경로, 환경 설정값은 절대 생략하지 마세요.
+- 코드/설정이 포함된 메시지는 최소 2개 이상의 메모리로 분리 추출:
+  1. 사실/공지 내용 (예: "H200 4장으로 모델 배포 공지")
+  2. 접속/사용 정보 (예: "base_url: https://..., model: /data/..., 주요 파라미터")
+- import 구문이나 boilerplate 코드는 생략 가능하지만, 접속에 필요한 URL/경로/키 파라미터는 반드시 유지하세요.
+
 반드시 추출해야 하는 정보:
 - 사용자의 이름, 소속, 역할, 직책 (예: "내 이름은 홍길동이야" → 반드시 추출)
 - 사용자의 선호도, 취향, 좋아하는/싫어하는 것
 - 중요한 사실: 일정, 수치, 프로젝트 현황
 - 결정 사항, 합의, 방침
 - 사람/조직 관계, 담당자 정보
+- 기술 정보: URL, API 엔드포인트, 서버 주소, 모델 경로, 설정값, 접속 방법
 
 분류 기준:
 - category:
@@ -510,23 +543,63 @@ class MemoryPipeline:
 예시 입출력 (발화자가 "홍길동"인 경우):
 - 입력: "내 이름은 김철수야" → [{{"content": "홍길동의 이름은 김철수", "category": "fact", "importance": "high", "is_personal": true, "entities": [{{"name": "김철수", "type": "person"}}], "relations": []}}]
 - 입력: "나는 매운 음식을 좋아해" → [{{"content": "홍길동은 매운 음식을 좋아함", "category": "preference", "importance": "medium", "is_personal": true, "entities": [], "relations": []}}]
-- 입력: "김대리가 품질검사 미팅에 참석해야 해. 박관리님이 주관하는 3월 릴리즈 프로젝트 관련이야." → [{{"content": "({current_date}) 김대리가 품질검사 미팅에 참석 예정. 박관리님 주관 3월 릴리즈 프로젝트 관련", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "김대리", "type": "person"}}, {{"name": "품질검사 미팅", "type": "meeting"}}, {{"name": "박관리님", "type": "person"}}, {{"name": "3월 릴리즈 프로젝트", "type": "project"}}], "relations": [{{"source": "김대리", "target": "품질검사 미팅", "type": "ATTENDS"}}, {{"source": "박관리님", "target": "3월 릴리즈 프로젝트", "type": "MANAGES"}}, {{"source": "품질검사 미팅", "target": "3월 릴리즈 프로젝트", "type": "PART_OF"}}]}}]"""
+- 입력: "김대리가 품질검사 미팅에 참석해야 해. 박관리님이 주관하는 3월 릴리즈 프로젝트 관련이야." → [{{"content": "({current_date}) 김대리가 품질검사 미팅에 참석해야 해. 박관리님이 주관하는 3월 릴리즈 프로젝트 관련", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "김대리", "type": "person"}}, {{"name": "품질검사 미팅", "type": "meeting"}}, {{"name": "박관리님", "type": "person"}}, {{"name": "3월 릴리즈 프로젝트", "type": "project"}}], "relations": [{{"source": "김대리", "target": "품질검사 미팅", "type": "ATTENDS"}}, {{"source": "박관리님", "target": "3월 릴리즈 프로젝트", "type": "MANAGES"}}, {{"source": "품질검사 미팅", "target": "3월 릴리즈 프로젝트", "type": "PART_OF"}}]}}]
+- 입력: "H200 * 4장 사용하여 Qwen3.5-397B-FP8 모델 배포하여 공지드립니다. max-model-len : 131072\n\n예시코드\nimport os\nfrom langchain_openai import ChatOpenAI\nllm = ChatOpenAI(api_key='-', base_url='https://smart-dna.sec.samsung.net/k8s/magi/qwen35-397b-fp8/v1', model='/data/Qwen3.5-397B-A17B-FP8', temperature=0, max_tokens=100000)" → [
+  {{"content": "({current_date}) 홍길동이 H200 4장 사용하여 Qwen3.5-397B-FP8 모델 배포 공지. max-model-len: 131072", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "H200", "type": "topic"}}, {{"name": "Qwen3.5-397B-FP8", "type": "project"}}], "relations": [{{"source": "H200", "target": "Qwen3.5-397B-FP8", "type": "WORKS_ON"}}]}},
+  {{"content": "({current_date}) Qwen3.5-397B-FP8 모델 접속 정보 - base_url: https://smart-dna.sec.samsung.net/k8s/magi/qwen35-397b-fp8/v1, model: /data/Qwen3.5-397B-A17B-FP8, api_key: '-', temperature: 0, max_tokens: 100000 (langchain_openai ChatOpenAI 사용)", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "Qwen3.5-397B-FP8", "type": "project"}}, {{"name": "smart-dna.sec.samsung.net", "type": "topic"}}], "relations": [{{"source": "smart-dna.sec.samsung.net", "target": "Qwen3.5-397B-FP8", "type": "RELATED_TO"}}]}}
+]"""
 
             extracted_text = (await llm_provider.generate(
                 prompt=f"다음 대화를 분석해주세요:\n\n{conversation_text}",
                 system_prompt=system_prompt,
-                temperature=0.3,
-                max_tokens=2000,
+                temperature=0.0,
+                max_tokens=8000,  # 보험용: 더 긴 응답을 허용
             )).strip()
 
-            # JSON 파싱 (```json ... ``` 래핑 처리)
+            # JSON 파싱 - 향상된 로직
             cleaned = extracted_text
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[-1]  # 첫 줄 제거
-            if cleaned.endswith("```"):
-                cleaned = cleaned.rsplit("```", 1)[0]
-            cleaned = cleaned.strip()
-
+            
+            # 1. 코드 블록 제거 (```json ... ```, ``` ... ```)
+            if "```" in cleaned:
+                # 첫 ``` 이후 내용 추출
+                first_code_start = cleaned.find("```")
+                if first_code_start != -1:
+                    after_first_code = cleaned[first_code_start + 3:].strip()
+                    # 첫 줄 ```json 또는 ``` 제거
+                    if after_first_code.startswith("json"):
+                        after_first_code = after_first_code[4:].lstrip()
+                    elif after_first_code.startswith("\n"):
+                        after_first_code = after_first_code[1:].lstrip()
+                    
+                    # 마지막 ``` 제거
+                    if after_first_code.endswith("```"):
+                        cleaned = after_first_code[:-3].strip()
+                    else:
+                        cleaned = after_first_code
+                # 마지막 ```만 있는 경우
+                else:
+                    cleaned = cleaned[:cleaned.rfind("```")].strip()
+            
+            # 2. JSON 배열 추출 (가장 바깥쪽 [] 찾기)
+            bracket_start = cleaned.find("[")
+            bracket_end = cleaned.rfind("]")
+            
+            if bracket_start != -1 and bracket_end != -1 and bracket_start < bracket_end:
+                # 가장 바깥쪽 배열만 추출
+                cleaned = cleaned[bracket_start:bracket_end + 1]
+                
+                # 불필요한 접두사/접미사 제거
+                # 예: "다음 JSON:" 제거
+                for prefix in ["다음", "JSON:", "메모리:", "결과:"]:
+                    idx = cleaned.find(prefix)
+                    if idx != -1:
+                        bracket_start_in_cleaned = cleaned.find("[", idx)
+                        if bracket_start_in_cleaned != -1:
+                            cleaned = cleaned[bracket_start_in_cleaned:]
+                
+                cleaned = cleaned.strip()
+            
+            # 3. 파싱
             memory_items = _json.loads(cleaned)
             if not isinstance(memory_items, list):
                 memory_items = []
@@ -534,13 +607,10 @@ class MemoryPipeline:
             print(f"메모리 추출 결과: {len(memory_items)}개 (JSON 파싱 성공)")
 
         except _json.JSONDecodeError as e:
-            print(f"메모리 추출 JSON 파싱 실패: {e}, 원본: {extracted_text[:200]}")
-            # JSON 실패 시 줄바꿈 fallback (기존 방식)
-            lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
-            memory_items = [
-                {"content": line, "category": "fact", "importance": "medium", "is_personal": False}
-                for line in lines
-            ]
+            print(f"메모리 추출 JSON 파싱 실패: {e}")
+            print(f"추출 텍스트: {extracted_text[:500]}")
+            # JSON 실패 시 빈 배열 반환 (줄바꿈 fallback 제거)
+            memory_items = []
         except Exception as e:
             print(f"메모리 추출 실패: {e}")
             return []

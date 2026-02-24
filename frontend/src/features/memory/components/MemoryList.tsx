@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download, User } from 'lucide-react'
+import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download, User, MessageSquare } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
-import { useMemories, useDeleteMemory } from '../hooks/useMemory'
+import { useMemories, useDeleteMemory, useDeleteChatRoom } from '../hooks/useMemory'
 import { getDocuments, deleteDocument } from '@/features/document/api/documentApi'
 import { formatDate, cn, formatFileSize } from '@/lib/utils'
 import type { MemoryListResult, Memory, Document } from '@/types'
@@ -15,6 +15,8 @@ export function MemoryList() {
   const [activeTab, setActiveTab] = useState<TabType>('all')
   const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
+  const deleteChatRoom = useDeleteChatRoom()
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   
   // 문서 관련 상태
   const [documents, setDocuments] = useState<Document[]>([])
@@ -35,11 +37,22 @@ export function MemoryList() {
     }
   }
   
-  // 탭이 변경될 때 문서 로드
+  // 탭이 변경될 때 문서 로드 + 현재 사용자 ID 조회
   useEffect(() => {
     if (activeTab === 'document') {
       loadDocuments()
     }
+    // 현재 사용자 ID 조회
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/v1/auth/me')
+        const data = await response.json()
+        setCurrentUserId(data.id)
+      } catch (err) {
+        console.error('Failed to fetch current user:', err)
+      }
+    }
+    fetchCurrentUser()
   }, [activeTab])
   
   // 문서 삭제
@@ -69,6 +82,17 @@ export function MemoryList() {
   const handleDelete = async (memoryId: string) => {
     if (confirm('이 메모리를 삭제하시겠습니까?')) {
       await deleteMemory.mutateAsync(memoryId)
+    }
+  }
+
+  const handleDeleteChatRoom = async (roomId: string, roomName: string) => {
+    if (confirm(`"${roomName}" 대화방을 삭제하시겠습니까?\n이 대화방의 모든 메시지와 메모리가 삭제됩니다.`)) {
+      try {
+        await deleteChatRoom.mutateAsync(roomId)
+        await refetch()
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '대화방 삭제에 실패했습니다')
+      }
     }
   }
 
@@ -274,10 +298,30 @@ export function MemoryList() {
               {/* Scope별 그룹 */}
               {Object.entries(groupedMemories).map(([scope, items]) => (
                 <div key={scope} className="space-y-2">
-                  <h2 className="text-sm font-medium text-foreground-secondary flex items-center gap-2">
-                    <Tag className="h-4 w-4" />
-                    {scopeLabel[scope] || scope} ({items.length})
-                  </h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-medium text-foreground-secondary flex items-center gap-2">
+                      <Tag className="h-4 w-4" />
+                      {scopeLabel[scope] || scope} ({items.length})
+                    </h2>
+                    {/* 대화방 탭인 경우, 대화방 삭제 버튼 추가 */}
+                    {scopeLabel[scope] === '대화방' && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-foreground-muted hover:text-error"
+                        onClick={() => {
+                          if (items.length > 0 && items[0].memory?.chat_room_id) {
+                            handleDeleteChatRoom(
+                              items[0].memory.chat_room_id,
+                              items[0].source_info?.chat_room_name || scope
+                            )
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
 
                   <div className="space-y-2">
                     {items.map((memoryResult) => {
@@ -326,11 +370,6 @@ export function MemoryList() {
                                 {sourceInfo?.chat_room_name && (
                                   <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
                                     {sourceInfo.chat_room_name}
-                                  </span>
-                                )}
-                                {sourceInfo?.project_name && (
-                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
-                                    {sourceInfo.project_name}
                                   </span>
                                 )}
                                 {memory.category && (

@@ -6,6 +6,8 @@ import {
   type GetMemoriesParams,
   type SearchMemoriesParams,
 } from '../api/memoryApi'
+import { deleteChatRoom } from '@/features/chat/api/chatApi'
+import { chatKeys } from '@/features/chat/hooks/useChat'
 
 export const memoryKeys = {
   all: ['memory'] as const,
@@ -34,6 +36,19 @@ export function useDeleteMemory() {
     mutationFn: (memoryId: string) => deleteMemory(memoryId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: memoryKeys.all })
+    },
+  })
+}
+
+export function useDeleteChatRoom() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (roomId: string) => deleteChatRoom(roomId),
+    onSuccess: () => {
+      // 메모리 목록 새로고침 (대화방 삭제로 인해 메모리 삭제됨)
+      queryClient.invalidateQueries({ queryKey: memoryKeys.all })
+      // 채팅 목록도 새로고침
+      queryClient.invalidateQueries({ queryKey: chatKeys.all })
     },
   })
 }

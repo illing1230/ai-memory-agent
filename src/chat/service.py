@@ -187,15 +187,8 @@ class ChatService:
                 message += "\n".join(changes)
                 message += "\n\n이제 AI가 새로운 설정에 따라 메모리를 검색합니다."
                 
-                # 시스템 메시지로 전송
-                await self.repo.create_message(
-                    chat_room_id=room_id,
-                    user_id=AI_USER_ID,
-                    content=message,
-                    role="assistant",
-                )
-                
-                print(f"컨텍스트 소스 변경 알림 전송: {room_id}")
+                # 시스템 메시지는 저장하지 않음
+                logger.info(f"컨텍스트 소스 변경 알림 (시스템 메시지로 저장하지 않음): {room_id}")
         except Exception as e:
             print(f"컨텍스트 소스 변경 알림 전송 실패: {e}")
 
@@ -353,11 +346,34 @@ class ChatService:
                 user_message=content,
             )
 
-            # AI 응답 저장
+            # AI 응답 저장 - JSON 형식일 경우 content만 추출
+            content_to_save = ai_response["response"]
+            
+            # JSON 형식인지 체크하고 content만 추출
+            import json
+            try:
+                # JSON 배열 형식인지 확인
+                if content_to_save.strip().startswith("["):
+                    parsed = json.loads(content_to_save)
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        # 첫 번째 요소의 content 추출
+                        if isinstance(parsed[0], dict) and "content" in parsed[0]:
+                            content_to_save = parsed[0]["content"]
+                            logger.info(f"AI 응답에서 JSON 파싱됨, content만 저장: {content_to_save[:50]}...")
+                # JSON 객체 형식인지 확인
+                elif content_to_save.strip().startswith("{"):
+                    parsed = json.loads(content_to_save)
+                    if isinstance(parsed, dict) and "content" in parsed:
+                        content_to_save = parsed["content"]
+                        logger.info(f"AI 응답에서 JSON 파싱됨, content만 저장: {content_to_save[:50]}...")
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                # JSON이 아니면 그대로 저장
+                logger.debug(f"Not JSON format, using as-is: {e}")
+            
             assistant_message = await self.repo.create_message(
                 chat_room_id=chat_room_id,
                 user_id=AI_USER_ID,
-                content=ai_response["response"],
+                content=content_to_save,
                 role="assistant",
                 sources=ai_response.get("sources"),
             )
@@ -652,16 +668,14 @@ AI가 해당 메모리들도 참조합니다."""
                     owner_info = await self.user_repo.get_user(oid)
                     owner_names[oid] = owner_info["name"] if owner_info else "알 수 없음"
 
-        system_prompt = self._build_system_prompt(relevant_memories, document_chunks, user_name=user_name, owner_names=owner_names)
         conversation_context = self._build_conversation(recent_messages)
         
-        full_prompt = f"""[최근 대화 내용]
-{conversation_context}
+        # 시스템 프롬프트와 컨텍스트 통합
+        system_prompt = self._build_system_prompt(relevant_memories, document_chunks, user_name=user_name, owner_names=owner_names)
+        full_prompt = f"""{conversation_context}
 
 [현재 질문]
-{clean_message}
-
-위 대화 내용을 참고하여 현재 질문에 답변해주세요."""
+{clean_message}"""
         
         llm_provider = get_llm_provider()
         

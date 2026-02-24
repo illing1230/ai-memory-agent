@@ -801,6 +801,61 @@ async def init_database() -> None:
     except Exception:
         pass
 
+    # memories 테이블의 chat_room_id 외래 키에 ON DELETE CASCADE 추가
+    try:
+        # 테이블 재생성
+        await _db_connection.execute("""
+            CREATE TABLE memories_new (
+                id TEXT PRIMARY KEY,
+                content TEXT NOT NULL,
+                vector_id TEXT,
+                scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')),
+                owner_id TEXT NOT NULL,
+                project_id TEXT,
+                department_id TEXT,
+                chat_room_id TEXT,
+                source_message_id TEXT,
+                category TEXT,
+                importance TEXT DEFAULT 'medium',
+                metadata TEXT,
+                topic_key TEXT,
+                superseded BOOLEAN DEFAULT 0,
+                superseded_by TEXT,
+                superseded_at DATETIME,
+                last_accessed_at DATETIME,
+                access_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (owner_id) REFERENCES users(id),
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                FOREIGN KEY (department_id) REFERENCES departments(id),
+                FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # 기존 데이터 복사
+        await _db_connection.execute("""
+            INSERT INTO memories_new 
+            SELECT * FROM memories
+        """)
+        
+        # 기존 테이블 삭제 및 이름 변경
+        await _db_connection.execute("DROP TABLE memories")
+        await _db_connection.execute("ALTER TABLE memories_new RENAME TO memories")
+        
+        # 인덱스 재생성
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_owner ON memories(owner_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_department ON memories(department_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_chat_room ON memories(chat_room_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_topic_key ON memories(topic_key)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_superseded ON memories(superseded)")
+        
+        await _db_connection.commit()
+    except Exception:
+        pass  # 이미 존재하면 무시
+
     print(f"✅ SQLite 데이터베이스 초기화 완료: {db_path}")
 
 

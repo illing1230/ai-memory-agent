@@ -189,6 +189,7 @@ export function Sidebar() {
             ) : (
               chatRooms
                 .filter((room: ChatRoom) => room.share_role !== 'viewer')
+                .filter((room: ChatRoom) => !room.name.startsWith('Mchat:'))
                 .map((room: ChatRoom) => (
                 <SidebarItem
                   key={room.id}

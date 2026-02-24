@@ -117,19 +117,19 @@ class ChatRepository:
 
     async def delete_chat_room(self, room_id: str) -> bool:
         """대화방 삭제 (관련 메시지, 멤버, 메모리도 함께 삭제)"""
-        # 1. 대화방 메시지 삭제
+        # 1. 대화방 메모리 삭제 (chat_room_id를 참조하는 모든 메모리)
+        await self.db.execute(
+            "DELETE FROM memories WHERE chat_room_id = ?", (room_id,)
+        )
+        
+        # 2. 대화방 메시지 삭제 (CASCADE 설정 있으므로 자동 삭제되지만 명시적으로 삭제)
         await self.db.execute(
             "DELETE FROM chat_messages WHERE chat_room_id = ?", (room_id,)
         )
         
-        # 2. 대화방 멤버 삭제
+        # 3. 대화방 멤버 삭제 (CASCADE 설정 있으므로 자동 삭제되지만 명시적으로 삭제)
         await self.db.execute(
             "DELETE FROM chat_room_members WHERE chat_room_id = ?", (room_id,)
-        )
-        
-        # 3. 대화방 메모리 삭제 (scope="chatroom"인 메모리만)
-        await self.db.execute(
-            "DELETE FROM memories WHERE chat_room_id = ? AND scope = 'chatroom'", (room_id,)
         )
         
         # 4. 대화방 삭제
