@@ -412,6 +412,7 @@ class MemoryPipeline:
         room: dict[str, Any],
         user_id: str,
         user_name: str | None = None,
+        memory_context: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """대화에서 메모리 추출 → LLM 분류(카테고리/중요도/개인여부) → 저장"""
         import json as _json
@@ -542,7 +543,13 @@ class MemoryPipeline:
 - 입력: "나는 매운 음식을 좋아해" → [{{"content": "홍길동은 매운 음식을 좋아함", "category": "preference", "importance": "medium", "is_personal": true, "entities": [], "relations": []}}]
 - 입력: "김대리가 품질검사 미팅에 참석해야 해. 박관리님이 주관하는 3월 릴리즈 프로젝트 관련이야." → [{{"content": "({current_date}) 김대리가 품질검사 미팅에 참석 예정. 박관리님 주관 3월 릴리즈 프로젝트 관련", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "김대리", "type": "person"}}, {{"name": "품질검사 미팅", "type": "meeting"}}, {{"name": "박관리님", "type": "person"}}, {{"name": "3월 릴리즈 프로젝트", "type": "project"}}], "relations": [{{"source": "김대리", "target": "품질검사 미팅", "type": "ATTENDS"}}, {{"source": "박관리님", "target": "3월 릴리즈 프로젝트", "type": "MANAGES"}}, {{"source": "품질검사 미팅", "target": "3월 릴리즈 프로젝트", "type": "PART_OF"}}]}}]"""
 
-            llm_prompt = f"다음 대화를 분석해주세요:\n\n{conversation_text}"
+            # 기존 메모리 컨텍스트 추가 (이전 대화에서 추출된 정보 참조)
+            context_section = ""
+            if memory_context:
+                context_lines = "\n".join(f"- {m}" for m in memory_context[:5])
+                context_section = f"\n\n[이미 저장된 메모리 (중복 추출하지 마세요)]:\n{context_lines}\n"
+
+            llm_prompt = f"다음 대화를 분석해주세요:{context_section}\n\n{conversation_text}"
             print(f"[메모리추출] LLM 입력 ({len(llm_prompt)}자):\n{llm_prompt[:500]}")
 
             extracted_text = (await llm_provider.generate(

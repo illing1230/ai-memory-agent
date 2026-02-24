@@ -1198,10 +1198,19 @@ AI가 해당 메모리들도 참조합니다."""
             if not user_messages:
                 return
 
+            # 최근 메모리를 맥락으로 제공 (이전 추출 결과 참조용)
+            recent_memories = await bg_memory_repo.list_memories(
+                scope="chatroom",
+                chat_room_id=room["id"],
+                limit=5,
+            )
+            memory_context = [m["content"] for m in recent_memories] if recent_memories else []
+
             extracted_memories = await bg_pipeline.extract_and_save(
                 conversation=user_messages,
                 room=room,
                 user_id=user_id,
+                memory_context=memory_context,
             )
 
             if extracted_memories:
