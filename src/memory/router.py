@@ -128,6 +128,20 @@ async def delete_memory(
         raise HTTPException(status_code=403, detail=e.message)
 
 
+@router.delete("/by-room/{chat_room_id}")
+async def delete_memories_by_room(
+    chat_room_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: MemoryService = Depends(get_memory_service),
+):
+    """대화방의 모든 메모리 삭제 (멤버만 가능)"""
+    try:
+        count = await service.delete_memories_by_room(chat_room_id, user_id)
+        return {"message": f"{count}개 메모리가 삭제되었습니다", "count": count}
+    except PermissionDeniedException as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+
 @router.post("/search", response_model=MemorySearchResponse)
 async def search_memories(
     data: MemorySearchRequest,

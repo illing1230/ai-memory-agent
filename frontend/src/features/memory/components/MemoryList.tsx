@@ -3,7 +3,7 @@ import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, F
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
-import { useMemories, useDeleteMemory } from '../hooks/useMemory'
+import { useMemories, useDeleteMemory, useDeleteMemoriesByRoom } from '../hooks/useMemory'
 import { getDocuments, deleteDocument } from '@/features/document/api/documentApi'
 import { formatDate, cn, formatFileSize } from '@/lib/utils'
 import type { MemoryListResult, Memory, Document } from '@/types'
@@ -16,6 +16,7 @@ export function MemoryList() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
+  const deleteRoomMemories = useDeleteMemoriesByRoom()
   
   // 문서 관련 상태
   const [documents, setDocuments] = useState<Document[]>([])
@@ -113,6 +114,7 @@ export function MemoryList() {
       if (!acc[roomName]) {
         acc[roomName] = {
           name: roomName,
+          chatRoomId: memory.chat_room_id || '',
           count: 0,
           memories: [] as MemoryListResult[]
         }
@@ -229,18 +231,34 @@ export function MemoryList() {
                 전체 ({filteredMemories.length})
               </button>
               {Object.entries(chatroomGroups).map(([roomName, group]) => (
-                <button
-                  key={roomName}
-                  onClick={() => setSelectedRoomId(roomName)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm rounded-lg transition-colors',
-                    selectedRoomId === roomName
-                      ? 'bg-accent text-accent-foreground'
-                      : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
+                <div key={roomName} className="flex items-center gap-1">
+                  <button
+                    onClick={() => setSelectedRoomId(roomName)}
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                      selectedRoomId === roomName
+                        ? 'bg-accent text-accent-foreground'
+                        : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
+                    )}
+                  >
+                    {roomName.startsWith('Mchat:') ? `💬 ${roomName.replace(/^Mchat:\s*@?/, '')}` : `🗨️ ${roomName}`} ({group.count})
+                  </button>
+                  {selectedRoomId === roomName && group.chatRoomId && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`"${roomName}" 대화방의 메모리 ${group.count}개를 모두 삭제하시겠습니까?`)) {
+                          deleteRoomMemories.mutate(group.chatRoomId, {
+                            onSuccess: () => setSelectedRoomId(null),
+                          })
+                        }
+                      }}
+                      className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors"
+                      title="대화방 메모리 전체 삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   )}
-                >
-                  {roomName.startsWith('Mchat:') ? `💬 ${roomName.replace(/^Mchat:\s*@?/, '')}` : `🗨️ ${roomName}`} ({group.count})
-                </button>
+                </div>
               ))}
             </div>
           )}

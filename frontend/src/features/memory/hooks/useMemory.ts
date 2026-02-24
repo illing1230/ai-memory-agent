@@ -3,6 +3,7 @@ import {
   getMemories,
   searchMemories,
   deleteMemory,
+  deleteMemoriesByRoom,
   type GetMemoriesParams,
   type SearchMemoriesParams,
 } from '../api/memoryApi'
@@ -32,6 +33,16 @@ export function useDeleteMemory() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (memoryId: string) => deleteMemory(memoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: memoryKeys.all })
+    },
+  })
+}
+
+export function useDeleteMemoriesByRoom() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (chatRoomId: string) => deleteMemoriesByRoom(chatRoomId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: memoryKeys.all })
     },

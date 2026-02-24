@@ -393,6 +393,35 @@ class MemoryService:
         await self.repo.log_memory_access(memory_id, user_id, "delete")
         return await self.repo.delete_memory(memory_id)
 
+    async def delete_memories_by_room(
+        self,
+        chat_room_id: str,
+        user_id: str,
+    ) -> int:
+        """대화방의 모든 메모리 삭제 (대화방 멤버만 가능)"""
+        # 멤버 확인
+        cursor = await self.repo.db.execute(
+            "SELECT 1 FROM chat_room_members WHERE chat_room_id = ? AND user_id = ?",
+            (chat_room_id, user_id),
+        )
+        if not await cursor.fetchone():
+            raise PermissionDeniedException("대화방 멤버만 삭제할 수 있습니다")
+
+        # 해당 대화방 메모리 조회
+        cursor = await self.repo.db.execute(
+            "SELECT id, vector_id FROM memories WHERE chat_room_id = ? AND scope = 'chatroom'",
+            (chat_room_id,),
+        )
+        rows = await cursor.fetchall()
+
+        # 벡터 + DB 삭제
+        for row in rows:
+            if row[1]:  # vector_id
+                await delete_vector(row[1])
+            await self.repo.delete_memory(row[0])
+
+        return len(rows)
+
     async def extract_memories(
         self,
         conversation: list[dict[str, str]],

@@ -50,3 +50,7 @@ export async function createMemory(params: CreateMemoryParams): Promise<Memory> 
 export async function deleteMemory(memoryId: string): Promise<void> {
   return del(`/memories/${memoryId}`)
 }
+
+export async function deleteMemoriesByRoom(chatRoomId: string): Promise<{ count: number }> {
+  return del(`/memories/by-room/${chatRoomId}`)
+}
