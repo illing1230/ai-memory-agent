@@ -1005,7 +1005,10 @@ AI가 해당 메모리들도 참조합니다."""
             return "💬 대화가 부족합니다. 메모리를 추출하려면 최소 2개 이상의 메시지가 필요합니다.", []
 
         try:
-            recent = messages[-10:]
+            recent = [
+                {"role": msg.get("role", "user"), "content": msg.get("content", ""), "user_name": msg.get("user_name", "")}
+                for msg in messages[-10:]
+            ]
             saved_memories = await self.memory_pipeline.extract_and_save(
                 conversation=recent,
                 room=room,
@@ -1063,9 +1066,10 @@ AI가 해당 메모리들도 참조합니다."""
             bg_memory_repo = MemoryRepository(db)
             bg_pipeline = MemoryPipeline(memory_repo=bg_memory_repo)
 
-            # 사용자 메시지만 포함하여 메모리 추출
+            # 사용자 메시지만 포함 — content/role/user_name만 추출 (DB row 정리)
             user_messages_only = [
-                msg for msg in recent_messages if msg.get("role") == "user"
+                {"role": "user", "content": msg.get("content", ""), "user_name": msg.get("user_name", "")}
+                for msg in recent_messages if msg.get("role") == "user"
             ] + [{"role": "user", "content": user_message}]
 
             extracted_memories = await bg_pipeline.extract_and_save(
@@ -1140,7 +1144,11 @@ AI가 해당 메모리들도 참조합니다."""
             bg_pipeline = MemoryPipeline(memory_repo=bg_memory_repo)
 
             recent_messages = await bg_repo.get_recent_messages(room["id"], limit=10)
-            user_messages = [msg for msg in recent_messages if msg.get("role") == "user"]
+            # content/role/user_name만 추출 (DB row의 id, sources 등 제거)
+            user_messages = [
+                {"role": "user", "content": msg.get("content", ""), "user_name": msg.get("user_name", "")}
+                for msg in recent_messages if msg.get("role") == "user"
+            ]
 
             if not user_messages:
                 return

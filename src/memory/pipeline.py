@@ -433,13 +433,22 @@ class MemoryPipeline:
                 except Exception:
                     user_name = "사용자"
 
-            # 사용자 메시지만 필터링하여 추출
+            # 사용자 메시지만 필터링 — content 문자열만 추출 (DB row dict 제거)
             MAX_MSG_LEN = 1500  # 개별 메시지 최대 길이
             MAX_TOTAL_LEN = 6000  # 전체 대화 최대 길이
 
             conv_for_extraction = []
             for msg in conversation:
-                content = msg.get("content", "")
+                # content만 추출 (dict의 다른 필드는 버림)
+                content = ""
+                if isinstance(msg, dict):
+                    content = str(msg.get("content", ""))
+                elif isinstance(msg, str):
+                    content = msg
+                
+                if not content or not content.strip():
+                    continue
+
                 # 시스템 프롬프트/지시문처럼 보이는 메시지 필터링
                 if any(marker in content[:100] for marker in [
                     "You are", "너는 ", "System:", "시스템:", "Instructions:",
@@ -449,7 +458,9 @@ class MemoryPipeline:
                 if len(content) > MAX_MSG_LEN:
                     content = content[:MAX_MSG_LEN] + "... (이하 생략)"
                 # 발신자 이름 포함 (user_name 필드가 있으면 사용)
-                sender = msg.get("user_name") or msg.get("role", "user")
+                sender = msg.get("user_name", "") if isinstance(msg, dict) else ""
+                if not sender:
+                    sender = msg.get("role", "user") if isinstance(msg, dict) else "user"
                 conv_for_extraction.append({"sender": sender, "content": content})
 
             conversation_text = "\n".join(
