@@ -8,6 +8,7 @@ FastAPI lifespan에서 자동 시작되거나, 단독 실행 가능:
 import asyncio
 import logging
 import re
+import sqlite3
 import uuid
 
 import aiosqlite
@@ -96,14 +97,27 @@ async def get_or_create_agent_room(
         },
     )
 
-    await chat_repo.add_member(room["id"], agent_user_id, "owner")
+    # Bot은 room member로 추가하지 않음 — 메시지 발신 사용자만 멤버로 관리
+    try:
+        await chat_repo.add_member(room["id"], agent_user_id, "owner")
+    except (sqlite3.IntegrityError, Exception) as e:
+        if "UNIQUE" in str(e):
+            logger.debug(f"Member already exists: {agent_user_id} in {room['id']}")
+        else:
+            raise
 
-    await db.execute(
-        """INSERT INTO mchat_channel_mapping (id, mchat_channel_id, mchat_channel_name, agent_room_id)
-           VALUES (?, ?, ?, ?)""",
-        (str(uuid.uuid4()), mchat_channel_id, mchat_channel_name, room["id"])
-    )
-    await db.commit()
+    try:
+        await db.execute(
+            """INSERT OR IGNORE INTO mchat_channel_mapping (id, mchat_channel_id, mchat_channel_name, agent_room_id)
+               VALUES (?, ?, ?, ?)""",
+            (str(uuid.uuid4()), mchat_channel_id, mchat_channel_name, room["id"])
+        )
+        await db.commit()
+    except (sqlite3.IntegrityError, Exception) as e:
+        if "UNIQUE" in str(e):
+            logger.debug(f"Channel mapping already exists: {mchat_channel_id}")
+        else:
+            raise
 
     _channel_cache[mchat_channel_id] = room["id"]
     logger.info(f"New channel mapping: {mchat_channel_name} -> {room['id']}")
@@ -152,22 +166,121 @@ async def get_or_create_agent_user(
         user = await user_repo.get_user_by_email(fallback_email)
         if not user:
             display_name = mchat_username.lstrip("@")
-            user = await user_repo.create_user(
-                name=display_name,
-                email=mchat_email or fallback_email,
-            )
-            logger.info(f"New agent user created: {display_name} ({mchat_email or fallback_email})")
+            try:
+                user = await user_repo.create_user(
+                    name=display_name,
+                    email=mchat_email or fallback_email,
+                )
+                logger.info(f"New agent user created: {display_name} ({mchat_email or fallback_email})")
+            except (sqlite3.IntegrityError, Exception) as e:
+                if "UNIQUE" in str(e):
+                    # Race condition: user created between check and insert
+                    user = await user_repo.get_user_by_email(mchat_email or fallback_email)
+                    logger.debug(f"User already existed: {mchat_email or fallback_email}")
+                else:
+                    raise
 
     # 매핑 저장
-    await db.execute(
-        """INSERT OR IGNORE INTO mchat_user_mapping (id, mchat_user_id, mchat_username, agent_user_id)
-           VALUES (?, ?, ?, ?)""",
-        (str(uuid.uuid4()), mchat_user_id, mchat_username, user["id"])
-    )
-    await db.commit()
+    try:
+        await db.execute(
+            """INSERT OR IGNORE INTO mchat_user_mapping (id, mchat_user_id, mchat_username, agent_user_id)
+               VALUES (?, ?, ?, ?)""",
+            (str(uuid.uuid4()), mchat_user_id, mchat_username, user["id"])
+        )
+        await db.commit()
+    except (sqlite3.IntegrityError, Exception) as e:
+        if "UNIQUE" in str(e):
+            logger.debug(f"User mapping already exists: {mchat_user_id}")
+        else:
+            raise
 
     logger.info(f"User mapping: {mchat_username} -> {user['id']}")
     return user["id"]
+
+
+async def sync_channel_members(
+    db: aiosqlite.Connection,
+    mchat_client: MchatClient,
+    mchat_channel_id: str,
+    agent_room_id: str,
+    bot_user_id: str,
+) -> None:
+    """Mchat 채널 멤버를 Agent 대화방 멤버와 동기화"""
+    chat_repo = ChatRepository(db)
+
+    # 1. Mattermost 채널 멤버 조회
+    try:
+        channel_members = await mchat_client.get_channel_members(mchat_channel_id)
+    except Exception as e:
+        logger.warning(f"Failed to get channel members for {mchat_channel_id}: {e}")
+        return
+
+    # 채널 멤버의 agent_user_id 집합 구성 (봇 제외)
+    mchat_member_agent_ids: set[str] = set()
+    for cm in channel_members:
+        mchat_user_id = cm.get("user_id", "")
+        if mchat_user_id == bot_user_id:
+            continue
+
+        # Mattermost 유저 정보로 봇 여부 확인
+        try:
+            mchat_user_info = await mchat_client.get_user(mchat_user_id)
+            if mchat_user_info.get("is_bot", False):
+                continue
+        except Exception:
+            pass
+
+        # Agent 사용자 매핑 조회 (이미 존재하는 것만)
+        cursor = await db.execute(
+            "SELECT agent_user_id FROM mchat_user_mapping WHERE mchat_user_id = ?",
+            (mchat_user_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            mchat_member_agent_ids.add(row[0])
+
+    # 2. 현재 Agent 대화방 멤버 조회
+    room_members = await chat_repo.list_members(agent_room_id)
+    room = await chat_repo.get_chat_room(agent_room_id)
+    room_owner_id = room["owner_id"] if room else None
+
+    existing_member_ids = {m["user_id"] for m in room_members}
+
+    # 3. 채널에 있지만 room에 없는 멤버 추가
+    for agent_user_id in mchat_member_agent_ids:
+        if agent_user_id not in existing_member_ids:
+            try:
+                await chat_repo.add_member(agent_room_id, agent_user_id, "member")
+                logger.info(f"Synced member {agent_user_id} to room {agent_room_id[:8]}")
+            except (sqlite3.IntegrityError, Exception) as e:
+                if "UNIQUE" in str(e):
+                    pass
+                else:
+                    logger.warning(f"Failed to add member {agent_user_id}: {e}")
+
+    # 4. room에 있지만 채널에 없는 멤버 제거 (owner는 제외)
+    for m in room_members:
+        member_user_id = m["user_id"]
+        if member_user_id == room_owner_id:
+            continue
+        if member_user_id not in mchat_member_agent_ids:
+            await chat_repo.remove_member(agent_room_id, member_user_id)
+            logger.info(f"Removed member {member_user_id} from room {agent_room_id[:8]}")
+
+
+async def _remove_user_chatroom_memories(
+    db: aiosqlite.Connection,
+    agent_user_id: str,
+    agent_room_id: str,
+) -> None:
+    """사용자가 대화방에서 나갈 때 해당 대화방 scope 메모리 접근 권한 제거
+
+    chatroom scope 메모리 중 해당 사용자가 소유한 것을 삭제하지는 않고,
+    멤버에서 제거하므로 _check_permission에서 자연스럽게 접근이 차단됨.
+    """
+    # 해당 사용자가 owner인 chatroom 메모리는 유지 (삭제하지 않음)
+    # 멤버십 제거만으로 접근 차단이 충분
+    logger.info(f"User {agent_user_id} removed from room {agent_room_id[:8]} — chatroom memory access revoked via membership")
 
 
 async def _is_channel_sync_enabled(db: aiosqlite.Connection, mchat_channel_id: str) -> bool:
@@ -335,6 +448,11 @@ async def start_mchat_worker():
         sender_name = data.get("sender_name", "unknown")
         channel_type = data.get("channel_type", "")
 
+        # 시스템 메시지 무시 (system_add_to_channel, system_join_channel 등)
+        post_type = post.get("type", "")
+        if post_type.startswith("system_"):
+            return
+
         # 응답 여부 판단
         if not await _should_respond(db, message, user_id, bot_user_id, channel_id, channel_type):
             return
@@ -390,6 +508,110 @@ async def start_mchat_worker():
         except Exception as e:
             _stats["errors"] += 1
             logger.error(f"Message handling error: {e}", exc_info=True)
+
+    # 멤버 변경 이벤트 핸들러
+    async def _handle_member_change(event, action: str):
+        """채널 멤버 추가/제거 이벤트 공통 처리"""
+        data = event.get("data", {})
+        broadcast = event.get("broadcast", {})
+        channel_id = data.get("channel_id") or broadcast.get("channel_id", "")
+        mchat_user_id = data.get("user_id", "")
+
+        if not channel_id or not mchat_user_id:
+            return
+
+        # 봇은 무시
+        if mchat_user_id == bot_user_id:
+            return
+
+        # 매핑된 room이 있는지 확인
+        if channel_id not in _channel_cache:
+            cursor = await db.execute(
+                "SELECT agent_room_id FROM mchat_channel_mapping WHERE mchat_channel_id = ?",
+                (channel_id,)
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return
+            _channel_cache[channel_id] = row[0]
+
+        agent_room_id = _channel_cache[channel_id]
+        chat_repo = ChatRepository(db)
+
+        if action == "add":
+            # Mattermost 봇 유저 확인
+            try:
+                mchat_user_info = await client.get_user(mchat_user_id)
+                if mchat_user_info.get("is_bot", False):
+                    return
+            except Exception:
+                pass
+
+            agent_user_id = await get_or_create_agent_user(
+                db, client, mchat_user_id, data.get("username", "unknown")
+            )
+            if not await chat_repo.is_member(agent_room_id, agent_user_id):
+                try:
+                    await chat_repo.add_member(agent_room_id, agent_user_id, "member")
+                    logger.info(f"Member joined: {agent_user_id} -> room {agent_room_id[:8]}")
+                except (sqlite3.IntegrityError, Exception) as e:
+                    if "UNIQUE" not in str(e):
+                        logger.warning(f"Failed to add member: {e}")
+
+        elif action == "remove":
+            # mchat_user_id -> agent_user_id 매핑 조회
+            cursor = await db.execute(
+                "SELECT agent_user_id FROM mchat_user_mapping WHERE mchat_user_id = ?",
+                (mchat_user_id,)
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return
+            agent_user_id = row[0]
+
+            # room에서 제거 (owner는 ChatRepository.remove_member가 자체 처리)
+            room = await chat_repo.get_chat_room(agent_room_id)
+            if room and agent_user_id != room["owner_id"]:
+                await chat_repo.remove_member(agent_room_id, agent_user_id)
+                await _remove_user_chatroom_memories(db, agent_user_id, agent_room_id)
+                logger.info(f"Member left: {agent_user_id} <- room {agent_room_id[:8]}")
+
+    @client.on("user_added")
+    async def handle_user_added(event):
+        await _handle_member_change(event, "add")
+
+    @client.on("channel_member_join")
+    async def handle_member_join(event):
+        await _handle_member_change(event, "add")
+
+    @client.on("user_removed")
+    async def handle_user_removed(event):
+        await _handle_member_change(event, "remove")
+
+    @client.on("leave_channel")
+    async def handle_leave_channel(event):
+        await _handle_member_change(event, "remove")
+
+    @client.on("channel_deleted")
+    async def handle_channel_deleted(event):
+        """채널 삭제 시 Agent 대화방 아카이브 (매핑 제거)"""
+        data = event.get("data", {})
+        broadcast = event.get("broadcast", {})
+        channel_id = data.get("channel_id") or broadcast.get("channel_id", "")
+
+        if not channel_id:
+            return
+
+        if channel_id in _channel_cache:
+            agent_room_id = _channel_cache.pop(channel_id)
+            logger.info(f"Channel deleted: {channel_id} — room {agent_room_id[:8]} mapping removed")
+
+        # DB 매핑도 제거
+        await db.execute(
+            "DELETE FROM mchat_channel_mapping WHERE mchat_channel_id = ?",
+            (channel_id,)
+        )
+        await db.commit()
 
     # Health check 백그라운드 태스크 시작
     _health_check_task = asyncio.create_task(_health_check_loop(client))

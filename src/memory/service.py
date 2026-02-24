@@ -421,11 +421,20 @@ class MemoryService:
                 raise PermissionDeniedException()
             return True
 
-        # 대화방 메모리: 소유자만
+        # 대화방 메모리: 소유자 또는 대화방 멤버
         if scope == "chatroom":
-            if memory["owner_id"] != user_id:
-                raise PermissionDeniedException()
-            return True
+            if memory["owner_id"] == user_id:
+                return True
+            # 대화방 멤버인지 확인
+            chat_room_id = memory.get("chat_room_id")
+            if chat_room_id:
+                cursor = await self.repo.db.execute(
+                    "SELECT 1 FROM chat_room_members WHERE chat_room_id = ? AND user_id = ?",
+                    (chat_room_id, user_id),
+                )
+                if await cursor.fetchone():
+                    return True
+            raise PermissionDeniedException()
 
         # 에이전트 메모리: 소유자만
         if scope == "agent":
@@ -440,11 +449,58 @@ class MemoryService:
         user_id: str,
         scope: str | None = None,
     ) -> dict[str, Any]:
-        """검색 필터 조건 구성"""
-        filter_dict: dict[str, Any] = {"owner_id": user_id}
+        """검색 필터 조건 구성
+
+        scope가 지정된 경우:
+          - personal/agent: owner_id로 필터
+          - chatroom: 사용자가 멤버인 대화방의 chat_room_id로 필터
+        scope가 None (전체 검색):
+          - personal/agent memories owned by user OR chatroom memories from joined rooms
+          - Qdrant "should" (OR) 조건 사용
+        """
         if scope and scope != "all":
-            filter_dict["scope"] = scope
-        return filter_dict
+            if scope == "chatroom":
+                # 사용자가 참여한 대화방 ID 목록
+                cursor = await self.repo.db.execute(
+                    "SELECT chat_room_id FROM chat_room_members WHERE user_id = ?",
+                    (user_id,),
+                )
+                rows = await cursor.fetchall()
+                room_ids = [row[0] for row in rows]
+                if room_ids:
+                    return {
+                        "should": [
+                            {"key": "chat_room_id", "match": {"any": room_ids}},
+                        ],
+                        "must": [
+                            {"key": "scope", "match": {"value": "chatroom"}},
+                        ],
+                    }
+                else:
+                    # 참여 대화방 없음 — 매칭 불가 조건
+                    return {"scope": "chatroom", "owner_id": user_id}
+            else:
+                return {"owner_id": user_id, "scope": scope}
+
+        # scope가 None: 전체 검색 (personal + chatroom + agent)
+        # 사용자가 참여한 대화방 ID 목록
+        cursor = await self.repo.db.execute(
+            "SELECT chat_room_id FROM chat_room_members WHERE user_id = ?",
+            (user_id,),
+        )
+        rows = await cursor.fetchall()
+        room_ids = [row[0] for row in rows]
+
+        # OR 조건: 내 메모리 OR 내가 속한 대화방 메모리
+        should_conditions = [
+            {"key": "owner_id", "match": {"value": user_id}},
+        ]
+        if room_ids:
+            should_conditions.append(
+                {"key": "chat_room_id", "match": {"any": room_ids}},
+            )
+
+        return {"should": should_conditions}
 
     async def _check_duplicate(
         self,

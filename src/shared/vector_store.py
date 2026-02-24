@@ -153,6 +153,30 @@ async def upsert_vector(
     )
 
 
+def _build_condition(cond: dict) -> models.FieldCondition:
+    """딕셔너리 조건을 Qdrant FieldCondition으로 변환"""
+    key = cond["key"]
+    match = cond["match"]
+    if "any" in match:
+        return models.FieldCondition(key=key, match=models.MatchAny(any=match["any"]))
+    return models.FieldCondition(key=key, match=models.MatchValue(value=match["value"]))
+
+
+def _build_advanced_filter(filter_conditions: dict[str, Any]) -> models.Filter | None:
+    """should/must 키를 포함한 고급 필터 구성"""
+    should = None
+    must = None
+
+    if "should" in filter_conditions:
+        should = [_build_condition(c) for c in filter_conditions["should"]]
+    if "must" in filter_conditions:
+        must = [_build_condition(c) for c in filter_conditions["must"]]
+
+    if should or must:
+        return models.Filter(should=should, must=must)
+    return None
+
+
 async def search_vectors(
     query_vector: list[float],
     limit: int = 10,
@@ -170,25 +194,30 @@ async def search_vectors(
     # 필터 조건 구성
     query_filter = None
     if filter_conditions:
-        must_conditions = []
-        for key, value in filter_conditions.items():
-            if value is not None:
-                if isinstance(value, list):
-                    must_conditions.append(
-                        models.FieldCondition(
-                            key=key,
-                            match=models.MatchAny(any=value),
+        # "should"/"must" 키가 있으면 고급 필터 모드
+        if "should" in filter_conditions or "must" in filter_conditions:
+            query_filter = _build_advanced_filter(filter_conditions)
+        else:
+            # 기존 단순 key-value 필터
+            must_conditions = []
+            for key, value in filter_conditions.items():
+                if value is not None:
+                    if isinstance(value, list):
+                        must_conditions.append(
+                            models.FieldCondition(
+                                key=key,
+                                match=models.MatchAny(any=value),
+                            )
                         )
-                    )
-                else:
-                    must_conditions.append(
-                        models.FieldCondition(
-                            key=key,
-                            match=models.MatchValue(value=value),
+                    else:
+                        must_conditions.append(
+                            models.FieldCondition(
+                                key=key,
+                                match=models.MatchValue(value=value),
+                            )
                         )
-                    )
-        if must_conditions:
-            query_filter = models.Filter(must=must_conditions)
+            if must_conditions:
+                query_filter = models.Filter(must=must_conditions)
 
     # query_points 사용 (최신 qdrant-client API)
     results = await client.query_points(
