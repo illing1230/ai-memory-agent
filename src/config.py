@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # Memory Extraction
     auto_extract_memory: bool = True
     min_message_length_for_extraction: int = 10
-    duplicate_threshold: float = 0.85
+    duplicate_threshold: float = 0.95
 
     # Mchat (Mattermost) Integration
     mchat_url: str = "https://mchat.samsung.com"

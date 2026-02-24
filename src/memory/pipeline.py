@@ -892,20 +892,19 @@ class MemoryPipeline:
         duplicates = await search_vectors(
             query_vector=vector,
             limit=3,
-            score_threshold=0.85,
+            score_threshold=0.93,
             filter_conditions=filter_conditions,
         )
 
         for dup in duplicates:
             existing_memory = await self.memory_repo.get_memory(dup["payload"].get("memory_id"))
-            if existing_memory:
-                # 벡터 유사도가 높고, 단어 단위 Jaccard도 높으면 중복
-                # 기준 완화: 완전 동일한 경우에만 중복으로 판정
+            if existing_memory and not existing_memory.get("superseded", False):
                 content_words = set(content.split())
                 existing_words = set(existing_memory["content"].split())
                 word_similarity = len(content_words & existing_words) / max(len(content_words), len(existing_words), 1)
+                # 거의 동일한 내용만 중복 처리 (벡터 0.99+ 또는 벡터 0.95+ AND 단어 85%+)
                 if dup["score"] >= 0.99 or (dup["score"] >= 0.95 and word_similarity > 0.85):
-                    print(f"중복 메모리 감지: 벡터 {dup['score']:.3f}, 단어 {word_similarity:.3f}")
+                    print(f"중복 메모리 감지: 벡터 {dup['score']:.3f}, 단어 {word_similarity:.3f} | 기존: {existing_memory['content'][:50]}")
                     return True
 
         return False
