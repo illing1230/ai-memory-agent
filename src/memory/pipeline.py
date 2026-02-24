@@ -651,16 +651,8 @@ class MemoryPipeline:
 
             try:
                 if is_personal:
-                    # 개인 메모리: personal + chatroom 양쪽 저장
-                    personal_mem = await self.save(
-                        content=content,
-                        user_id=user_id,
-                        room_id=None,
-                        scope="personal",
-                        category=category,
-                        importance=importance,
-                        skip_if_duplicate=True,
-                    )
+                    # 대화방 컨텍스트에서는 chatroom scope만 저장
+                    # (혼자 대화방이면 그게 곧 개인 메모리)
                     chatroom_mem = await self.save(
                         content=content,
                         user_id=user_id,
@@ -670,11 +662,11 @@ class MemoryPipeline:
                         importance=importance,
                         skip_if_duplicate=True,
                     )
-                    saved = personal_mem or chatroom_mem
+                    saved = chatroom_mem
                     if saved:
                         saved_memories.append(saved)
 
-                    # 엔티티 연결: personal + chatroom 양쪽
+                    # 엔티티 연결
                     entity_name_map = {}  # name → entity_id
                     for ent in entities_data:
                         ent_name = ent.get("name", "").strip() if isinstance(ent, dict) else ""
@@ -684,8 +676,6 @@ class MemoryPipeline:
                         try:
                             entity = await self.entity_repo.get_or_create_entity(ent_name, ent_type, user_id)
                             entity_name_map[ent_name] = entity["id"]
-                            if personal_mem:
-                                await self.entity_repo.link_memory_entity(personal_mem["id"], entity["id"])
                             if chatroom_mem:
                                 await self.entity_repo.link_memory_entity(chatroom_mem["id"], entity["id"])
                             print(f"    엔티티 연결: {ent_name} ({ent_type})")
