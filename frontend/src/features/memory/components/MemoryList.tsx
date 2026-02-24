@@ -8,7 +8,7 @@ import { getDocuments, deleteDocument } from '@/features/document/api/documentAp
 import { formatDate, cn, formatFileSize } from '@/lib/utils'
 import type { MemoryListResult, Memory, Document } from '@/types'
 
-type TabType = 'all' | 'personal' | 'chatroom' | 'agent' | 'document'
+type TabType = 'all' | 'chatroom' | 'agent' | 'document'
 
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -74,7 +74,6 @@ export function MemoryList() {
   }
 
   const scopeLabel: Record<string, string> = {
-    personal: '개인',
     chatroom: '대화방',
     agent: '에이전트',
   }
@@ -162,7 +161,7 @@ export function MemoryList() {
 
   const tabs: { id: TabType; label: string; icon: any }[] = [
     { id: 'all', label: '전체', icon: Brain },
-    { id: 'personal', label: '개인', icon: Brain },
+    // 개인 탭 제거 — 모든 메모리는 대화방 scope로 관리
     { id: 'chatroom', label: '대화방', icon: Brain },
     { id: 'agent', label: '에이전트', icon: Bot },
     { id: 'document', label: '문서', icon: FileText },

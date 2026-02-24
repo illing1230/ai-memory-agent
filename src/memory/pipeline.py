@@ -841,27 +841,7 @@ class MemoryPipeline:
         saved_memories = []
         saved_scopes = []
 
-        # 1. 개인 메모리 저장
-        vector_id_personal = str(uuid.uuid4())
-        memory_personal = await self.memory_repo.create_memory(
-            content=content,
-            owner_id=user_id,
-            scope="personal",
-            vector_id=vector_id_personal,
-            chat_room_id=None,
-            category="fact",
-            importance="medium",
-            topic_key=topic_key,
-        )
-        await upsert_vector(vector_id_personal, vector, {
-            "memory_id": memory_personal["id"],
-            "scope": "personal",
-            "owner_id": user_id,
-        })
-        saved_memories.append(memory_personal)
-        saved_scopes.append("개인")
-
-        # 2. 대화방 메모리 저장
+        # 대화방 메모리 저장 (개인 메모리는 별도로 저장하지 않음 — 대화방이 곧 컨텍스트)
         vector_id_chatroom = str(uuid.uuid4())
         memory_chatroom = await self.memory_repo.create_memory(
             content=content,
