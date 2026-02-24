@@ -278,15 +278,26 @@ async def delete_vectors_by_filter(filter_conditions: dict[str, Any]) -> int:
     query_filter = models.Filter(must=must_conditions)
 
     # 필터로 검색 후 삭제
-    results = await client.scroll(
+    # scroll API는 Qdrant 클라이언트 버전에 따라 다른 형태로 응답할 수 있음
+    scroll_response = await client.scroll(
         collection_name=settings.qdrant_collection,
         scroll_filter=query_filter,
         limit=10000,  # 한 번에 최대 10000개 삭제
         with_payload=False,
     )
 
-    if results.points:
-        point_ids = [str(point.id) for point in results.points]
+    # 응답 형식에 따라 처리 (튜플 또는 리스트)
+    points = []
+    if isinstance(scroll_response, tuple):
+        # (ScrollResult, next_page_offset) 형태
+        scroll_result, _ = scroll_response
+        points = scroll_result.points
+    elif isinstance(scroll_response, list):
+        # 바로 points 리스트 형태
+        points = scroll_response
+
+    if points:
+        point_ids = [str(point.id) for point in points]
         await client.delete(
             collection_name=settings.qdrant_collection,
             points_selector=models.PointIdsList(points=point_ids),

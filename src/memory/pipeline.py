@@ -540,12 +540,17 @@ class MemoryPipeline:
 - 입력: "나는 매운 음식을 좋아해" → [{{"content": "홍길동은 매운 음식을 좋아함", "category": "preference", "importance": "medium", "is_personal": true, "entities": [], "relations": []}}]
 - 입력: "김대리가 품질검사 미팅에 참석해야 해. 박관리님이 주관하는 3월 릴리즈 프로젝트 관련이야." → [{{"content": "({current_date}) 김대리가 품질검사 미팅에 참석 예정. 박관리님 주관 3월 릴리즈 프로젝트 관련", "category": "fact", "importance": "high", "is_personal": false, "entities": [{{"name": "김대리", "type": "person"}}, {{"name": "품질검사 미팅", "type": "meeting"}}, {{"name": "박관리님", "type": "person"}}, {{"name": "3월 릴리즈 프로젝트", "type": "project"}}], "relations": [{{"source": "김대리", "target": "품질검사 미팅", "type": "ATTENDS"}}, {{"source": "박관리님", "target": "3월 릴리즈 프로젝트", "type": "MANAGES"}}, {{"source": "품질검사 미팅", "target": "3월 릴리즈 프로젝트", "type": "PART_OF"}}]}}]"""
 
+            llm_prompt = f"다음 대화를 분석해주세요:\n\n{conversation_text}"
+            print(f"[메모리추출] LLM 입력 ({len(llm_prompt)}자):\n{llm_prompt[:500]}")
+
             extracted_text = (await llm_provider.generate(
-                prompt=f"다음 대화를 분석해주세요:\n\n{conversation_text}",
+                prompt=llm_prompt,
                 system_prompt=system_prompt,
                 temperature=0.3,
-                max_tokens=2000,
+                max_tokens=8000,
             )).strip()
+
+            print(f"[메모리추출] LLM 출력 ({len(extracted_text)}자):\n{extracted_text[:500]}")
 
             # JSON 파싱 (```json ... ``` 래핑 처리)
             cleaned = extracted_text
@@ -556,19 +561,71 @@ class MemoryPipeline:
             cleaned = cleaned.strip()
 
             memory_items = _json.loads(cleaned)
+            
+            # 파싱 결과 검증: 반드시 배열이어야 하고, 각 요소는 content 필드를 가진 객체여야 함
             if not isinstance(memory_items, list):
+                print(f"메모리 추출 결과가 배열이 아님: {type(memory_items)}")
                 memory_items = []
+            
+            # 각 요소가 유효한 메모리 객체인지 검증
+            valid_items = []
+            for item in memory_items:
+                if isinstance(item, dict) and "content" in item:
+                    valid_items.append(item)
+            memory_items = valid_items
 
-            print(f"메모리 추출 결과: {len(memory_items)}개 (JSON 파싱 성공)")
+            if memory_items:
+                print(f"메모리 추출 결과: {len(memory_items)}개 (JSON 파싱 성공)")
+            else:
+                print("메모리 추출 결과: 0개 (유효한 메모리 없음)")
 
         except _json.JSONDecodeError as e:
-            print(f"메모리 추출 JSON 파싱 실패: {e}, 원본: {extracted_text[:200]}")
-            # JSON 실패 시 줄바꿈 fallback (기존 방식)
-            lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
-            memory_items = [
-                {"content": line, "category": "fact", "importance": "medium", "is_personal": False}
-                for line in lines
-            ]
+            print(f"메모리 추출 JSON 파싱 실패: {e}")
+            
+            # JSON 파싱 실패 시: 정규식으로 content 값만 추출하는 fallback
+            try:
+                import re
+                
+                # "content": "내용" 패턴 찾기 (따옴표 안의 내용 추출)
+                content_pattern = r'"content":\s*"([^"]*(?:\\.[^"]*)*)"'
+                content_matches = re.findall(content_pattern, extracted_text)
+                
+                if content_matches:
+                    # 이스케이프된 문자 처리 (예: \n, \")
+                    cleaned_contents = []
+                    for match in content_matches:
+                        # 이스케이프 시퀀스 처리
+                        content = match.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace('\\/', '/')
+                        # 너무 짧거나 JSON 필드처럼 보이는 내용 필터링
+                        if len(content) < 10:
+                            continue
+                        if content.startswith('{') or content.startswith('[') or content.startswith('"category'):
+                            continue
+                        cleaned_contents.append(content)
+                    
+                    if cleaned_contents:
+                        memory_items = [
+                            {
+                                "content": content,
+                                "category": "fact",
+                                "importance": "medium",
+                                "is_personal": False,
+                                "entities": [],
+                                "relations": []
+                            }
+                            for content in cleaned_contents
+                        ]
+                        print(f"JSON 파싱 실패 fallback으로 {len(memory_items)}개 메모리 추출 (정규식 기반)")
+                    else:
+                        memory_items = []
+                        print("JSON 파싱 실패 fallback에서 유효한 content를 찾지 못함")
+                else:
+                    memory_items = []
+                    print("JSON 파싱 실패 fallback에서 content 패턴을 찾지 못함")
+                    
+            except Exception as fallback_error:
+                print(f"JSON 파싱 fallback 처리 실패: {fallback_error}")
+                memory_items = []
         except Exception as e:
             print(f"메모리 추출 실패: {e}")
             return []
