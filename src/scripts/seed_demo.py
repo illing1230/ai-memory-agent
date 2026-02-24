@@ -66,6 +66,7 @@ PROJECT_MEMBERS = {
 
 CHAT_ROOMS = [
     # 개인
+    {"name": "개발자의 메모", "room_type": "personal", "owner_idx": 0},
     {"name": "hy.joo의 메모", "room_type": "personal", "owner_idx": 1},
     {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 2},
     {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 5},
@@ -81,34 +82,35 @@ CHAT_ROOMS = [
 ]
 
 CHAT_ROOM_MEMBERS = {
-    0: [1],
-    1: [2],
-    2: [5],
-    3: [9],
-    4: [2, 3, 4],
-    5: [0, 1, 5, 6, 7, 8],
-    6: [5, 6, 8],
-    7: [2, 3, 4, 1],   # 품질팀 공유 - hy.joo도 포함(데모용)
-    8: [0, 1, 5, 6, 7, 8],
-    9: [9, 10, 11],
+    0: [0],             # 개발자의 메모
+    1: [1],             # hy.joo의 메모
+    2: [2],             # 김품질의 메모
+    3: [5],             # 최개발의 메모
+    4: [9],             # 한기획의 메모
+    5: [2, 3, 4],       # PLM 개발 채팅
+    6: [0, 1, 5, 6, 7, 8],  # MemGate 개발 채팅
+    7: [5, 6, 8],       # RAG 논의
+    8: [2, 3, 4, 1],    # 품질팀 공유 - hy.joo도 포함(데모용)
+    9: [0, 1, 5, 6, 7, 8],  # 개발팀 공유
+    10: [9, 10, 11],    # 기획팀 공유
 }
 
 # ---- 메모리 ----
 MEMORIES = [
-    # 개인 메모리
-    {"content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다", "scope": "personal", "owner_idx": 2, "category": "preference", "importance": "medium", "topic_key": "김품질 코드 리뷰 시간"},
-    {"content": "최개발은 Python보다 Rust를 선호한다", "scope": "personal", "owner_idx": 5, "category": "preference", "importance": "high", "topic_key": "최개발 언어 선호"},
-    {"content": "한기획은 매주 금요일에 주간 보고서를 작성한다", "scope": "personal", "owner_idx": 9, "category": "fact", "importance": "medium", "topic_key": "한기획 주간 보고서"},
-    {"content": "김품질은 커피보다 녹차를 선호한다", "scope": "personal", "owner_idx": 2, "category": "preference", "importance": "low", "topic_key": "김품질 음료 선호"},
-    {"content": "최개발의 업무 집중 시간은 오후 2시~5시이다", "scope": "personal", "owner_idx": 5, "category": "preference", "importance": "medium", "topic_key": "최개발 업무 시간"},
+    # 개인 대화방 메모리 (personal scope 제거 → chatroom scope, 개인 대화방에 연결)
+    {"content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다", "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 1, "category": "preference", "importance": "medium", "topic_key": "김품질 코드 리뷰 시간"},
+    {"content": "최개발은 Python보다 Rust를 선호한다", "scope": "chatroom", "owner_idx": 5, "chat_room_idx": 2, "category": "preference", "importance": "high", "topic_key": "최개발 언어 선호"},
+    {"content": "한기획은 매주 금요일에 주간 보고서를 작성한다", "scope": "chatroom", "owner_idx": 9, "chat_room_idx": 3, "category": "fact", "importance": "medium", "topic_key": "한기획 주간 보고서"},
+    {"content": "김품질은 커피보다 녹차를 선호한다", "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 1, "category": "preference", "importance": "low", "topic_key": "김품질 음료 선호"},
+    {"content": "최개발의 업무 집중 시간은 오후 2시~5시이다", "scope": "chatroom", "owner_idx": 5, "chat_room_idx": 2, "category": "preference", "importance": "medium", "topic_key": "최개발 업무 시간"},
 
-    # 일정 메모리 (데모용)
+    # 일정 메모리 (데모용 - 개인 대화방에 저장)
     {"content": "hy.joo는 내일(2월 25일) 오후 3시에 품질 검토 회의가 예정되어 있다", "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 5,
      "category": "fact", "importance": "high", "topic_key": "hy.joo 회의 일정",
      "entities": [{"name": "hy.joo", "type": "person"}]},
-    {"content": "개발자(dev)는 내일(2월 25일) 오후 2시에 아키텍처 리뷰 회의가 있다", "scope": "personal", "owner_idx": 0,
+    {"content": "개발자(dev)는 내일(2월 25일) 오후 2시에 아키텍처 리뷰 회의가 있다", "scope": "chatroom", "owner_idx": 0, "chat_room_idx": 0,
      "category": "fact", "importance": "high", "topic_key": "개발자 회의 일정"},
-    {"content": "김품질은 내일(2월 25일) 오전 10시에 품질 감사 미팅이 있다", "scope": "personal", "owner_idx": 2,
+    {"content": "김품질은 내일(2월 25일) 오전 10시에 품질 감사 미팅이 있다", "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 1,
      "category": "fact", "importance": "high", "topic_key": "김품질 회의 일정"},
 
     # 대화방(프로젝트) 메모리 — 엔티티 포함
@@ -182,10 +184,10 @@ MEMORIES = [
         "category": "fact", "importance": "high", "topic_key": "김품질 A라인 불량률",
         "entities": [{"name": "김품질", "type": "person"}, {"name": "A라인 불량률 개선", "type": "project"}],
     },
-    # 개인 메모리 — 엔티티로 연결
+    # 개인 대화방 메모리 — 엔티티로 연결
     {
         "content": "박관리는 품질 감사 시 ISO 9001:2015 체크리스트를 항상 사용한다",
-        "scope": "personal", "owner_idx": 2, "category": "fact", "importance": "medium", "topic_key": "박관리 ISO 감사",
+        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 1, "category": "fact", "importance": "medium", "topic_key": "박관리 ISO 감사",
         "entities": [{"name": "박관리", "type": "person"}],
     },
     # MemGate 대화방(5)에서 — PLM 관련 엔티티 연결

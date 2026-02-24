@@ -86,27 +86,30 @@ CHAT_ROOM_MEMBERS = {
 }
 
 MEMORIES = [
-    # 개인 메모리
+    # 개인 대화방 메모리 (personal scope 제거 → chatroom scope, 개인 대화방에 연결)
     {
         "content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다",
-        "scope": "personal",
+        "scope": "chatroom",
         "owner_idx": 1,
+        "chat_room_idx": 1,  # 김품질의 메모
         "category": "preference",
         "importance": "medium",
         "topic_key": "김품질 코드 리뷰 시간",
     },
     {
         "content": "최개발은 Python보다 Rust를 선호한다",
-        "scope": "personal",
+        "scope": "chatroom",
         "owner_idx": 4,
+        "chat_room_idx": 2,  # 최개발의 메모
         "category": "preference",
         "importance": "high",
         "topic_key": "최개발 언어 선호",
     },
     {
         "content": "한기획은 매주 금요일에 주간 보고서를 작성한다",
-        "scope": "personal",
+        "scope": "chatroom",
         "owner_idx": 8,
+        "chat_room_idx": 3,  # 한기획의 메모
         "category": "fact",
         "importance": "medium",
         "topic_key": "한기획 주간 보고서",
@@ -114,16 +117,18 @@ MEMORIES = [
     # 추가 메모리
     {
         "content": "김품질은 커피보다 녹차를 선호한다",
-        "scope": "personal",
+        "scope": "chatroom",
         "owner_idx": 1,
+        "chat_room_idx": 1,  # 김품질의 메모
         "category": "preference",
         "importance": "low",
         "topic_key": "김품질 음료 선호",
     },
     {
         "content": "최개발의 업무 집중 시간은 오후 2시~5시이다",
-        "scope": "personal",
+        "scope": "chatroom",
         "owner_idx": 4,
+        "chat_room_idx": 2,  # 최개발의 메모
         "category": "preference",
         "importance": "medium",
         "topic_key": "최개발 업무 시간",
