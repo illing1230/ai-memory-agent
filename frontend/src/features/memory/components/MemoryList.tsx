@@ -239,7 +239,7 @@ export function MemoryList() {
                       : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
                   )}
                 >
-                  {roomName} ({group.count})
+                  {roomName.startsWith('Mchat:') ? `💬 ${roomName.replace(/^Mchat:\s*@?/, '')}` : `🗨️ ${roomName}`} ({group.count})
                 </button>
               ))}
             </div>
@@ -422,8 +422,12 @@ export function MemoryList() {
                               </span>
                             )}
                             {sourceInfo?.chat_room_name && (
-                              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
-                                {sourceInfo.chat_room_name}
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1",
+                                sourceInfo.chat_room_name.startsWith('Mchat:') ? 'text-blue-400' : 'text-accent'
+                              )}>
+                                {sourceInfo.chat_room_name.startsWith('Mchat:') ? '💬 ' : '🗨️ '}
+                                {sourceInfo.chat_room_name.replace(/^Mchat:\s*@?/, '')}
                               </span>
                             )}
                             {memory.category && (
