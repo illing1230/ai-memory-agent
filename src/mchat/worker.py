@@ -65,6 +65,7 @@ async def get_or_create_agent_room(
     mchat_channel_id: str,
     mchat_channel_name: str,
     agent_user_id: str,
+    bot_user_id: str,
 ) -> str:
     """Mchat 채널에 매핑된 Agent 대화방 ID 반환 (없으면 생성)"""
 
@@ -83,11 +84,11 @@ async def get_or_create_agent_room(
         _channel_cache[mchat_channel_id] = row[0]
         return row[0]
 
-    # 없으면 새 대화방 생성
+    # 없으면 새 대화방 생성 (owner는 봇 계정)
     chat_repo = ChatRepository(db)
     room = await chat_repo.create_chat_room(
         name=f"Mchat: {mchat_channel_name or mchat_channel_id[:8]}",
-        owner_id=agent_user_id,
+        owner_id=bot_user_id,  # 봇 계정을 owner로 설정
         room_type="personal",
         context_sources={
             "memory": {
@@ -99,9 +100,18 @@ async def get_or_create_agent_room(
         },
     )
 
-    # Bot은 room member로 추가하지 않음 — 메시지 발신 사용자만 멤버로 관리
+    # 봇 계정을 owner로 추가
     try:
-        await chat_repo.add_member(room["id"], agent_user_id, "owner")
+        await chat_repo.add_member(room["id"], bot_user_id, "owner")
+    except (sqlite3.IntegrityError, Exception) as e:
+        if "UNIQUE" in str(e):
+            logger.debug(f"Member already exists: {bot_user_id} in {room['id']}")
+        else:
+            raise
+
+    # 메시지를 보낸 사용자를 member로 추가
+    try:
+        await chat_repo.add_member(room["id"], agent_user_id, "member")
     except (sqlite3.IntegrityError, Exception) as e:
         if "UNIQUE" in str(e):
             logger.debug(f"Member already exists: {agent_user_id} in {room['id']}")
@@ -122,7 +132,7 @@ async def get_or_create_agent_room(
             raise
 
     _channel_cache[mchat_channel_id] = room["id"]
-    logger.info(f"New channel mapping: {mchat_channel_name} -> {room['id']}")
+    logger.info(f"New channel mapping: {mchat_channel_name} -> {room['id']} (owner: bot)")
     return room["id"]
 
 
@@ -512,7 +522,7 @@ async def start_mchat_worker():
 
             # Agent 사용자/대화방 매핑
             agent_user_id = await get_or_create_agent_user(db, client, user_id, sender_name)
-            agent_room_id = await get_or_create_agent_room(db, channel_id, channel_name, agent_user_id)
+            agent_room_id = await get_or_create_agent_room(db, channel_id, channel_name, agent_user_id, bot_user_id)
 
             # ChatService로 메시지 저장 + 메모리 추출
             # @ai 멘션이 있으면 AI 응답도 생성, 없으면 저장+메모리추출만

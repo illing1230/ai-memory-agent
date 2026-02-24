@@ -79,9 +79,10 @@ export function ChatRoomManagement() {
     setError(null)
     try {
       const data = await get<ChatRoom[]>('/chat-rooms')
-      // owner/admin 권한이 있는 대화방만 표시
+      // owner/admin 권한이 있는 대화방만 표시 (Mchat 대화방 제외)
       const manageableRooms = data.filter(room => 
-        room.member_role === 'owner' || room.member_role === 'admin'
+        (room.member_role === 'owner' || room.member_role === 'admin') &&
+        !room.name.startsWith('Mchat:')
       )
       setChatRooms(manageableRooms)
     } catch (e) {

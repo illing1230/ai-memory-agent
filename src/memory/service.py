@@ -109,7 +109,7 @@ class MemoryService:
             )
             all_memories.extend(personal)
 
-        # 2. 대화방 메모리 (사용자가 참여한 모든 대화방의 메모리)
+        # 2. 대화방 메모리 (사용자가 참여한 모든 대화방의 메모리 + Mchat 대화방 메모리)
         if scope is None or scope == "chatroom":
             # 사용자가 참여한 대화방 ID 목록 조회
             cursor = await self.repo.db.execute(
@@ -127,6 +127,29 @@ class MemoryService:
                     limit=limit,
                 )
                 all_memories.extend(room_memories)
+            
+            # Mchat 대화방 메모리 추가: 모든 Mchat 대화방의 메모리 포함
+            cursor = await self.repo.db.execute(
+                """SELECT DISTINCT r.id 
+                   FROM chat_rooms r
+                   JOIN memories m ON m.chat_room_id = r.id
+                   WHERE r.name LIKE 'Mchat:%'
+                   AND m.scope = 'chatroom'
+                   AND m.superseded = 0""",
+                (),
+            )
+            mchat_rows = await cursor.fetchall()
+            mchat_room_ids = [row[0] for row in mchat_rows]
+            
+            for room_id in mchat_room_ids:
+                if room_id not in my_room_ids:  # 이미 조회된 방 제외
+                    room_memories = await self.repo.list_memories(
+                        scope="chatroom",
+                        chat_room_id=room_id,
+                        agent_instance_id=agent_instance_id,
+                        limit=limit,
+                    )
+                    all_memories.extend(room_memories)
 
         # 3. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
         if scope is None or scope == "agent":

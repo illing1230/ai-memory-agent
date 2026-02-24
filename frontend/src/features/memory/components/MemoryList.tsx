@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download, User } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
@@ -13,6 +13,7 @@ type TabType = 'all' | 'personal' | 'chatroom' | 'agent' | 'document'
 export function MemoryList() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<TabType>('all')
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
   
@@ -84,34 +85,80 @@ export function MemoryList() {
     low: 'bg-foreground-muted/10 text-foreground-muted',
   }
 
-  // 탭별 필터링
-  const filteredMemories = memories?.filter(memoryResult => {
-    const memory = memoryResult.memory
-    if (activeTab === 'all') return true
-    if (activeTab === 'agent') {
-      return memory.scope === 'agent'
-    }
-    return memory.scope === activeTab
-  }) || []
-
-  // 그룹화: scope별로 또는 agent_instance별로
-  const groupedMemories = filteredMemories.reduce((acc, memoryResult) => {
-    const memory = memoryResult.memory
-    const sourceInfo = memoryResult.source_info
+  // 탭별 필터링된 메모리
+  const filteredMemories = useMemo(() => {
+    let result = memories || []
     
-    let key: string
-    if (activeTab === 'agent') {
-      // 에이전트 탭: agent_instance_name으로 그룹화
-      key = sourceInfo?.agent_instance_name || '알 수 없는 에이전트'
-    } else {
-      // 다른 탭: scope로 그룹화
-      key = memory.scope
-    }
+    // 탭별 필터링
+    result = result.filter(memoryResult => {
+      const memory = memoryResult.memory
+      if (activeTab === 'all') return true
+      if (activeTab === 'agent') {
+        return memory.scope === 'agent'
+      }
+      return memory.scope === activeTab
+    })
     
-    if (!acc[key]) acc[key] = []
-    acc[key].push(memoryResult)
-    return acc
-  }, {} as Record<string, MemoryListResult[]>)
+    return result
+  }, [memories, activeTab])
+  
+  // 대화방별 그룹화 (대화방 탭에서만)
+  const chatroomGroups = useMemo(() => {
+    if (activeTab !== 'chatroom') return {}
+    
+    const result = filteredMemories.reduce((acc, memoryResult) => {
+      const memory = memoryResult.memory
+      const sourceInfo = memoryResult.source_info
+      const roomName = sourceInfo?.chat_room_name || '알 수 없는 대화방'
+      
+      if (!acc[roomName]) {
+        acc[roomName] = {
+          name: roomName,
+          count: 0,
+          memories: [] as MemoryListResult[]
+        }
+      }
+      acc[roomName].memories.push(memoryResult)
+      acc[roomName].count++
+      return acc
+    }, {} as Record<string, { name: string; count: number; memories: MemoryListResult[] }>)
+    
+    return result
+  }, [filteredMemories, activeTab])
+  
+  // 선택된 대화방의 메모리
+  const displayedMemories = useMemo(() => {
+    if (activeTab === 'chatroom' && selectedRoomId) {
+      const groupName = Object.keys(chatroomGroups).find(key => 
+        chatroomGroups[key].name === selectedRoomId
+      )
+      return groupName ? chatroomGroups[groupName].memories : filteredMemories
+    }
+    return filteredMemories
+  }, [activeTab, selectedRoomId, chatroomGroups, filteredMemories])
+  
+  // 에이전트별 그룹화 (에이전트 탭에서만)
+  const agentGroups = useMemo(() => {
+    if (activeTab !== 'agent') return {}
+    
+    const result = filteredMemories.reduce((acc, memoryResult) => {
+      const sourceInfo = memoryResult.source_info
+      const agentName = sourceInfo?.agent_instance_name || '알 수 없는 에이전트'
+      
+      if (!acc[agentName]) {
+        acc[agentName] = {
+          name: agentName,
+          count: 0,
+          memories: [] as MemoryListResult[]
+        }
+      }
+      acc[agentName].memories.push(memoryResult)
+      acc[agentName].count++
+      return acc
+    }, {} as Record<string, { name: string; count: number; memories: MemoryListResult[] }>)
+    
+    return result
+  }, [filteredMemories, activeTab])
 
   const tabs: { id: TabType; label: string; icon: any }[] = [
     { id: 'all', label: '전체', icon: Brain },
@@ -169,6 +216,66 @@ export function MemoryList() {
             ))}
           </div>
 
+          {activeTab === 'chatroom' && Object.keys(chatroomGroups).length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                onClick={() => setSelectedRoomId(null)}
+                className={cn(
+                  'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                  selectedRoomId === null
+                    ? 'bg-accent text-accent-foreground'
+                    : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
+                )}
+              >
+                전체 ({filteredMemories.length})
+              </button>
+              {Object.entries(chatroomGroups).map(([roomName, group]) => (
+                <button
+                  key={roomName}
+                  onClick={() => setSelectedRoomId(roomName)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                    selectedRoomId === roomName
+                      ? 'bg-accent text-accent-foreground'
+                      : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
+                  )}
+                >
+                  {roomName} ({group.count})
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {activeTab === 'agent' && Object.keys(agentGroups).length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                onClick={() => setSelectedRoomId(null)}
+                className={cn(
+                  'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                  selectedRoomId === null
+                    ? 'bg-accent text-accent-foreground'
+                    : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
+                )}
+              >
+                전체 ({filteredMemories.length})
+              </button>
+              {Object.entries(agentGroups).map(([agentName, group]) => (
+                <button
+                  key={agentName}
+                  onClick={() => setSelectedRoomId(agentName)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm rounded-lg transition-colors',
+                    selectedRoomId === agentName
+                      ? 'bg-accent text-accent-foreground'
+                      : 'bg-background-secondary text-foreground-secondary hover:text-foreground'
+                  )}
+                >
+                  {agentName} ({group.count})
+                </button>
+              ))}
+            </div>
+          )}
+          
           {activeTab === 'document' ? (
             // 문서 탭
             documentsLoading ? (
@@ -268,107 +375,92 @@ export function MemoryList() {
           ) : (
             <div className="space-y-6">
               <p className="text-sm text-foreground-secondary">
-                총 {memories.length}개의 메모리
+                총 {displayedMemories.length}개의 메모리
               </p>
 
-              {/* Scope별 그룹 */}
-              {Object.entries(groupedMemories).map(([scope, items]) => (
-                <div key={scope} className="space-y-2">
-                  <h2 className="text-sm font-medium text-foreground-secondary flex items-center gap-2">
-                    <Tag className="h-4 w-4" />
-                    {scopeLabel[scope] || scope} ({items.length})
-                  </h2>
+              <div className="space-y-2">
+                {displayedMemories.map((memoryResult) => {
+                  const memory = memoryResult.memory
+                  const sourceInfo = memoryResult.source_info
+                  const isExpanded = expandedIds.has(memory.id)
+                  const preview = memory.content.length > 80
+                    ? memory.content.slice(0, 80) + '...'
+                    : memory.content
 
-                  <div className="space-y-2">
-                    {items.map((memoryResult) => {
-                      const memory = memoryResult.memory
-                      const sourceInfo = memoryResult.source_info
-                      const isExpanded = expandedIds.has(memory.id)
-                      const preview = memory.content.length > 80
-                        ? memory.content.slice(0, 80) + '...'
-                        : memory.content
-
-                      return (
-                        <div
-                          key={memory.id}
-                          className="card p-3 hover:shadow-medium transition-shadow"
+                  return (
+                    <div
+                      key={memory.id}
+                      className="card p-3 hover:shadow-medium transition-shadow"
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={() => toggleExpand(memory.id)}
+                          className="mt-0.5 text-foreground-muted hover:text-foreground"
                         >
-                          <div className="flex items-start gap-3">
-                            <button
-                              onClick={() => toggleExpand(memory.id)}
-                              className="mt-0.5 text-foreground-muted hover:text-foreground"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </button>
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </button>
 
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-foreground">
-                                {isExpanded ? memory.content : preview}
-                              </p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground">
+                            {isExpanded ? memory.content : preview}
+                          </p>
 
-                              <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
-                                {sourceInfo?.owner_name && (
-                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1">
-                                    <User className="h-3 w-3" />
-                                    {sourceInfo.owner_name}
-                                  </span>
-                                )}
-                                {sourceInfo?.agent_instance_name && (
-                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
-                                    <Bot className="h-3 w-3" />
-                                    {sourceInfo.agent_instance_name}
-                                  </span>
-                                )}
-                                {sourceInfo?.chat_room_name && (
-                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
-                                    {sourceInfo.chat_room_name}
-                                  </span>
-                                )}
-                                {sourceInfo?.project_name && (
-                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
-                                    {sourceInfo.project_name}
-                                  </span>
-                                )}
-                                {memory.category && (
-                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary">
-                                    {memory.category}
-                                  </span>
-                                )}
-                                {memory.importance && (
-                                  <span className={cn(
-                                    'px-1.5 py-0.5 rounded',
-                                    importanceColor[memory.importance]
-                                  )}>
-                                    {memory.importance === 'high' ? '높음' : 
-                                     memory.importance === 'medium' ? '중간' : '낮음'}
-                                  </span>
-                                )}
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {formatDate(memory.created_at)}
-                                </span>
-                              </div>
-                            </div>
-
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-foreground-muted hover:text-error shrink-0"
-                              onClick={() => handleDelete(memory.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                          <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
+                            {sourceInfo?.owner_name && (
+                              <span className="px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {sourceInfo.owner_name}
+                              </span>
+                            )}
+                            {sourceInfo?.agent_instance_name && (
+                              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
+                                <Bot className="h-3 w-3" />
+                                {sourceInfo.agent_instance_name}
+                              </span>
+                            )}
+                            {sourceInfo?.chat_room_name && (
+                              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
+                                {sourceInfo.chat_room_name}
+                              </span>
+                            )}
+                            {memory.category && (
+                              <span className="px-1.5 py-0.5 rounded bg-background-secondary">
+                                {memory.category}
+                              </span>
+                            )}
+                            {memory.importance && (
+                              <span className={cn(
+                                'px-1.5 py-0.5 rounded',
+                                importanceColor[memory.importance]
+                              )}>
+                                {memory.importance === 'high' ? '높음' : 
+                                 memory.importance === 'medium' ? '중간' : '낮음'}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDate(memory.created_at)}
+                            </span>
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-foreground-muted hover:text-error shrink-0"
+                          onClick={() => handleDelete(memory.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
