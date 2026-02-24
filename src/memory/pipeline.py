@@ -899,11 +899,12 @@ class MemoryPipeline:
         for dup in duplicates:
             existing_memory = await self.memory_repo.get_memory(dup["payload"].get("memory_id"))
             if existing_memory:
-                # 벡터 유사도가 0.85 이상이고, 단어 단위 Jaccard도 높으면 중복
+                # 벡터 유사도가 높고, 단어 단위 Jaccard도 높으면 중복
+                # 기준 완화: 완전 동일한 경우에만 중복으로 판정
                 content_words = set(content.split())
                 existing_words = set(existing_memory["content"].split())
                 word_similarity = len(content_words & existing_words) / max(len(content_words), len(existing_words), 1)
-                if dup["score"] >= 0.98 or (dup["score"] >= 0.92 and word_similarity > 0.7):
+                if dup["score"] >= 0.99 or (dup["score"] >= 0.95 and word_similarity > 0.85):
                     print(f"중복 메모리 감지: 벡터 {dup['score']:.3f}, 단어 {word_similarity:.3f}")
                     return True
 

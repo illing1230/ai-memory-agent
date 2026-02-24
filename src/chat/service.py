@@ -32,6 +32,8 @@ class ChatService:
 
     # room_id → pending asyncio.Task (debounce 타이머)
     _extraction_timers: dict[str, "asyncio.Task"] = {}
+    _extraction_locks: dict[str, "asyncio.Lock"] = {}
+    _locks_lock: "asyncio.Lock" = None
     EXTRACTION_DEBOUNCE_SEC: float = 5.0
 
     def __init__(self, db: aiosqlite.Connection):
@@ -42,6 +44,11 @@ class ChatService:
         self.entity_repo = EntityRepository(db)
         self.settings = get_settings()
         self.memory_pipeline = MemoryPipeline(memory_repo=self.memory_repo)
+        
+        # 락 초기화 (메서드에서 지연 초기화)
+        if ChatService._locks_lock is None:
+            import asyncio
+            ChatService._locks_lock = asyncio.Lock()
 
     # ==================== Chat Room ====================
 
@@ -1102,11 +1109,21 @@ AI가 해당 메모리들도 참조합니다."""
 
         room_id = room["id"]
 
-        # 기존 타이머 취소
+        # 기존 타이머 취소 및 완전 대기 (Race Condition 방지)
         existing = ChatService._extraction_timers.get(room_id)
         if existing and not existing.done():
             existing.cancel()
             print(f"[debounce] 기존 타이머 취소: {room_id[:8]}...")
+            # 취소된 타이머가 완전히 종료될 때까지 대기 (최대 1초)
+            try:
+                asyncio.get_event_loop().run_until_complete(
+                    asyncio.wait_for(asyncio.shield(existing), timeout=1.0)
+                )
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+
+        # 타이머가 완전히 종료된 것을 확인
+        ChatService._extraction_timers.pop(room_id, None)
 
         # 새 타이머 등록
         ChatService._extraction_timers[room_id] = asyncio.create_task(
@@ -1114,19 +1131,47 @@ AI가 해당 메모리들도 참조합니다."""
         )
 
     async def _debounced_extract(self, room: dict[str, Any], user_id: str) -> None:
-        """debounce 대기 후 메모리 추출 실행"""
+        """debounce 대기 후 메모리 추출 실행 (락 포함)"""
         import asyncio
 
         room_id = room["id"]
-        try:
-            await asyncio.sleep(self.EXTRACTION_DEBOUNCE_SEC)
-        except asyncio.CancelledError:
-            return
-        finally:
-            ChatService._extraction_timers.pop(room_id, None)
+        
+        # 락 획득 (없으면 생성)
+        async with ChatService._locks_lock:
+            if room_id not in ChatService._extraction_locks:
+                ChatService._extraction_locks[room_id] = asyncio.Lock()
+        lock = ChatService._extraction_locks[room_id]
+        
+        # 락 획득 후 추출 실행 (동시 실행 방지)
+        async with lock:
+            try:
+                await asyncio.wait_for(
+                    asyncio.sleep(self.EXTRACTION_DEBOUNCE_SEC),
+                    timeout=self.EXTRACTION_DEBOUNCE_SEC + 5.0
+                )
+            except asyncio.TimeoutError:
+                print(f"[debounce] 타임아웃: {room_id[:8]}")
+                return
+            except asyncio.CancelledError:
+                print(f"[debounce] 취소됨: {room_id[:8]}")
+                return
+            finally:
+                ChatService._extraction_timers.pop(room_id, None)
 
-        print(f"[debounce] {self.EXTRACTION_DEBOUNCE_SEC}초 경과 → 메모리 추출 시작: {room_id[:8]}...")
-        await self._extract_memory_from_message(room=room, user_id=user_id)
+            print(f"[debounce] {self.EXTRACTION_DEBOUNCE_SEC}초 경과 → 메모리 추출 시작: {room_id[:8]}...")
+            
+            # 재시도 로직 (최대 2회)
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    await self._extract_memory_from_message(room=room, user_id=user_id)
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        print(f"[debounce] 최종 실패: {e}")
+                    else:
+                        print(f"[debounce] 재시도 {attempt + 1}/{max_retries}: {e}")
+                        await asyncio.sleep(1)
 
     async def _extract_memory_from_message(
         self,
