@@ -37,7 +37,6 @@ _mchat_client: MchatClient | None = None
 _mchat_bot_user_id: str | None = None
 _health_check_task: asyncio.Task | None = None
 _summary_scheduler_task: asyncio.Task | None = None
-_polling_task: asyncio.Task | None = None
 _worker_db: aiosqlite.Connection | None = None
 
 # 메시지 통계
@@ -379,86 +378,6 @@ async def _health_check_loop(client: MchatClient):
             logger.warning(f"Health check error: {e}")
 
 
-async def _poll_channel_members(db: aiosqlite.Connection, client: MchatClient, bot_user_id: str):
-    """주기적으로 채널 멤버를 폴링해서 변경사항 감지 (WebSocket 이벤트가 없는 leave 등 처리)"""
-    chat_repo = ChatRepository(db)
-    
-    # 이전 멤버 상태 캐시
-    previous_members: dict[str, set[str]] = {}  # channel_id -> {mchat_user_id}
-    
-    while True:
-        try:
-            await asyncio.sleep(60)  # 1분마다 체크
-            
-            # 모든 매핑된 채널 조회
-            cursor = await db.execute(
-                "SELECT mchat_channel_id, agent_room_id FROM mchat_channel_mapping"
-            )
-            rows = await cursor.fetchall()
-            
-            for row in rows:
-                mchat_channel_id = row[0]
-                agent_room_id = row[1]
-                
-                try:
-                    # 현재 채널 멤버 조회
-                    channel_members = await client.get_channel_members(mchat_channel_id)
-                    current_member_ids = {
-                        cm["user_id"] for cm in channel_members 
-                        if not cm["user_id"] == bot_user_id
-                    }
-                    
-                    # 봇 유저 필터링
-                    current_member_ids_filtered = set()
-                    for user_id in current_member_ids:
-                        try:
-                            user_info = await client.get_user(user_id)
-                            if not user_info.get("is_bot", False):
-                                current_member_ids_filtered.add(user_id)
-                        except Exception:
-                            pass
-                    
-                    current_member_ids = current_member_ids_filtered
-                    
-                    # 이전 멤버와 비교
-                    if mchat_channel_id in previous_members:
-                        previous_member_ids = previous_members[mchat_channel_id]
-                        
-                        # 나간 멤버 찾기
-                        left_members = previous_member_ids - current_member_ids
-                        if left_members:
-                            for mchat_user_id in left_members:
-                                logger.info(f"Polled member left: {mchat_user_id} from channel {mchat_channel_id[:8]}")
-                                
-                                # agent_user_id 매핑 조회
-                                cursor = await db.execute(
-                                    "SELECT agent_user_id FROM mchat_user_mapping WHERE mchat_user_id = ?",
-                                    (mchat_user_id,)
-                                )
-                                mrow = await cursor.fetchone()
-                                if mrow:
-                                    agent_user_id = mrow[0]
-                                    await chat_repo.remove_member(agent_room_id, agent_user_id)
-                                    await _remove_user_chatroom_memories(db, agent_user_id, agent_room_id)
-                                    logger.info(f"Polled: Member {agent_user_id} removed from room {agent_room_id[:8]}")
-                            
-                            # 채널이 완전히 비어있는지 확인
-                            remaining_members = await chat_repo.list_members(agent_room_id)
-                            if len(remaining_members) == 0:
-                                await _delete_channel_memories(db, agent_room_id, mchat_channel_id)
-                    
-                    # 현재 멤버 상태 저장
-                    previous_members[mchat_channel_id] = current_member_ids
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to poll channel {mchat_channel_id[:8]}: {e}")
-                    
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Channel members polling error: {e}")
-
-
 async def _handle_summary_command(
     client: MchatClient,
     db: aiosqlite.Connection,
@@ -759,10 +678,7 @@ async def start_mchat_worker():
 
     # Health check 백그라운드 태스크 시작
     _health_check_task = asyncio.create_task(_health_check_loop(client))
-    
-    # 채널 멤버 폴링 태스크 시작 (WebSocket 이벤트가 없는 leave 등 처리)
-    _polling_task = asyncio.create_task(_poll_channel_members(db, client, bot_user_id))
-    logger.info("Channel members polling started")
+    # 멤버 변경은 WebSocket 이벤트(leave_channel, user_removed 등)로 처리
     
     _worker_db = db
 
@@ -790,12 +706,6 @@ async def start_mchat_worker():
                 await _health_check_task
             except asyncio.CancelledError:
                 pass
-        if _polling_task:
-            _polling_task.cancel()
-            try:
-                await _polling_task
-            except asyncio.CancelledError:
-                pass
         await client.stop()
         await db.close()
         logger.info("Worker shutdown complete")
@@ -803,7 +713,7 @@ async def start_mchat_worker():
 
 async def stop_mchat_worker():
     """Mchat worker 정지"""
-    global _mchat_client, _health_check_task, _summary_scheduler_task, _polling_task, _worker_db
+    global _mchat_client, _health_check_task, _summary_scheduler_task, _worker_db
 
     # 요약 스케줄러 종료
     if _summary_scheduler_task:
@@ -817,14 +727,6 @@ async def stop_mchat_worker():
         except asyncio.CancelledError:
             pass
         _health_check_task = None
-
-    if _polling_task:
-        _polling_task.cancel()
-        try:
-            await _polling_task
-        except asyncio.CancelledError:
-            pass
-        _polling_task = None
 
     if _mchat_client:
         logger.info("Stopping Mchat worker...")
