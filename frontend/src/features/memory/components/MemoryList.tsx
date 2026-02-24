@@ -246,9 +246,20 @@ export function MemoryList() {
                   {selectedRoomId === roomName && group.chatRoomId && (
                     <button
                       onClick={() => {
-                        if (window.confirm(`"${roomName}" 대화방의 메모리 ${group.count}개를 모두 삭제하시겠습니까?`)) {
+                        if (window.confirm(`"${roomName}" 대화방에서 내가 만든 메모리를 모두 삭제하시겠습니까?`)) {
                           deleteRoomMemories.mutate(group.chatRoomId, {
-                            onSuccess: () => setSelectedRoomId(null),
+                            onSuccess: (data) => {
+                              alert(`${data.count}개의 메모리가 삭제되었습니다.`)
+                              setSelectedRoomId(null)
+                            },
+                            onError: (err: Error) => {
+                              const msg = err.message || ''
+                              if (msg.includes('403') || msg.includes('권한')) {
+                                alert('⚠️ 본인이 만든 메모리만 삭제할 수 있습니다.')
+                              } else {
+                                alert(`삭제 실패: ${msg}`)
+                              }
+                            },
                           })
                         }
                       }}
