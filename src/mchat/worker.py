@@ -453,43 +453,49 @@ async def start_mchat_worker():
         if post_type.startswith("system_"):
             return
 
-        # 응답 여부 판단
-        if not await _should_respond(db, message, user_id, bot_user_id, channel_id, channel_type):
+        # 봇 자신의 메시지는 무시
+        if user_id == bot_user_id:
+            return
+
+        # 채널 동기화가 꺼져 있으면 무시
+        if not await _is_channel_sync_enabled(db, channel_id):
             return
 
         _stats["messages_received"] += 1
-        logger.info(f"Message from @{sender_name}: {message[:80]}")
+
+        # AI 응답이 필요한지 판단 (@ai 멘션 또는 DM)
+        needs_ai_response = await _should_respond(db, message, user_id, bot_user_id, channel_id, channel_type)
+
+        logger.info(f"Message from @{sender_name} (ai={needs_ai_response}): {message[:80]}")
 
         try:
             # "@ai 요약" 봇 커맨드 체크
-            summary_handled = await _handle_summary_command(
-                client, db, message, channel_id, channel_name,
-                post.get("id"), bot_user_id,
-            )
-            if summary_handled:
-                _stats["messages_responded"] += 1
-                return
+            if needs_ai_response:
+                summary_handled = await _handle_summary_command(
+                    client, db, message, channel_id, channel_name,
+                    post.get("id"), bot_user_id,
+                )
+                if summary_handled:
+                    _stats["messages_responded"] += 1
+                    return
 
             # Agent 사용자/대화방 매핑
             agent_user_id = await get_or_create_agent_user(db, client, user_id, sender_name)
             agent_room_id = await get_or_create_agent_room(db, channel_id, channel_name, agent_user_id)
 
-            # ChatService로 메시지 처리
-            # _should_respond를 통과한 메시지는 항상 AI 응답 필요
-            # ChatService는 @ai 멘션이 있어야 AI 응답을 생성하므로, 없으면 추가
-            chat_message = message if "@ai" in message.lower() else f"@ai {message}"
-
+            # ChatService로 메시지 저장 + 메모리 추출
+            # @ai 멘션이 있으면 AI 응답도 생성, 없으면 저장+메모리추출만
             chat_service = ChatService(db)
 
             result = await chat_service.send_message(
                 chat_room_id=agent_room_id,
                 user_id=agent_user_id,
-                content=chat_message,
+                content=message,
             )
 
             logger.info(f"Message saved to room={agent_room_id[:8]}")
 
-            # AI 응답 전송
+            # AI 응답 전송 (있을 때만)
             if result.get("assistant_message"):
                 ai_response = result["assistant_message"]["content"]
                 await client.create_post(
