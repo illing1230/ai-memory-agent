@@ -99,17 +99,63 @@ class MemoryPipeline:
             except Exception as e:
                 print(f"[1] 실패: {e}")
 
-        # 1-2. 다른 대화방 메모리 (기본: 사용자가 참여한 모든 대화방)
+        # 1-2. 다른 대화방 메모리 (사용자가 접근 권한이 있는 모든 대화방)
         other_rooms = memory_config.get("other_chat_rooms", None)
         if not other_rooms:
-            # 기본값: 사용자가 참여한 모든 대화방 조회 (현재 방 제외)
-            cursor = await self.memory_repo.db.execute(
-                "SELECT chat_room_id FROM chat_room_members WHERE user_id = ? AND chat_room_id != ?",
-                (user_id, current_room_id),
-            )
-            rows = await cursor.fetchall()
-            other_rooms = [row[0] for row in rows]
-            print(f"[2] 사용자 참여 대화방 자동 조회: {len(other_rooms)}개")
+            # 기본값: 사용자가 멤버이거나 공유받은 모든 대화방 조회 (현재 방 제외)
+            # 1) 직접 멤버인 대화방
+            cursor = await self.memory_repo.db.execute("""
+                SELECT DISTINCT crm.chat_room_id, cr.name as room_name
+                FROM chat_room_members crm
+                INNER JOIN chat_rooms cr ON crm.chat_room_id = cr.id
+                WHERE crm.user_id = ? AND crm.chat_room_id != ?
+            """, (user_id, current_room_id))
+            direct_rows = await cursor.fetchall()
+            
+            # 2) shares 테이블에서 공유받은 대화방 (user 레벨)
+            cursor = await self.memory_repo.db.execute("""
+                SELECT DISTINCT s.resource_id as chat_room_id, cr.name as room_name
+                FROM shares s
+                INNER JOIN chat_rooms cr ON s.resource_id = cr.id
+                WHERE s.resource_type = 'chat_room'
+                AND s.target_type = 'user'
+                AND s.target_id = ?
+                AND s.resource_id != ?
+            """, (user_id, current_room_id))
+            shared_user_rows = await cursor.fetchall()
+            
+            # 3) 프로젝트 레벨 공유
+            cursor = await self.memory_repo.db.execute("""
+                SELECT DISTINCT s.resource_id as chat_room_id, cr.name as room_name
+                FROM shares s
+                INNER JOIN chat_rooms cr ON s.resource_id = cr.id
+                INNER JOIN project_members pm ON s.target_id = pm.project_id
+                WHERE s.resource_type = 'chat_room'
+                AND s.target_type = 'project'
+                AND pm.user_id = ?
+                AND s.resource_id != ?
+            """, (user_id, current_room_id))
+            shared_project_rows = await cursor.fetchall()
+            
+            # 4) 부서 레벨 공유
+            cursor = await self.memory_repo.db.execute("""
+                SELECT DISTINCT s.resource_id as chat_room_id, cr.name as room_name
+                FROM shares s
+                INNER JOIN chat_rooms cr ON s.resource_id = cr.id
+                INNER JOIN users u ON s.target_id = u.department_id
+                WHERE s.resource_type = 'chat_room'
+                AND s.target_type = 'department'
+                AND u.id = ?
+                AND s.resource_id != ?
+            """, (user_id, current_room_id))
+            shared_dept_rows = await cursor.fetchall()
+            
+            # 모든 대화방 ID 합치기 (중복 제거)
+            all_rows = direct_rows + shared_user_rows + shared_project_rows + shared_dept_rows
+            other_rooms = list({row[0] for row in all_rows})
+            
+            mchat_count = sum(1 for row in all_rows if row[1] and row[1].startswith('Mchat:'))
+            print(f"[2] 사용자 접근 가능 대화방: 총 {len(other_rooms)}개 (mchat: {mchat_count}개)")
         for room_id in other_rooms:
             try:
                 results = await search_vectors(

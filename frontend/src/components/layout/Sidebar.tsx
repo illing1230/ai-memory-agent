@@ -17,6 +17,8 @@ import {
   Shield,
   Bot,
   HelpCircle,
+  Building,
+  FolderKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, Tooltip, ScrollArea, Avatar } from '@/components/ui'
@@ -36,7 +38,9 @@ export function Sidebar() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     chatRooms: false,
     agents: false,
-    knowledge: false,
+    memory: false,
+    documents: false,
+    admin: false,
   })
 
   const toggleSection = (section: string) => {
@@ -229,47 +233,81 @@ export function Sidebar() {
             />
           </SidebarSection>
 
-          {/* Knowledge Section (merged: 지식 센터 + 권한 관리) */}
+          {/* Documents Section */}
           <SidebarSection
-            title="지식"
-            icon={Brain}
-            expanded={expandedSections.knowledge}
-            onToggle={() => toggleSection('knowledge')}
+            title="문서"
+            icon={FileText}
+            expanded={expandedSections.documents}
+            onToggle={() => toggleSection('documents')}
           >
-            <SidebarItem
-              to="/memory/search"
-              icon={Search}
-              label="검색"
-              active={isActive('/memory/search')}
-            />
-            <SidebarItem
-              to="/memory/list"
-              icon={List}
-              label="지식 목록"
-              active={isActive('/memory/list')}
-            />
             <SidebarItem
               to="/documents"
               icon={FileText}
-              label="문서"
+              label="RAG"
               active={isActive('/documents')}
+            />
+          </SidebarSection>
+
+          {/* Memory Section */}
+          <SidebarSection
+            title="메모리 관리"
+            icon={Brain}
+            expanded={expandedSections.memory}
+            onToggle={() => toggleSection('memory')}
+          >
+            <SidebarItem
+              to="/memory/list"
+              icon={List}
+              label="메모리 목록"
+              active={isActive('/memory/list')}
             />
             <SidebarItem
               to="/chatrooms"
               icon={Shield}
-              label="지식 권한"
+              label="메모리 공유"
               active={isActive('/chatrooms')}
             />
           </SidebarSection>
 
-          {/* Admin - admin role만 표시 */}
+          {/* Admin Section - admin role만 표시 */}
           {user?.role === 'admin' && (
-            <SidebarItem
-              to="/admin"
+            <SidebarSection
+              title="관리자 메뉴"
               icon={Shield}
-              label="관리자 메뉴"
-              active={isActive('/admin')}
-            />
+              expanded={expandedSections.admin}
+              onToggle={() => toggleSection('admin')}
+            >
+              <SidebarItem
+                to="/admin"
+                icon={Shield}
+                label="대시보드"
+                active={isActive('/admin')}
+              />
+              <SidebarItem
+                to="/admin/knowledge"
+                icon={Brain}
+                label="지식 관리"
+                active={isActive('/admin/knowledge')}
+              />
+              <SidebarItem
+                to="/admin/users"
+                icon={MessageSquare}
+                label="사용자 관리"
+                active={isActive('/admin/users')}
+              />
+              <SidebarItem
+                to="/admin/departments"
+                icon={Building}
+                label="부서 관리"
+                active={isActive('/admin/departments')}
+              />
+              <SidebarItem
+                to="/admin/projects"
+                icon={FolderKanban}
+                label="프로젝트 관리"
+                active={isActive('/admin/projects')}
+              />
+            </SidebarSection>
           )}
         </nav>
       </ScrollArea>

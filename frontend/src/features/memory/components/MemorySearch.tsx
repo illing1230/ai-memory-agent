@@ -8,7 +8,7 @@ import { searchDocuments, type DocumentSearchResult } from '@/features/document/
 import { formatDate, cn } from '@/lib/utils'
 import type { MemorySearchResult } from '@/types'
 
-type ScopeFilter = 'all' | 'personal' | 'chatroom' | 'agent' | 'document'
+type ScopeFilter = 'all' | 'chatroom' | 'agent' | 'document'
 
 export function MemorySearch() {
   const [query, setQuery] = useState('')
@@ -90,7 +90,7 @@ export function MemorySearch() {
             <Filter className="h-4 w-4 text-foreground-muted" />
             <span className="text-sm text-foreground-secondary">범위:</span>
             <div className="flex gap-1">
-              {(['all', 'personal', 'chatroom', 'agent', 'document'] as ScopeFilter[]).map((scope) => (
+              {(['all', 'chatroom', 'agent', 'document'] as ScopeFilter[]).map((scope) => (
               <Button
                 key={scope}
                 variant={scopeFilter === scope ? 'default' : 'ghost'}
@@ -99,7 +99,6 @@ export function MemorySearch() {
                 className="text-xs"
               >
                 {scope === 'all' && '전체'}
-                {scope === 'personal' && '개인'}
                 {scope === 'chatroom' && '대화방'}
                 {scope === 'agent' && '에이전트'}
                 {scope === 'document' && '문서'}
@@ -190,7 +189,7 @@ interface MemoryCardProps {
 
 function MemoryCard({ result, onDelete }: MemoryCardProps) {
   const { memory, score, source_info } = result
-  const scopeLabel: Record<string, string> = { personal: '개인', chatroom: '대화방' }
+  const scopeLabel: Record<string, string> = { chatroom: '대화방', agent: '에이전트' }
 
   return (
     <div className="group card p-4 hover:shadow-medium transition-shadow">
@@ -211,11 +210,6 @@ function MemoryCard({ result, onDelete }: MemoryCardProps) {
             {source_info?.chat_room_name && (
               <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
                 {source_info.chat_room_name}
-              </span>
-            )}
-            {source_info?.project_name && (
-              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent">
-                {source_info.project_name}
               </span>
             )}
             {memory.category && (

@@ -43,6 +43,10 @@ function App() {
           <Route path="documents" element={<DocumentPage />} />
           <Route path="chatrooms" element={<ChatRoomManagement />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="admin/knowledge" element={<Navigate to="/admin" replace />} />
+          <Route path="admin/users" element={<Navigate to="/admin" replace />} />
+          <Route path="admin/departments" element={<Navigate to="/admin" replace />} />
+          <Route path="admin/projects" element={<Navigate to="/admin" replace />} />
           <Route path="agents" element={<Navigate to="/agents/marketplace" replace />} />
           <Route path="agents/marketplace" element={<AgentMarketplace />} />
           <Route path="agents/my-instances" element={<MyAgentInstances />} />
