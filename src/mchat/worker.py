@@ -82,8 +82,15 @@ async def get_or_create_agent_room(
     row = await cursor.fetchone()
 
     if row:
-        _channel_cache[mchat_channel_id] = row[0]
-        return row[0]
+        # 매핑된 대화방이 실제 존재하는지 확인
+        room_check = await db.execute("SELECT id FROM chat_rooms WHERE id = ?", (row[0],))
+        if await room_check.fetchone():
+            _channel_cache[mchat_channel_id] = row[0]
+            return row[0]
+        # 대화방이 삭제된 경우 매핑도 삭제하고 재생성
+        logger.warning(f"Stale room mapping: {mchat_channel_id} -> {row[0]} (room deleted), re-creating...")
+        await db.execute("DELETE FROM mchat_channel_mapping WHERE mchat_channel_id = ?", (mchat_channel_id,))
+        await db.commit()
 
     # 없으면 새 대화방 생성 (owner는 메시지 보낸 사용자)
     chat_repo = ChatRepository(db)
@@ -148,7 +155,14 @@ async def get_or_create_agent_user(
     row = await cursor.fetchone()
 
     if row:
-        return row[0]
+        # 매핑된 사용자가 실제 존재하는지 확인 (seed_data 재실행 등으로 삭제될 수 있음)
+        user_check = await db.execute("SELECT id FROM users WHERE id = ?", (row[0],))
+        if await user_check.fetchone():
+            return row[0]
+        # 사용자가 삭제된 경우 매핑도 삭제하고 재생성
+        logger.warning(f"Stale user mapping: {mchat_user_id} -> {row[0]} (user deleted), re-creating...")
+        await db.execute("DELETE FROM mchat_user_mapping WHERE mchat_user_id = ?", (mchat_user_id,))
+        await db.commit()
 
     user_repo = UserRepository(db)
 
@@ -238,14 +252,13 @@ async def sync_channel_members(
         except Exception:
             pass
 
-        # Agent 사용자 매핑 조회 (이미 존재하는 것만)
-        cursor = await db.execute(
-            "SELECT agent_user_id FROM mchat_user_mapping WHERE mchat_user_id = ?",
-            (mchat_user_id,)
-        )
-        row = await cursor.fetchone()
-        if row:
-            mchat_member_agent_ids.add(row[0])
+        # Agent 사용자 매핑 조회 또는 생성
+        try:
+            mchat_username = mchat_user_info.get("username", mchat_user_id[:8]) if mchat_user_info else mchat_user_id[:8]
+            agent_uid = await get_or_create_agent_user(db, mchat_client, mchat_user_id, mchat_username)
+            mchat_member_agent_ids.add(agent_uid)
+        except Exception as e:
+            logger.warning(f"Failed to map mchat user {mchat_user_id}: {e}")
 
     # 2. 현재 Agent 대화방 멤버 조회
     room_members = await chat_repo.list_members(agent_room_id)
@@ -550,7 +563,7 @@ async def start_mchat_worker():
 
         except Exception as e:
             _stats["errors"] += 1
-            logger.error(f"Message handling error: {e}", exc_info=True)
+            logger.error(f"Message handling error in channel={channel_id}: {e}", exc_info=True)
 
     # 멤버 변경 이벤트 핸들러
     async def _handle_member_change(event, action: str):
