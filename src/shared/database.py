@@ -233,15 +233,22 @@ BEGIN
     VALUES (NEW.rowid, NEW.content, NEW.id);
 END;
 
--- UPDATE trigger: 메모리 수정 또는 superseded 변경 시 FTS 인덱스 업데이트
-CREATE TRIGGER IF NOT EXISTS memories_fts_update
-AFTER UPDATE OF content, superseded ON memories
+-- UPDATE trigger (superseded로 변경 시): FTS에서 제거
+CREATE TRIGGER IF NOT EXISTS memories_fts_update_superseded
+AFTER UPDATE OF superseded ON memories
+WHEN NEW.superseded = 1
 BEGIN
-    DELETE FROM memories_fts WHERE rowid = NEW.rowid;
-    IF NEW.superseded = 0 THEN
-        INSERT INTO memories_fts(rowid, content, memory_id)
-        VALUES (NEW.rowid, NEW.content, NEW.id);
-    END IF;
+    DELETE FROM memories_fts WHERE memory_id = NEW.id;
+END;
+
+-- UPDATE trigger (content 변경 시): FTS 재인덱싱 (superseded=0인 경우만)
+CREATE TRIGGER IF NOT EXISTS memories_fts_update_content
+AFTER UPDATE OF content ON memories
+WHEN NEW.superseded = 0
+BEGIN
+    DELETE FROM memories_fts WHERE memory_id = NEW.id;
+    INSERT INTO memories_fts(rowid, content, memory_id)
+    VALUES (NEW.rowid, NEW.content, NEW.id);
 END;
 
 -- DELETE trigger: 메모리 삭제 시 FTS 인덱스에서 제거
@@ -713,14 +720,20 @@ async def init_database() -> None:
                 VALUES (NEW.rowid, NEW.content, NEW.id);
             END;
 
-            CREATE TRIGGER IF NOT EXISTS memories_fts_update
-            AFTER UPDATE OF content, superseded ON memories
+            CREATE TRIGGER IF NOT EXISTS memories_fts_update_superseded
+            AFTER UPDATE OF superseded ON memories
+            WHEN NEW.superseded = 1
             BEGIN
-                DELETE FROM memories_fts WHERE rowid = NEW.rowid;
-                IF NEW.superseded = 0 THEN
-                    INSERT INTO memories_fts(rowid, content, memory_id)
-                    VALUES (NEW.rowid, NEW.content, NEW.id);
-                END IF;
+                DELETE FROM memories_fts WHERE memory_id = NEW.id;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS memories_fts_update_content
+            AFTER UPDATE OF content ON memories
+            WHEN NEW.superseded = 0
+            BEGIN
+                DELETE FROM memories_fts WHERE memory_id = NEW.id;
+                INSERT INTO memories_fts(rowid, content, memory_id)
+                VALUES (NEW.rowid, NEW.content, NEW.id);
             END;
 
             CREATE TRIGGER IF NOT EXISTS memories_fts_delete

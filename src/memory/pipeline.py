@@ -308,11 +308,14 @@ class MemoryPipeline:
             except Exception as e:
                 print(f"[3] 실패: {e}")
 
-        if not all_vector_results:
+        # Step 1-F: FTS 검색 (벡터 결과 보완)
+        fts_results = await self._search_by_fts(query, user_id, limit=15)
+
+        if not all_vector_results and not fts_results:
             print("========== 검색 결과 없음 ==========\n")
             return []
 
-        # Step 2: 배치 메타데이터 조회 (N+1 해소)
+        # Step 2: 배치 메타데이터 조회 (N+1 해소) — 벡터 + FTS 결과 통합
         memory_ids = []
         score_map = {}  # memory_id → vector_score
         for r in all_vector_results:
@@ -323,21 +326,44 @@ class MemoryPipeline:
                 if mid not in score_map or r["score"] > score_map[mid]:
                     score_map[mid] = r["score"]
 
+        # FTS 결과의 memory_id도 조회 대상에 추가
+        fts_memory_ids = [r["id"] for r in fts_results if r["id"] not in score_map]
+        memory_ids.extend(fts_memory_ids)
+
         memories_by_id = {}
         if memory_ids:
             memories = await self.memory_repo.get_memories_by_ids(memory_ids)
             for m in memories:
                 memories_by_id[m["id"]] = m
 
-        # Step 3: superseded 필터링 + 결과 조합
-        candidates = []
+        # Step 3: RRF로 벡터 + FTS 점수 결합
+        # 먼저 벡터 결과를 candidates 형태로 구성
+        vector_candidates = []
         for mid, score in score_map.items():
             memory = memories_by_id.get(mid)
             if memory and not memory.get("superseded", False):
-                candidates.append({
+                vector_candidates.append({
                     "memory": memory,
                     "score": score,
                 })
+
+        # RRF 점수 계산 (벡터 + FTS)
+        if fts_results and vector_candidates:
+            rrf_scores = self._calculate_rrf(vector_candidates, fts_results)
+            # RRF 점수를 candidates에 반영
+            candidates = []
+            all_mids = set(score_map.keys()) | {r["id"] for r in fts_results}
+            for mid in all_mids:
+                memory = memories_by_id.get(mid)
+                if memory and not memory.get("superseded", False):
+                    candidates.append({
+                        "memory": memory,
+                        "score": rrf_scores.get(mid, 0),
+                    })
+            candidates.sort(key=lambda x: x["score"], reverse=True)
+            print(f"[RRF] 벡터({len(vector_candidates)}) + FTS({len(fts_results)}) → {len(candidates)}개 후보")
+        else:
+            candidates = vector_candidates
 
         if not candidates:
             print("========== superseded 필터 후 결과 없음 ==========\n")
