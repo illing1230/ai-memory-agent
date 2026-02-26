@@ -44,6 +44,50 @@ MEMORY_EXTRACTION_PROMPT = """다음 대화에서 장기적으로 기억할 가�
 # Re-ranking 파라미터
 RECENCY_DECAY_DAYS = 30
 
+# 한국어 불용어 목록 (필요에 따라 확장)
+STOP_WORDS = {
+    "이", "가", "을", "를", "은", "는", "에", "의", "와", "과",
+    "하는", "알려줘", "보여줘", "무엇", "어떤", "어디", "언제", "누구",
+    "입니다", "입니다까", "하고", "해서", "부터", "까지", "에서"
+}
+
+# 한국어 조사 접미사 (형태소 분석기 도입 전 임시 처리)
+SUFFIXES = [
+    "으로", "로", "에서", "까지", "부터", "하는", "하고", "해서",
+    "이", "가", "을", "를", "은", "는", "에", "의", "와", "과"
+]
+
+
+def _preprocess_fts_query(query: str) -> str:
+    """FTS용 쿼리 전처리 (조사 제거 + 불용어 필터링 + 와일드카드)"""
+    import re
+
+    def _strip_suffix(token: str) -> str:
+        """조사 접미사 제거 (긴 조사부터 매칭)"""
+        for suffix in sorted(SUFFIXES, key=len, reverse=True):
+            if token.endswith(suffix) and len(token) - len(suffix) >= 2:
+                return token[:-len(suffix)]
+        return token
+
+    # 특수문자 제거 후 토큰화
+    cleaned = re.sub(r'[^\w\s]', ' ', query)
+    tokens = cleaned.split()
+
+    # 조사 제거 → 불용어 필터링 → 와일드카드 추가
+    meaningful_tokens = []
+    for token in tokens:
+        # 조사 제거
+        stripped = _strip_suffix(token)
+
+        # 불용어 필터링 + 최소 길이 체크 (2글자 이상)
+        if len(stripped) >= 2 and stripped not in STOP_WORDS:
+            # FTS 특수문자 이스케이프
+            escaped = re.sub(r'([^\w\*])', r'\\\1', stripped)
+            meaningful_tokens.append(f'"{escaped}*"')
+
+    # OR 조인 (recall 높게 유지)
+    return " OR ".join(meaningful_tokens) if meaningful_tokens else ""
+
 
 class MemoryPipeline:
     """메모리 검색, 추출, 저장 통합 파이프라인"""
@@ -59,6 +103,68 @@ class MemoryPipeline:
         self.settings = get_settings()
 
     # ==================== 검색 ====================
+
+    async def _search_by_fts(
+        self,
+        query: str,
+        user_id: str,
+        limit: int = 15,
+    ) -> list[dict[str, Any]]:
+        """FTS 검색 (limit 15로 제한하여 noise 제어)"""
+        preprocessed = _preprocess_fts_query(query)
+
+        if not preprocessed:
+            return []
+
+        try:
+            cursor = await self.memory_repo.db.execute("""
+                SELECT m.* FROM memories_fts fts
+                INNER JOIN memories m ON fts.memory_id = m.id
+                WHERE fts.content MATCH ?
+                  AND m.owner_id = ?
+                  AND m.superseded = 0
+                LIMIT ?
+            """, (preprocessed, user_id, limit))
+
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                data = dict(row)
+                if data.get("metadata"):
+                    import json
+                    data["metadata"] = json.loads(data["metadata"])
+                results.append(data)
+
+            print(f"[FTS] 검색 결과: {len(results)}개")
+            return results
+        except Exception as e:
+            print(f"[FTS] 검색 실패: {e}")
+            return []
+
+    def _calculate_rrf(
+        self,
+        vector_results: list[dict[str, Any]],
+        fts_results: list[dict[str, Any]],
+        k: int = 60,
+    ) -> dict[str, float]:
+        """벡터 + FTS 결과를 RRF로 결합"""
+        rrf_scores: dict[str, float] = {}
+
+        # 벡터 결과 (score 0~1 → rank 1~N)
+        for idx, result in enumerate(vector_results):
+            memory = result.get("memory") if isinstance(result, dict) else result
+            if isinstance(memory, dict):
+                mid = memory["id"]
+                rank = idx + 1
+                rrf_scores[mid] = rrf_scores.get(mid, 0) + (1.0 / (k + rank))
+
+        # FTS 결과 (rank 1~M)
+        for idx, result in enumerate(fts_results):
+            mid = result["id"]
+            rank = idx + 1
+            rrf_scores[mid] = rrf_scores.get(mid, 0) + (1.0 / (k + rank))
+
+        return rrf_scores
 
     async def _get_accessible_room_ids(self, user_id: str, exclude_room_id: str) -> set[str]:
         """사용자가 접근 가능한 대화방 ID 집합 반환 (멤버십 + 공유)"""
@@ -109,7 +215,7 @@ class MemoryPipeline:
         user_id: str,
         current_room_id: str,
         context_sources: dict | None = None,
-        limit: int = 10,
+        limit: int = 20,
     ) -> list[dict[str, Any]]:
         """컨텍스트 소스 기반 메모리 검색 (벡터 검색 → 배치 메타데이터 → 리랭킹)"""
         if context_sources is None:

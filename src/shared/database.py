@@ -219,6 +219,38 @@ CREATE TABLE IF NOT EXISTS document_chat_rooms (
 CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts
 USING fts5(content, chunk_id UNINDEXED, document_id UNINDEXED);
 
+-- 메모리 전문검색 (FTS5)
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
+USING fts5(content, memory_id UNINDEXED);
+
+-- 메모리 FTS 동기화 Triggers
+-- INSERT trigger: 메모리 생성 시 FTS 인덱스에 추가 (superseded = 0인 경우만)
+CREATE TRIGGER IF NOT EXISTS memories_fts_insert
+AFTER INSERT ON memories
+WHEN NEW.superseded = 0
+BEGIN
+    INSERT INTO memories_fts(rowid, content, memory_id)
+    VALUES (NEW.rowid, NEW.content, NEW.id);
+END;
+
+-- UPDATE trigger: 메모리 수정 또는 superseded 변경 시 FTS 인덱스 업데이트
+CREATE TRIGGER IF NOT EXISTS memories_fts_update
+AFTER UPDATE OF content, superseded ON memories
+BEGIN
+    DELETE FROM memories_fts WHERE rowid = NEW.rowid;
+    IF NEW.superseded = 0 THEN
+        INSERT INTO memories_fts(rowid, content, memory_id)
+        VALUES (NEW.rowid, NEW.content, NEW.id);
+    END IF;
+END;
+
+-- DELETE trigger: 메모리 삭제 시 FTS 인덱스에서 제거
+CREATE TRIGGER IF NOT EXISTS memories_fts_delete
+AFTER DELETE ON memories
+BEGIN
+    DELETE FROM memories_fts WHERE rowid = OLD.rowid;
+END;
+
 -- 공유 설정 테이블
 CREATE TABLE IF NOT EXISTS shares (
     id TEXT PRIMARY KEY,
@@ -659,6 +691,68 @@ async def init_database() -> None:
         await _db_connection.commit()
     except Exception:
         pass
+
+    # memories_fts FTS5 가상 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.execute(
+            """CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
+               USING fts5(content, memory_id UNINDEXED)"""
+        )
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # memories_fts Triggers 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TRIGGER IF NOT EXISTS memories_fts_insert
+            AFTER INSERT ON memories
+            WHEN NEW.superseded = 0
+            BEGIN
+                INSERT INTO memories_fts(rowid, content, memory_id)
+                VALUES (NEW.rowid, NEW.content, NEW.id);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS memories_fts_update
+            AFTER UPDATE OF content, superseded ON memories
+            BEGIN
+                DELETE FROM memories_fts WHERE rowid = NEW.rowid;
+                IF NEW.superseded = 0 THEN
+                    INSERT INTO memories_fts(rowid, content, memory_id)
+                    VALUES (NEW.rowid, NEW.content, NEW.id);
+                END IF;
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS memories_fts_delete
+            AFTER DELETE ON memories
+            BEGIN
+                DELETE FROM memories_fts WHERE rowid = OLD.rowid;
+            END;
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # 초기 데이터 동기화: 기존 메모리를 FTS 인덱스에 추가 (일회성)
+    try:
+        # FTS 테이블이 비어있을 때만 동기화
+        cursor = await _db_connection.execute("SELECT COUNT(*) FROM memories_fts")
+        fts_count = (await cursor.fetchone())[0]
+
+        if fts_count == 0:
+            cursor = await _db_connection.execute("SELECT COUNT(*) FROM memories WHERE superseded = 0")
+            mem_count = (await cursor.fetchone())[0]
+
+            if mem_count > 0:
+                print(f"FTS 초기 데이터 동기화 중... ({mem_count}개 메모리)")
+                await _db_connection.execute("""
+                    INSERT INTO memories_fts(rowid, content, memory_id)
+                    SELECT rowid, content, id FROM memories WHERE superseded = 0
+                """)
+                await _db_connection.commit()
+                print(f"FTS 초기 데이터 동기화 완료")
+    except Exception as e:
+        print(f"FTS 초기 데이터 동기화 실패: {e}")
 
     # mchat 매핑 테이블 마이그레이션 (기존 DB용)
     try:
