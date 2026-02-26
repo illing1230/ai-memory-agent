@@ -18,7 +18,7 @@ class MemoryRepository:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "chatroom", "agent"] = "personal",
+        scope: Literal["chatroom", "agent", "document"] = "chatroom",
         vector_id: str | None = None,
         chat_room_id: str | None = None,
         source_message_id: str | None = None,

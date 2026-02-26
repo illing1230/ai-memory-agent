@@ -25,7 +25,7 @@ class MemoryService:
         self,
         content: str,
         owner_id: str,
-        scope: Literal["personal", "chatroom", "agent"] = "personal",
+        scope: Literal["chatroom", "agent", "document"] = "chatroom",
         chat_room_id: str | None = None,
         source_message_id: str | None = None,
         category: str | None = None,
@@ -99,17 +99,7 @@ class MemoryService:
 
         all_memories = []
 
-        # 1. 개인 메모리 (scope=personal이고 owner가 나인 것)
-        if scope is None or scope == "personal":
-            personal = await self.repo.list_memories(
-                owner_id=user_id,
-                scope="personal",
-                agent_instance_id=agent_instance_id,
-                limit=limit,
-            )
-            all_memories.extend(personal)
-
-        # 2. 대화방 메모리 (사용자가 참여한 모든 대화방의 메모리 + Mchat 대화방 메모리)
+        # 1. 대화방 메모리 (사용자가 참여한 모든 대화방의 메모리 + Mchat 대화방 메모리)
         if scope is None or scope == "chatroom":
             # 사용자가 참여한 대화방 ID 목록 조회
             cursor = await self.repo.db.execute(
@@ -128,7 +118,7 @@ class MemoryService:
                 )
                 all_memories.extend(room_memories)
 
-        # 3. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
+        # 2. 에이전트 메모리 (scope=agent이고 owner가 나인 것)
         if scope is None or scope == "agent":
             agent_memories = await self.repo.list_memories(
                 owner_id=user_id,
@@ -403,7 +393,7 @@ class MemoryService:
         self,
         conversation: list[dict[str, str]],
         owner_id: str,
-        scope: Literal["personal", "chatroom"] = "personal",
+        scope: Literal["chatroom", "agent"] = "chatroom",
         chat_room_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """대화에서 메모리 자동 추출"""
@@ -444,12 +434,6 @@ class MemoryService:
         """메모리 접근 권한 체크"""
         scope = memory["scope"]
 
-        # 개인 메모리: 소유자만
-        if scope == "personal":
-            if memory["owner_id"] != user_id:
-                raise PermissionDeniedException()
-            return True
-
         # 대화방 메모리: 소유자 또는 대화방 멤버
         if scope == "chatroom":
             if memory["owner_id"] == user_id:
@@ -481,10 +465,10 @@ class MemoryService:
         """검색 필터 조건 구성
 
         scope가 지정된 경우:
-          - personal/agent: owner_id로 필터
+          - agent: owner_id로 필터
           - chatroom: 사용자가 멤버인 대화방의 chat_room_id로 필터
         scope가 None (전체 검색):
-          - personal/agent memories owned by user OR chatroom memories from joined rooms
+          - agent memories owned by user OR chatroom memories from joined rooms
           - Qdrant "should" (OR) 조건 사용
         """
         if scope and scope != "all":
@@ -511,7 +495,7 @@ class MemoryService:
             else:
                 return {"owner_id": user_id, "scope": scope}
 
-        # scope가 None: 전체 검색 (personal + chatroom + agent)
+        # scope가 None: 전체 검색 (chatroom + agent)
         # 사용자가 참여한 대화방 ID 목록
         cursor = await self.repo.db.execute(
             "SELECT chat_room_id FROM chat_room_members WHERE user_id = ?",

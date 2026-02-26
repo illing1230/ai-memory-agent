@@ -311,25 +311,31 @@ async def _delete_channel_memories(
 ) -> None:
     """채널의 모든 사용자가 나갔을 때 관련 메모리 삭제"""
     memory_repo = MemoryRepository(db)
-    
+
     # 해당 대화방의 chatroom scope 메모리 모두 조회
-    memories = await memory_repo.get_memories_by_room(agent_room_id)
+    memories = await memory_repo.list_memories(chat_room_id=agent_room_id)
     
     if not memories:
         logger.info(f"No memories to delete for room {agent_room_id[:8]}")
         return
     
     logger.info(f"Deleting {len(memories)} memories for room {agent_room_id[:8]} (channel {mchat_channel_id[:8]})")
-    
+
     # 메모리 삭제 (엔티티 관계는 cascade로 자동 삭제됨)
     for memory in memories:
         try:
+            # mchat_summary_log의 FK 참조 해제
+            await db.execute(
+                "UPDATE mchat_summary_log SET memory_id = NULL WHERE memory_id = ?",
+                (memory["id"],)
+            )
+            await db.commit()
             await memory_repo.delete_memory(memory["id"])
             # Vector DB에서도 삭제
             await delete_vectors_by_filter({"memory_id": memory["id"]})
         except Exception as e:
             logger.error(f"Failed to delete memory {memory['id']}: {e}")
-    
+
     logger.info(f"Deleted {len(memories)} memories for room {agent_room_id[:8]}")
 
 
@@ -642,17 +648,17 @@ async def start_mchat_worker():
                 # 채널이 완전히 비어있는지 확인 (아무도 없으면 봇도 나가고 메모리 삭제)
                 remaining_members = await chat_repo.list_members(agent_room_id)
                 if len(remaining_members) == 0:
-                    await _delete_channel_memories(db, agent_room_id, mchat_channel_id)
+                    await _delete_channel_memories(db, agent_room_id, channel_id)
                     # 봇도 Mattermost 채널에서 퇴장
                     try:
-                        await client.leave_channel(mchat_channel_id, bot_user_id)
+                        await client.leave_channel(channel_id, bot_user_id)
                         await db.execute(
                             "UPDATE mchat_channel_mapping SET sync_enabled = 0 WHERE mchat_channel_id = ?",
-                            (mchat_channel_id,)
+                            (channel_id,)
                         )
                         await db.commit()
-                        _channel_cache.pop(mchat_channel_id, None)
-                        logger.info(f"Bot left channel {mchat_channel_id[:8]} — no members remaining")
+                        _channel_cache.pop(channel_id, None)
+                        logger.info(f"Bot left channel {channel_id[:8]} — no members remaining")
                     except Exception as e:
                         logger.warning(f"Failed to remove bot from channel: {e}")
 

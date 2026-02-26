@@ -559,19 +559,6 @@ class AgentService:
                     all_memories.append({"memory": doc_memory, "score": r["score"]})
                     print(f"[DEBUG]   - document_id={document_id}, chunk_index={chunk_index}, score={r['score']:.3f}")
 
-        # 4. 개인 메모리 (본인 메모리는 항상 참조)
-        results = await search_vectors(
-            query_vector=query_vector,
-            limit=5,
-            filter_conditions={"owner_id": user_id, "scope": "personal"},
-        )
-        for r in results:
-            memory = await self.memory_repo.get_memory(
-                r["payload"].get("memory_id")
-            )
-            if memory and not memory.get("superseded", False):
-                all_memories.append({"memory": memory, "score": r["score"]})
-
         # 리랭킹: 유사도(60%) + 최신도(40%)
         for m in all_memories:
             similarity_score = m["score"]

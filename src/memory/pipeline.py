@@ -60,6 +60,49 @@ class MemoryPipeline:
 
     # ==================== 검색 ====================
 
+    async def _get_accessible_room_ids(self, user_id: str, exclude_room_id: str) -> set[str]:
+        """사용자가 접근 가능한 대화방 ID 집합 반환 (멤버십 + 공유)"""
+        db = self.memory_repo.db
+
+        # 1) 직접 멤버인 대화방
+        cursor = await db.execute(
+            "SELECT DISTINCT chat_room_id FROM chat_room_members WHERE user_id = ? AND chat_room_id != ?",
+            (user_id, exclude_room_id),
+        )
+        member_rows = await cursor.fetchall()
+
+        # 2) shares - user 레벨
+        cursor = await db.execute(
+            """SELECT DISTINCT s.resource_id FROM shares s
+               WHERE s.resource_type = 'chat_room' AND s.target_type = 'user'
+               AND s.target_id = ? AND s.resource_id != ?""",
+            (user_id, exclude_room_id),
+        )
+        shared_user_rows = await cursor.fetchall()
+
+        # 3) shares - project 레벨
+        cursor = await db.execute(
+            """SELECT DISTINCT s.resource_id FROM shares s
+               INNER JOIN project_members pm ON s.target_id = pm.project_id
+               WHERE s.resource_type = 'chat_room' AND s.target_type = 'project'
+               AND pm.user_id = ? AND s.resource_id != ?""",
+            (user_id, exclude_room_id),
+        )
+        shared_proj_rows = await cursor.fetchall()
+
+        # 4) shares - department 레벨
+        cursor = await db.execute(
+            """SELECT DISTINCT s.resource_id FROM shares s
+               INNER JOIN users u ON s.target_id = u.department_id
+               WHERE s.resource_type = 'chat_room' AND s.target_type = 'department'
+               AND u.id = ? AND s.resource_id != ?""",
+            (user_id, exclude_room_id),
+        )
+        shared_dept_rows = await cursor.fetchall()
+
+        all_rows = member_rows + shared_user_rows + shared_proj_rows + shared_dept_rows
+        return {row[0] for row in all_rows}
+
     async def search(
         self,
         query: str,
@@ -99,63 +142,25 @@ class MemoryPipeline:
             except Exception as e:
                 print(f"[1] 실패: {e}")
 
-        # 1-2. 다른 대화방 메모리 (사용자가 접근 권한이 있는 모든 대화방)
+        # 1-2. 다른 대화방 메모리 (사용자가 접근 권한이 있는 대화방만)
         other_rooms = memory_config.get("other_chat_rooms", None)
-        if not other_rooms:
-            # 기본값: 사용자가 멤버이거나 공유받은 모든 대화방 조회 (현재 방 제외)
-            # 1) 직접 멤버인 대화방
-            cursor = await self.memory_repo.db.execute("""
-                SELECT DISTINCT crm.chat_room_id, cr.name as room_name
-                FROM chat_room_members crm
-                INNER JOIN chat_rooms cr ON crm.chat_room_id = cr.id
-                WHERE crm.user_id = ? AND crm.chat_room_id != ?
-            """, (user_id, current_room_id))
-            direct_rows = await cursor.fetchall()
-            
-            # 2) shares 테이블에서 공유받은 대화방 (user 레벨)
-            cursor = await self.memory_repo.db.execute("""
-                SELECT DISTINCT s.resource_id as chat_room_id, cr.name as room_name
-                FROM shares s
-                INNER JOIN chat_rooms cr ON s.resource_id = cr.id
-                WHERE s.resource_type = 'chat_room'
-                AND s.target_type = 'user'
-                AND s.target_id = ?
-                AND s.resource_id != ?
-            """, (user_id, current_room_id))
-            shared_user_rows = await cursor.fetchall()
-            
-            # 3) 프로젝트 레벨 공유
-            cursor = await self.memory_repo.db.execute("""
-                SELECT DISTINCT s.resource_id as chat_room_id, cr.name as room_name
-                FROM shares s
-                INNER JOIN chat_rooms cr ON s.resource_id = cr.id
-                INNER JOIN project_members pm ON s.target_id = pm.project_id
-                WHERE s.resource_type = 'chat_room'
-                AND s.target_type = 'project'
-                AND pm.user_id = ?
-                AND s.resource_id != ?
-            """, (user_id, current_room_id))
-            shared_project_rows = await cursor.fetchall()
-            
-            # 4) 부서 레벨 공유
-            cursor = await self.memory_repo.db.execute("""
-                SELECT DISTINCT s.resource_id as chat_room_id, cr.name as room_name
-                FROM shares s
-                INNER JOIN chat_rooms cr ON s.resource_id = cr.id
-                INNER JOIN users u ON s.target_id = u.department_id
-                WHERE s.resource_type = 'chat_room'
-                AND s.target_type = 'department'
-                AND u.id = ?
-                AND s.resource_id != ?
-            """, (user_id, current_room_id))
-            shared_dept_rows = await cursor.fetchall()
-            
-            # 모든 대화방 ID 합치기 (중복 제거)
-            all_rows = direct_rows + shared_user_rows + shared_project_rows + shared_dept_rows
-            other_rooms = list({row[0] for row in all_rows})
-            
-            mchat_count = sum(1 for row in all_rows if row[1] and row[1].startswith('Mchat:'))
-            print(f"[2] 사용자 접근 가능 대화방: 총 {len(other_rooms)}개 (mchat: {mchat_count}개)")
+
+        # 사용자가 접근 가능한 대화방 ID 집합 구성 (멤버십 + 공유)
+        accessible_room_ids = await self._get_accessible_room_ids(user_id, current_room_id)
+
+        if other_rooms:
+            # 명시적 목록: 접근 권한이 있는 방만 필터링
+            before_count = len(other_rooms)
+            other_rooms = [rid for rid in other_rooms if rid in accessible_room_ids]
+            filtered = before_count - len(other_rooms)
+            if filtered > 0:
+                print(f"[2] 명시적 목록에서 접근 불가 {filtered}개 제외")
+            print(f"[2] 명시적 컨텍스트 소스: {len(other_rooms)}개")
+        else:
+            # 기본값: 접근 가능한 모든 대화방
+            other_rooms = list(accessible_room_ids)
+            print(f"[2] 사용자 접근 가능 대화방: 총 {len(other_rooms)}개")
+
         for room_id in other_rooms:
             try:
                 results = await search_vectors(
@@ -170,19 +175,7 @@ class MemoryPipeline:
             except Exception as e:
                 print(f"[2] 실패: {e}")
 
-        # 1-3. 개인 메모리 (본인 메모리는 항상 참조)
-        try:
-            results = await search_vectors(
-                query_vector=query_vector,
-                limit=5,
-                filter_conditions={"owner_id": user_id, "scope": "personal"},
-            )
-            print(f"[3] 개인 메모리: {len(results)}개")
-            all_vector_results.extend(results)
-        except Exception as e:
-            print(f"[3] 실패: {e}")
-
-        # 1-4. Agent 메모리 (기본: 사용자가 소유한 모든 agent 인스턴스)
+        # 1-3. Agent 메모리 (기본: 사용자가 소유한 모든 agent 인스턴스)
         agent_instances = memory_config.get("agent_instances", None)
         if not agent_instances:
             cursor = await self.memory_repo.db.execute(
@@ -192,7 +185,7 @@ class MemoryPipeline:
             rows = await cursor.fetchall()
             agent_instances = [row[0] for row in rows]
             if agent_instances:
-                print(f"[4] 사용자 Agent 인스턴스 자동 조회: {len(agent_instances)}개")
+                print(f"[3] 사용자 Agent 인스턴스 자동 조회: {len(agent_instances)}개")
         for agent_instance_id in agent_instances:
             try:
                 results = await search_vectors(
@@ -204,10 +197,10 @@ class MemoryPipeline:
                         "agent_instance_id": agent_instance_id,
                     },
                 )
-                print(f"[4] Agent({agent_instance_id}) 메모리: {len(results)}개")
+                print(f"[3] Agent({agent_instance_id}) 메모리: {len(results)}개")
                 all_vector_results.extend(results)
             except Exception as e:
-                print(f"[4] 실패: {e}")
+                print(f"[3] 실패: {e}")
 
         if not all_vector_results:
             print("========== 검색 결과 없음 ==========\n")
@@ -693,8 +686,6 @@ class MemoryPipeline:
 
             category = item.get("category", "fact") if isinstance(item, dict) else "fact"
             importance = item.get("importance", "medium") if isinstance(item, dict) else "medium"
-            is_personal = item.get("is_personal", False) if isinstance(item, dict) else False
-
             # 유효값 보정
             if category not in ("preference", "fact", "decision", "relationship"):
                 category = "fact"
@@ -705,104 +696,53 @@ class MemoryPipeline:
             entities_data = item.get("entities", []) if isinstance(item, dict) else []
 
             try:
-                if is_personal:
-                    # 대화방 컨텍스트에서는 chatroom scope만 저장
-                    # (혼자 대화방이면 그게 곧 개인 메모리)
-                    chatroom_mem = await self.save(
-                        content=content,
-                        user_id=user_id,
-                        room_id=room["id"],
-                        scope="chatroom",
-                        category=category,
-                        importance=importance,
-                        skip_if_duplicate=True,
-                    )
-                    saved = chatroom_mem
-                    if saved:
-                        saved_memories.append(saved)
+                # 대화방 메모리 저장 (모든 메모리는 chatroom scope)
+                memory = await self.save(
+                    content=content,
+                    user_id=user_id,
+                    room_id=room["id"],
+                    scope="chatroom",
+                    category=category,
+                    importance=importance,
+                    skip_if_duplicate=True,
+                )
+                if memory:
+                    saved_memories.append(memory)
 
-                    # 엔티티 연결
-                    entity_name_map = {}  # name → entity_id
-                    for ent in entities_data:
-                        ent_name = ent.get("name", "").strip() if isinstance(ent, dict) else ""
-                        ent_type = ent.get("type", "topic") if isinstance(ent, dict) else "topic"
-                        if not ent_name or ent_type not in ("person", "meeting", "project", "organization", "topic", "date"):
-                            continue
+                # 엔티티 연결
+                entity_name_map = {}  # name → entity_id
+                for ent in entities_data:
+                    ent_name = ent.get("name", "").strip() if isinstance(ent, dict) else ""
+                    ent_type = ent.get("type", "topic") if isinstance(ent, dict) else "topic"
+                    if not ent_name or ent_type not in ("person", "meeting", "project", "organization", "topic", "date"):
+                        continue
+                    try:
+                        entity = await self.entity_repo.get_or_create_entity(ent_name, ent_type, user_id)
+                        entity_name_map[ent_name] = entity["id"]
+                        if memory:
+                            await self.entity_repo.link_memory_entity(memory["id"], entity["id"])
+                        print(f"    엔티티 연결: {ent_name} ({ent_type})")
+                    except Exception as ent_err:
+                        print(f"    엔티티 연결 실패: {ent_err}")
+
+                # 엔티티 관계 저장
+                relations_data = item.get("relations", []) if isinstance(item, dict) else []
+                for rel in relations_data:
+                    if not isinstance(rel, dict):
+                        continue
+                    src_name = rel.get("source", "").strip()
+                    tgt_name = rel.get("target", "").strip()
+                    rel_type = rel.get("type", "RELATED_TO").strip()
+                    src_id = entity_name_map.get(src_name)
+                    tgt_id = entity_name_map.get(tgt_name)
+                    if src_id and tgt_id:
                         try:
-                            entity = await self.entity_repo.get_or_create_entity(ent_name, ent_type, user_id)
-                            entity_name_map[ent_name] = entity["id"]
-                            if chatroom_mem:
-                                await self.entity_repo.link_memory_entity(chatroom_mem["id"], entity["id"])
-                            print(f"    엔티티 연결: {ent_name} ({ent_type})")
-                        except Exception as ent_err:
-                            print(f"    엔티티 연결 실패: {ent_err}")
+                            await self.entity_repo.create_relation(src_id, tgt_id, rel_type, user_id)
+                            print(f"    엔티티 관계: {src_name} →{rel_type}→ {tgt_name}")
+                        except Exception as rel_err:
+                            print(f"    엔티티 관계 실패: {rel_err}")
 
-                    # 엔티티 관계 저장
-                    relations_data = item.get("relations", []) if isinstance(item, dict) else []
-                    for rel in relations_data:
-                        if not isinstance(rel, dict):
-                            continue
-                        src_name = rel.get("source", "").strip()
-                        tgt_name = rel.get("target", "").strip()
-                        rel_type = rel.get("type", "RELATED_TO").strip()
-                        src_id = entity_name_map.get(src_name)
-                        tgt_id = entity_name_map.get(tgt_name)
-                        if src_id and tgt_id:
-                            try:
-                                await self.entity_repo.create_relation(src_id, tgt_id, rel_type, user_id)
-                                print(f"    엔티티 관계: {src_name} →{rel_type}→ {tgt_name}")
-                            except Exception as rel_err:
-                                print(f"    엔티티 관계 실패: {rel_err}")
-
-                    print(f"  [{category}/{importance}] 개인+대화방: {content[:50]}...")
-                else:
-                    # 대화방 메모리만 저장
-                    memory = await self.save(
-                        content=content,
-                        user_id=user_id,
-                        room_id=room["id"],
-                        scope="chatroom",
-                        category=category,
-                        importance=importance,
-                        skip_if_duplicate=True,
-                    )
-                    if memory:
-                        saved_memories.append(memory)
-
-                    # 엔티티 연결: chatroom만
-                    entity_name_map = {}  # name → entity_id
-                    for ent in entities_data:
-                        ent_name = ent.get("name", "").strip() if isinstance(ent, dict) else ""
-                        ent_type = ent.get("type", "topic") if isinstance(ent, dict) else "topic"
-                        if not ent_name or ent_type not in ("person", "meeting", "project", "organization", "topic", "date"):
-                            continue
-                        try:
-                            entity = await self.entity_repo.get_or_create_entity(ent_name, ent_type, user_id)
-                            entity_name_map[ent_name] = entity["id"]
-                            if memory:
-                                await self.entity_repo.link_memory_entity(memory["id"], entity["id"])
-                            print(f"    엔티티 연결: {ent_name} ({ent_type})")
-                        except Exception as ent_err:
-                            print(f"    엔티티 연결 실패: {ent_err}")
-
-                    # 엔티티 관계 저장
-                    relations_data = item.get("relations", []) if isinstance(item, dict) else []
-                    for rel in relations_data:
-                        if not isinstance(rel, dict):
-                            continue
-                        src_name = rel.get("source", "").strip()
-                        tgt_name = rel.get("target", "").strip()
-                        rel_type = rel.get("type", "RELATED_TO").strip()
-                        src_id = entity_name_map.get(src_name)
-                        tgt_id = entity_name_map.get(tgt_name)
-                        if src_id and tgt_id:
-                            try:
-                                await self.entity_repo.create_relation(src_id, tgt_id, rel_type, user_id)
-                                print(f"    엔티티 관계: {src_name} →{rel_type}→ {tgt_name}")
-                            except Exception as rel_err:
-                                print(f"    엔티티 관계 실패: {rel_err}")
-
-                    print(f"  [{category}/{importance}] 대화방만: {content[:50]}...")
+                print(f"  [{category}/{importance}] {content[:50]}...")
             except Exception as e:
                 print(f"메모리 저장 실패: {e}")
                 continue
@@ -1050,7 +990,7 @@ class MemoryPipeline:
                 content=merged_content,
                 user_id=user_id,
                 room_id=memory.get("chat_room_id"),
-                scope=memory.get("scope", "personal"),
+                scope=memory.get("scope", "chatroom"),
                 category=memory.get("category", "fact"),
                 importance="medium",
                 skip_if_duplicate=False,

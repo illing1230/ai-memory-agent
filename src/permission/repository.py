@@ -28,12 +28,6 @@ class PermissionRepository:
         memory = dict(memory)
         scope = memory["scope"]
 
-        # 개인 메모리
-        if scope == "personal":
-            if memory["owner_id"] == user_id:
-                return {"allowed": True, "reason": "소유자"}
-            return {"allowed": False, "reason": "개인 메모리에 대한 접근 권한이 없습니다"}
-
         # 프로젝트 메모리
         if scope == "project":
             project_id = memory.get("project_id")

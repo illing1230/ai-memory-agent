@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class MemoryBase(BaseModel):
     content: str
-    scope: Literal["personal", "chatroom", "agent"] = "personal"
+    scope: Literal["chatroom", "agent", "document"] = "chatroom"
     category: str | None = None
     importance: Literal["high", "medium", "low"] = "medium"
     metadata: dict | None = None
@@ -46,7 +46,7 @@ class MemorySearchRequest(BaseModel):
     query: str
     limit: int = Field(default=10, ge=1, le=100)
     score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
-    scope: Literal["personal", "chatroom", "agent", "all"] | None = None
+    scope: Literal["chatroom", "agent", "document", "all"] | None = None
     chat_room_id: str | None = None
     agent_instance_id: str | None = None
 
@@ -75,7 +75,7 @@ class MemorySearchResponse(BaseModel):
 class MemoryExtractRequest(BaseModel):
     """메모리 자동 추출 요청"""
     conversation: list[dict[str, str]]
-    scope: Literal["personal", "chatroom"] = "personal"
+    scope: Literal["chatroom", "agent"] = "chatroom"
     chat_room_id: str | None = None
 
 

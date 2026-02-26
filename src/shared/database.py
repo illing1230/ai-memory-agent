@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
     vector_id TEXT,
-    scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')),
+    scope TEXT NOT NULL CHECK (scope IN ('chatroom', 'agent', 'document')),
     owner_id TEXT NOT NULL,
     project_id TEXT,
     department_id TEXT,
@@ -546,16 +546,30 @@ async def init_database() -> None:
     except Exception:
         pass
 
-    # agent scope 추가 (memories) - CHECK 제약조건 재생성
+    # personal scope 제거 + document scope 추가 — CHECK 제약조건 재생성
     try:
-        # 기존 CHECK 제약조건 삭제
-        await _db_connection.execute("CREATE TABLE memories_new (id TEXT PRIMARY KEY, content TEXT NOT NULL, vector_id TEXT, scope TEXT NOT NULL CHECK (scope IN ('personal', 'project', 'department', 'chatroom', 'agent')), owner_id TEXT NOT NULL, project_id TEXT, department_id TEXT, chat_room_id TEXT, source_message_id TEXT, category TEXT, importance TEXT DEFAULT 'medium', metadata TEXT, topic_key TEXT, superseded BOOLEAN DEFAULT 0, superseded_by TEXT, superseded_at DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(id), FOREIGN KEY (project_id) REFERENCES projects(id), FOREIGN KEY (department_id) REFERENCES departments(id), FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id))")
+        # 기존 personal 메모리를 chatroom scope로 변환
+        await _db_connection.execute("UPDATE memories SET scope = 'chatroom' WHERE scope = 'personal'")
+        # project/department scope도 chatroom으로 변환 (미사용)
+        await _db_connection.execute("UPDATE memories SET scope = 'chatroom' WHERE scope IN ('project', 'department')")
+        await _db_connection.commit()
+
+        # CHECK 제약조건 재생성 (chatroom, agent, document 만 허용)
+        await _db_connection.execute("CREATE TABLE memories_new (id TEXT PRIMARY KEY, content TEXT NOT NULL, vector_id TEXT, scope TEXT NOT NULL CHECK (scope IN ('chatroom', 'agent', 'document')), owner_id TEXT NOT NULL, project_id TEXT, department_id TEXT, chat_room_id TEXT, source_message_id TEXT, category TEXT, importance TEXT DEFAULT 'medium', metadata TEXT, topic_key TEXT, superseded BOOLEAN DEFAULT 0, superseded_by TEXT, superseded_at DATETIME, last_accessed_at DATETIME, access_count INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(id), FOREIGN KEY (project_id) REFERENCES projects(id), FOREIGN KEY (department_id) REFERENCES departments(id), FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id))")
         await _db_connection.execute("INSERT INTO memories_new SELECT * FROM memories")
         await _db_connection.execute("DROP TABLE memories")
         await _db_connection.execute("ALTER TABLE memories_new RENAME TO memories")
+        # 인덱스 재생성
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_owner ON memories(owner_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_department ON memories(department_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_chat_room ON memories(chat_room_id)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_topic_key ON memories(topic_key)")
+        await _db_connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_superseded ON memories(superseded)")
         await _db_connection.commit()
     except Exception:
-        pass  # 이미 존재하면 무시
+        pass  # 이미 마이그레이션 완료된 경우
 
     # sources 컬럼 추가 (chat_messages)
     try:

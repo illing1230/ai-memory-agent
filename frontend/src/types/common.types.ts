@@ -113,7 +113,7 @@ export interface Message {
 export interface Memory {
   id: string
   content: string
-  scope: 'personal' | 'chatroom' | 'agent'
+  scope: 'chatroom' | 'agent' | 'document'
   owner_id: string
   chat_room_id?: string
   category?: string
