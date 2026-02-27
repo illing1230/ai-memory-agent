@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Users, MessageSquare, Brain, Building2, Briefcase, MessagesSquare, Edit2, Trash2, Save, X } from 'lucide-react'
 import { Loading } from '@/components/common/Loading'
-import { Button, Input, Textarea, Select } from '@/components/ui'
+import { Button, Input } from '@/components/ui'
 import { 
   useDashboardStats, 
   useAdminDepartments, 
@@ -152,7 +152,7 @@ export function DashboardTab() {
                     </td>
                     <td className="p-3">
                       {editingDept === dept.id ? (
-                        <Textarea
+                        <textarea
                           value={deptForm.description}
                           onChange={(e) => setDeptForm(prev => ({ ...prev, description: e.target.value }))}
                           className="max-w-60"
@@ -243,7 +243,7 @@ export function DashboardTab() {
                     </td>
                     <td className="p-3">
                       {editingProject === project.id ? (
-                        <Textarea
+                        <textarea
                           value={projectForm.description}
                           onChange={(e) => setProjectForm(prev => ({ ...prev, description: e.target.value }))}
                           className="max-w-60"
@@ -255,7 +255,7 @@ export function DashboardTab() {
                     </td>
                     <td className="p-3">
                       {editingProject === project.id ? (
-                        <Select
+                        <select
                           value={projectForm.department_id}
                           onValueChange={(value) => setProjectForm(prev => ({ ...prev, department_id: value }))}
                         >
@@ -263,7 +263,7 @@ export function DashboardTab() {
                           {departments.map((dept) => (
                             <option key={dept.id} value={dept.id}>{dept.name}</option>
                           ))}
-                        </Select>
+                        </select>
                       ) : (
                         <span className="text-foreground-secondary">{project.department_name || '부서 없음'}</span>
                       )}
