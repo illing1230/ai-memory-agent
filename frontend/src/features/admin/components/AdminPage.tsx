@@ -1,24 +1,20 @@
 import { useState } from 'react'
-import { Shield, LayoutDashboard, Users, Building2, Briefcase, MessageSquare, Brain, BarChart3, Radio } from 'lucide-react'
+import { Shield, LayoutDashboard, MessageSquare, Brain, BarChart3, Radio, Bot } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { DashboardTab } from './DashboardTab'
 import { KnowledgeDashboardTab } from './KnowledgeDashboardTab'
-import { UsersTab } from './UsersTab'
-import { DepartmentsTab } from './DepartmentsTab'
-import { ProjectsTab } from './ProjectsTab'
 import { ChatRoomsTab } from './ChatRoomsTab'
 import { MemoriesTab } from './MemoriesTab'
 import { MchatTab } from './MchatTab'
+import { AgentDashboardTab } from './AgentDashboardTab'
 
-type TabId = 'dashboard' | 'knowledge' | 'users' | 'departments' | 'projects' | 'chatrooms' | 'memories' | 'mchat'
+type TabId = 'dashboard' | 'knowledge' | 'agent' | 'chatrooms' | 'memories' | 'mchat'
 
 const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
   { id: 'knowledge', label: '지식 대시보드', icon: BarChart3 },
-  { id: 'users', label: '사용자', icon: Users },
-  { id: 'departments', label: '부서', icon: Building2 },
-  { id: 'projects', label: '프로젝트', icon: Briefcase },
+  { id: 'agent', label: 'Agent', icon: Bot },
   { id: 'chatrooms', label: '대화방', icon: MessageSquare },
   { id: 'memories', label: '메모리', icon: Brain },
   { id: 'mchat', label: 'Mchat', icon: Radio },
@@ -66,9 +62,7 @@ export function AdminPage() {
         <div className="px-6 py-4">
           {activeTab === 'dashboard' && <DashboardTab />}
           {activeTab === 'knowledge' && <KnowledgeDashboardTab />}
-          {activeTab === 'users' && <UsersTab />}
-          {activeTab === 'departments' && <DepartmentsTab />}
-          {activeTab === 'projects' && <ProjectsTab />}
+          {activeTab === 'agent' && <AgentDashboardTab />}
           {activeTab === 'chatrooms' && <ChatRoomsTab />}
           {activeTab === 'memories' && <MemoriesTab />}
           {activeTab === 'mchat' && <MchatTab />}

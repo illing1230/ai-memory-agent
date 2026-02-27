@@ -328,3 +328,22 @@ export interface MchatUser {
   agent_user_email: string | null
   created_at: string
 }
+
+// Agent 대시보드
+export interface AgentDashboard {
+  total_instances: number
+  active_instances: number
+  total_memories: number
+  total_messages: number
+  top_agents: Array<{
+    id: string
+    name: string
+    memory_count: number
+    last_active: string
+  }>
+  daily_activity: Array<{
+    date: string
+    memory_count: number
+    message_count: number
+  }>
+}

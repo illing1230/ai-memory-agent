@@ -395,3 +395,48 @@ class AdminService:
             "top_entities": top_entities,
             "agent_contribution": agent_contribution,
         }
+
+    # === Department Management ===
+    
+    async def update_department(self, department_id: str, name: str, description: str | None = None) -> None:
+        """부서 수정"""
+        await self.db.execute(
+            "UPDATE departments SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (name, description, department_id),
+        )
+        await self.db.commit()
+
+    async def delete_department(self, department_id: str) -> None:
+        """부서 삭제 - 소속 사용자의 department_id를 NULL로 설정 후 삭제"""
+        # 소속 사용자의 department_id를 NULL로 설정
+        await self.db.execute(
+            "UPDATE users SET department_id = NULL WHERE department_id = ?",
+            (department_id,)
+        )
+        # 부서 삭제
+        await self.db.execute("DELETE FROM departments WHERE id = ?", (department_id,))
+        await self.db.commit()
+
+    # === Project Management ===
+    
+    async def update_project(
+        self, 
+        project_id: str, 
+        name: str, 
+        description: str | None = None, 
+        department_id: str | None = None
+    ) -> None:
+        """프로젝트 수정"""
+        await self.db.execute(
+            "UPDATE projects SET name = ?, description = ?, department_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (name, description, department_id, project_id),
+        )
+        await self.db.commit()
+
+    async def delete_project(self, project_id: str) -> None:
+        """프로젝트 삭제 - project_members 먼저 삭제 후 프로젝트 삭제"""
+        # 프로젝트 멤버 먼저 삭제
+        await self.db.execute("DELETE FROM project_members WHERE project_id = ?", (project_id,))
+        # 프로젝트 삭제
+        await self.db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        await self.db.commit()

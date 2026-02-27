@@ -10,6 +10,7 @@ import type {
   MchatStatus,
   MchatChannel,
   MchatUser,
+  AgentDashboard,
 } from '@/types'
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -71,4 +72,37 @@ export async function toggleMchatChannelSync(mappingId: string): Promise<{ sync_
 
 export async function getMchatUsers(): Promise<MchatUser[]> {
   return get<MchatUser[]>('/mchat/users')
+}
+
+// Department management
+export async function updateDepartment(departmentId: string, data: { name: string; description?: string }): Promise<void> {
+  await put('/admin/departments/' + departmentId, data)
+}
+
+export async function deleteDepartment(departmentId: string): Promise<void> {
+  await del('/admin/departments/' + departmentId)
+}
+
+// Project management
+export async function updateProject(projectId: string, data: { name: string; description?: string; department_id?: string }): Promise<void> {
+  await put('/admin/projects/' + projectId, data)
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await del('/admin/projects/' + projectId)
+}
+
+// Agent dashboard
+export async function getAgentDashboard(): Promise<AgentDashboard> {
+  return get<AgentDashboard>('/admin/agent-dashboard')
+}
+
+export async function getAdminAgentApiLogs(params?: { 
+  instanceId?: string
+  dateFrom?: string
+  dateTo?: string
+  limit?: number
+  offset?: number
+}): Promise<{ logs: any[]; total: number }> {
+  return get<{ logs: any[]; total: number }>('/admin/agent-api-logs', params)
 }

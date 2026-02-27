@@ -18,6 +18,8 @@ from src.admin.schemas import (
     PaginatedMemories,
     KnowledgeDashboard,
     KnowledgeQualityReport,
+    UpdateDepartmentRequest,
+    UpdateProjectRequest,
 )
 from src.agent.schemas import AgentDashboard, AgentApiLogList
 
@@ -91,6 +93,56 @@ async def get_projects(
     """프로젝트 목록"""
     service = AdminService(db)
     return await service.get_projects()
+
+
+@router.put("/departments/{department_id}")
+async def update_department(
+    department_id: str,
+    request: UpdateDepartmentRequest,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """부서 수정"""
+    service = AdminService(db)
+    await service.update_department(department_id, request.name, request.description)
+    return {"message": "부서가 수정되었습니다"}
+
+
+@router.delete("/departments/{department_id}")
+async def delete_department(
+    department_id: str,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """부서 삭제"""
+    service = AdminService(db)
+    await service.delete_department(department_id)
+    return {"message": "부서가 삭제되었습니다"}
+
+
+@router.put("/projects/{project_id}")
+async def update_project(
+    project_id: str,
+    request: UpdateProjectRequest,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """프로젝트 수정"""
+    service = AdminService(db)
+    await service.update_project(project_id, request.name, request.description, request.department_id)
+    return {"message": "프로젝트가 수정되었습니다"}
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: str,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """프로젝트 삭제"""
+    service = AdminService(db)
+    await service.delete_project(project_id)
+    return {"message": "프로젝트가 삭제되었습니다"}
 
 
 @router.get("/chat-rooms", response_model=list[AdminChatRoom])

@@ -30,6 +30,19 @@ class UpdateRoleRequest(BaseModel):
     role: str  # 'user' | 'admin'
 
 
+class UpdateDepartmentRequest(BaseModel):
+    """부서 수정 요청"""
+    name: str
+    description: Optional[str] = None
+
+
+class UpdateProjectRequest(BaseModel):
+    """프로젝트 수정 요청"""
+    name: str
+    description: Optional[str] = None
+    department_id: Optional[str] = None
+
+
 class AdminChatRoom(BaseModel):
     """관리자용 대화방 정보"""
     id: str

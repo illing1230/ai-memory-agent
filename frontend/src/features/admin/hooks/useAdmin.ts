@@ -15,6 +15,12 @@ import {
   getMchatChannels,
   toggleMchatChannelSync,
   getMchatUsers,
+  updateDepartment,
+  deleteDepartment,
+  updateProject,
+  deleteProject,
+  getAgentDashboard,
+  getAdminAgentApiLogs,
 } from '../api/adminApi'
 
 export function useDashboardStats() {
@@ -141,5 +147,78 @@ export function useMchatUsers() {
   return useQuery({
     queryKey: ['mchat', 'users'],
     queryFn: getMchatUsers,
+  })
+}
+
+// Department management hooks
+export function useUpdateDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ departmentId, data }: { departmentId: string; data: { name: string; description?: string } }) =>
+      updateDepartment(departmentId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'departments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] })
+    },
+  })
+}
+
+export function useDeleteDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (departmentId: string) => deleteDepartment(departmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'departments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] })
+    },
+  })
+}
+
+// Project management hooks
+export function useUpdateProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ projectId, data }: { projectId: string; data: { name: string; description?: string; department_id?: string } }) =>
+      updateProject(projectId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+    },
+  })
+}
+
+export function useDeleteProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (projectId: string) => deleteProject(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+    },
+  })
+}
+
+// Agent dashboard hooks
+export function useAgentDashboard() {
+  return useQuery({
+    queryKey: ['admin', 'agent-dashboard'],
+    queryFn: getAgentDashboard,
+  })
+}
+
+export function useAdminAgentApiLogs(params?: { 
+  instanceId?: string
+  dateFrom?: string
+  dateTo?: string
+  limit?: number
+  offset?: number
+}) {
+  return useQuery({
+    queryKey: ['admin', 'agent-api-logs', params],
+    queryFn: () => getAdminAgentApiLogs(params),
   })
 }

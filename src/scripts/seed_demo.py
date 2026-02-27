@@ -32,189 +32,52 @@ DEPARTMENTS = [
     {"name": "기획팀", "description": "제품 기획 및 전략 수립"},
 ]
 
-# 인덱스: 0=개발자, 1=hy.joo, 2=김품질, 3=이검사, 4=박관리, 5=최개발, 6=정백엔드, 7=강프론트, 8=윤데이터, 9=한기획, 10=서전략, 11=임분석
+# 19명 사용자 리스트 (인덱스 0-18)
 USERS = [
-    {"id": "dev-user-001", "name": "개발자", "email": "local@test.com", "dept_idx": 1, "role": "admin"},
-    {"name": "hy.joo", "email": "admin@test.com", "dept_idx": 1, "role": "admin"},
-    {"name": "김품질", "email": "kim.quality@company.com", "dept_idx": 0},
-    {"name": "이검사", "email": "lee.inspector@company.com", "dept_idx": 0},
-    {"name": "박관리", "email": "park.manager@company.com", "dept_idx": 0},
-    {"name": "최개발", "email": "choi.dev@company.com", "dept_idx": 1},
-    {"name": "정백엔드", "email": "jung.backend@company.com", "dept_idx": 1},
-    {"name": "강프론트", "email": "kang.frontend@company.com", "dept_idx": 1},
-    {"name": "윤데이터", "email": "yoon.data@company.com", "dept_idx": 1},
-    {"name": "한기획", "email": "han.planner@company.com", "dept_idx": 2},
-    {"name": "서전략", "email": "seo.strategy@company.com", "dept_idx": 2},
-    {"name": "임분석", "email": "lim.analyst@company.com", "dept_idx": 2},
+    {"name": "hy.joo", "email": "hy.joo@samsung.com", "dept_idx": 1, "role": "admin"},
+    {"name": "김품질", "email": "hc.hyun@samsung.com", "dept_idx": 0},
+    {"name": "이검사", "email": "kyoo1670@samsung.com", "dept_idx": 0},
+    {"name": "박관리", "email": "sh1228.kim@samsung.com", "dept_idx": 0},
+    {"name": "최개발", "email": "jegon.kim@samsung.com", "dept_idx": 1},
+    {"name": "정백엔드", "email": "hajun2.kim@samsung.com", "dept_idx": 1},
+    {"name": "강프론트", "email": "jw3544.bae@samsung.com", "dept_idx": 1},
+    {"name": "윤데이터", "email": "jh7909.byon@samsung.com", "dept_idx": 1},
+    {"name": "한기획", "email": "jaehoon.shim@samsung.com", "dept_idx": 2},
+    {"name": "서전략", "email": "joongmin.ahn@samsung.com", "dept_idx": 2},
+    {"name": "임분석", "email": "sdave.woo@samsung.com", "dept_idx": 2},
+    {"name": "우영경", "email": "yk6522.woo@samsung.com", "dept_idx": 1},
+    {"name": "윤희채", "email": "heechae.yoon@samsung.com", "dept_idx": 0},
+    {"name": "이정오", "email": "jungoh.lee@samsung.com", "dept_idx": 2},
+    {"name": "이지호", "email": "jiho22.lee@samsung.com", "dept_idx": 1},
+    {"name": "이은수", "email": "neoio.lee@samsung.com", "dept_idx": 0},
+    {"name": "장상범", "email": "sbchang@samsung.com", "dept_idx": 2},
+    {"name": "김현종", "email": "hyun.kim@samsung.com", "dept_idx": 1},
+    {"name": "developer", "email": "developer@samsung.com", "dept_idx": 1, "role": "admin"},
 ]
 
 PROJECTS = [
     {"name": "PLM 시스템", "description": "제품 생명주기 관리 시스템", "dept_idx": 0},
-    {"name": "MemGate", "description": "AI 메모리 관리 플랫폼", "dept_idx": 1},
+    {"name": "AI-Memory", "description": "AI 메모리 관리 플랫폼", "dept_idx": 1},
     {"name": "RAG 시스템", "description": "검색 증강 생성 시스템", "dept_idx": 1},
     {"name": "품질 대시보드", "description": "품질 지표 시각화 대시보드", "dept_idx": 0},
     {"name": "신제품 기획", "description": "2026년 신제품 기획 프로젝트", "dept_idx": 2},
 ]
 
 PROJECT_MEMBERS = {
-    0: [2, 3, 4],          # PLM 시스템 - 품질팀
-    1: [0, 1, 5, 6, 7, 8], # MemGate - 개발자 + hy.joo + 개발팀
-    2: [5, 6, 8],           # RAG 시스템 - 개발팀 일부
-    3: [2, 3, 9],           # 품질 대시보드
-    4: [9, 10, 11],         # 신제품 기획 - 기획팀
+    0: [1, 2, 3],          # PLM 시스템 - 품질팀
+    1: [0, 4, 5, 6, 7],    # AI-Memory - hy.joo + 개발팀 (dev-user-001 제거됨)
+    2: [4, 5, 7],          # RAG 시스템 - 개발팀 일부
+    3: [1, 2, 8],          # 품질 대시보드
+    4: [8, 9, 10],         # 신제품 기획 - 기획팀
 }
 
-CHAT_ROOMS = [
-    # 개인
-    {"name": "개발자의 메모", "room_type": "personal", "owner_idx": 0},
-    {"name": "hy.joo의 메모", "room_type": "personal", "owner_idx": 1},
-    {"name": "김품질의 메모", "room_type": "personal", "owner_idx": 2},
-    {"name": "최개발의 메모", "room_type": "personal", "owner_idx": 5},
-    {"name": "한기획의 메모", "room_type": "personal", "owner_idx": 9},
-    # 프로젝트
-    {"name": "PLM 개발 채팅", "room_type": "project", "owner_idx": 2, "project_idx": 0},
-    {"name": "MemGate 개발 채팅", "room_type": "project", "owner_idx": 1, "project_idx": 1},
-    {"name": "RAG 논의", "room_type": "project", "owner_idx": 6, "project_idx": 2},
-    # 부서
-    {"name": "품질팀 공유", "room_type": "department", "owner_idx": 2, "dept_idx": 0},
-    {"name": "개발팀 공유", "room_type": "department", "owner_idx": 1, "dept_idx": 1},
-    {"name": "기획팀 공유", "room_type": "department", "owner_idx": 9, "dept_idx": 2},
-]
+CHAT_ROOMS = []
 
-CHAT_ROOM_MEMBERS = {
-    0: [0],             # 개발자의 메모
-    1: [1],             # hy.joo의 메모
-    2: [2],             # 김품질의 메모
-    3: [5],             # 최개발의 메모
-    4: [9],             # 한기획의 메모
-    5: [2, 3, 4],       # PLM 개발 채팅
-    6: [0, 1, 5, 6, 7, 8],  # MemGate 개발 채팅
-    7: [5, 6, 8],       # RAG 논의
-    8: [2, 3, 4, 1],    # 품질팀 공유 - hy.joo도 포함(데모용)
-    9: [0, 1, 5, 6, 7, 8],  # 개발팀 공유
-    10: [9, 10, 11],    # 기획팀 공유
-}
+CHAT_ROOM_MEMBERS = {}
 
-# ---- 메모리 ----
-MEMORIES = [
-    # 개인 대화방 메모리 (personal scope 제거 → chatroom scope, 개인 대화방에 연결)
-    {"content": "김품질은 코드 리뷰를 오전에 하는 것을 선호한다", "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 2, "category": "preference", "importance": "medium", "topic_key": "김품질 코드 리뷰 시간"},
-    {"content": "최개발은 Python보다 Rust를 선호한다", "scope": "chatroom", "owner_idx": 5, "chat_room_idx": 3, "category": "preference", "importance": "high", "topic_key": "최개발 언어 선호"},
-    {"content": "한기획은 매주 금요일에 주간 보고서를 작성한다", "scope": "chatroom", "owner_idx": 9, "chat_room_idx": 4, "category": "fact", "importance": "medium", "topic_key": "한기획 주간 보고서"},
-    {"content": "김품질은 커피보다 녹차를 선호한다", "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 2, "category": "preference", "importance": "low", "topic_key": "김품질 음료 선호"},
-    {"content": "최개발의 업무 집중 시간은 오후 2시~5시이다", "scope": "chatroom", "owner_idx": 5, "chat_room_idx": 3, "category": "preference", "importance": "medium", "topic_key": "최개발 업무 시간"},
+MEMORIES = []
 
-    # 일정 메모리 (데모용 - 개인 대화방에 저장)
-    {"content": "hy.joo는 내일(2월 25일) 오후 3시에 품질 검토 회의가 예정되어 있다", "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 6,
-     "category": "fact", "importance": "high", "topic_key": "hy.joo 회의 일정",
-     "entities": [{"name": "hy.joo", "type": "person"}]},
-    {"content": "개발자(dev)는 내일(2월 25일) 오후 2시에 아키텍처 리뷰 회의가 있다", "scope": "chatroom", "owner_idx": 0, "chat_room_idx": 0,
-     "category": "fact", "importance": "high", "topic_key": "개발자 회의 일정"},
-    {"content": "김품질은 내일(2월 25일) 오전 10시에 품질 감사 미팅이 있다", "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 2,
-     "category": "fact", "importance": "high", "topic_key": "김품질 회의 일정"},
-
-    # 대화방(프로젝트) 메모리 — 엔티티 포함
-    {
-        "content": "박관리가 PLM 시스템 프로젝트를 총괄 관리하고 있다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 5,
-        "category": "relationship", "importance": "high", "topic_key": "박관리 PLM 관리",
-        "entities": [{"name": "박관리", "type": "person"}, {"name": "PLM 시스템", "type": "project"}],
-    },
-    {
-        "content": "김품질이 매주 월요일 품질검사 미팅에 참석한다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 5,
-        "category": "fact", "importance": "high", "topic_key": "김품질 품질검사 미팅",
-        "entities": [{"name": "김품질", "type": "person"}, {"name": "품질검사 미팅", "type": "meeting"}],
-    },
-    {
-        "content": "품질검사 미팅은 PLM 시스템 프로젝트의 정기 회의이다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 5,
-        "category": "fact", "importance": "medium", "topic_key": "품질검사 미팅 PLM",
-        "entities": [{"name": "품질검사 미팅", "type": "meeting"}, {"name": "PLM 시스템", "type": "project"}],
-    },
-    {
-        "content": "이검사가 PLM 시스템의 테스트 자동화를 담당하고 있다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 5,
-        "category": "relationship", "importance": "high", "topic_key": "이검사 테스트 자동화",
-        "entities": [{"name": "이검사", "type": "person"}, {"name": "PLM 시스템", "type": "project"}],
-    },
-    {
-        "content": "최개발이 MemGate 프로젝트의 백엔드 아키텍처를 설계했다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 6,
-        "category": "fact", "importance": "high", "topic_key": "최개발 MemGate 아키텍처",
-        "entities": [{"name": "최개발", "type": "person"}, {"name": "MemGate", "type": "project"}],
-    },
-    {
-        "content": "정백엔드가 MemGate 프로젝트의 RAG 파이프라인을 구현 중이다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 6,
-        "category": "fact", "importance": "high", "topic_key": "정백엔드 RAG 구현",
-        "entities": [{"name": "정백엔드", "type": "person"}, {"name": "MemGate", "type": "project"}],
-    },
-    {
-        "content": "3월 릴리즈 일정이 MemGate 프로젝트의 첫 번째 마일스톤이다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 6,
-        "category": "decision", "importance": "high", "topic_key": "MemGate 3월 릴리즈",
-        "entities": [{"name": "3월 릴리즈", "type": "date"}, {"name": "MemGate", "type": "project"}],
-    },
-
-    # ---- 엔티티 그래프 데모용: 크로스룸 메모리 ----
-    # 김품질이 PLM 대화방(5)에서 남긴 메모리 → 품질팀 공유(8)에서 검색 시 엔티티로 연결
-    {
-        "content": "박관리가 PLM 시스템 v2.0 업그레이드 일정을 3월 말로 확정했다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 5,
-        "category": "decision", "importance": "high", "topic_key": "PLM v2.0 일정",
-        "entities": [{"name": "박관리", "type": "person"}, {"name": "PLM 시스템", "type": "project"}, {"name": "3월 릴리즈", "type": "date"}],
-    },
-    {
-        "content": "이검사가 PLM 시스템의 자동 검사 모듈에서 외관검사 정확도를 95%까지 올렸다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 5,
-        "category": "fact", "importance": "high", "topic_key": "이검사 외관검사 정확도",
-        "entities": [{"name": "이검사", "type": "person"}, {"name": "PLM 시스템", "type": "project"}, {"name": "외관검사", "type": "topic"}],
-    },
-    # 품질팀 공유(8)에서의 메모리 — 다른 방이지만 엔티티로 연결됨
-    {
-        "content": "외관검사 기준이 2026년 1월부터 변경되어 스크래치 허용 한도가 0.3mm로 강화되었다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 8,
-        "category": "fact", "importance": "high", "topic_key": "외관검사 기준 변경",
-        "entities": [{"name": "외관검사", "type": "topic"}],
-    },
-    {
-        "content": "김품질이 A라인 불량률 개선 프로젝트를 주도하고 있으며 목표는 1.5% 이하이다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 8,
-        "category": "fact", "importance": "high", "topic_key": "김품질 A라인 불량률",
-        "entities": [{"name": "김품질", "type": "person"}, {"name": "A라인 불량률 개선", "type": "project"}],
-    },
-    # 개인 대화방 메모리 — 엔티티로 연결
-    {
-        "content": "박관리는 품질 감사 시 ISO 9001:2015 체크리스트를 항상 사용한다",
-        "scope": "chatroom", "owner_idx": 2, "chat_room_idx": 2, "category": "fact", "importance": "medium", "topic_key": "박관리 ISO 감사",
-        "entities": [{"name": "박관리", "type": "person"}],
-    },
-    # MemGate 대화방(6)에서 — PLM 관련 엔티티 연결
-    {
-        "content": "MemGate의 문서 RAG 기능이 PLM 시스템 품질 매뉴얼 검색에도 활용될 예정이다",
-        "scope": "chatroom", "owner_idx": 1, "chat_room_idx": 6,
-        "category": "decision", "importance": "high", "topic_key": "MemGate PLM 연동",
-        "entities": [{"name": "MemGate", "type": "project"}, {"name": "PLM 시스템", "type": "project"}],
-    },
-]
-
-ENTITY_RELATIONS = [
-    {"source": "박관리", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "MANAGES", "owner_idx": 2},
-    {"source": "김품질", "source_type": "person", "target": "품질검사 미팅", "target_type": "meeting", "relation": "ATTENDS", "owner_idx": 2},
-    {"source": "품질검사 미팅", "source_type": "meeting", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 2},
-    {"source": "이검사", "source_type": "person", "target": "PLM 시스템", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 2},
-    {"source": "최개발", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 1},
-    {"source": "정백엔드", "source_type": "person", "target": "MemGate", "target_type": "project", "relation": "WORKS_ON", "owner_idx": 1},
-    {"source": "3월 릴리즈", "source_type": "date", "target": "MemGate", "target_type": "project", "relation": "PART_OF", "owner_idx": 1},
-    # 크로스룸 엔티티 연결
-    {"source": "김품질", "source_type": "person", "target": "A라인 불량률 개선", "target_type": "project", "relation": "MANAGES", "owner_idx": 2},
-    {"source": "김품질", "source_type": "person", "target": "외관검사", "target_type": "topic", "relation": "RELATED_TO", "owner_idx": 2},
-    {"source": "이검사", "source_type": "person", "target": "외관검사", "target_type": "topic", "relation": "WORKS_ON", "owner_idx": 2},
-    {"source": "외관검사", "source_type": "topic", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 2},
-    {"source": "3월 릴리즈", "source_type": "date", "target": "PLM 시스템", "target_type": "project", "relation": "PART_OF", "owner_idx": 2},
-    {"source": "MemGate", "source_type": "project", "target": "PLM 시스템", "target_type": "project", "relation": "RELATED_TO", "owner_idx": 1},
-]
+ENTITY_RELATIONS = []
 
 # ---- Agent Types ----
 AGENT_TYPES = [
@@ -355,40 +218,13 @@ MCHAT_USER_MAPPINGS = [
     {"mchat_user_id": "mchat-admin-000", "mchat_username": "hy.joo", "agent_user_idx": 1},
 ]
 
-# Mchat 채널 매핑 (chat_room_idx로 MemGate 대화방과 연결)
-MCHAT_CHANNEL_MAPPINGS = [
-    {"mchat_channel_id": "mchat-ch-quality", "mchat_channel_name": "#품질관리", "mchat_team_id": "team-001", "agent_room_idx": 8, "sync_enabled": True},
-    {"mchat_channel_id": "mchat-ch-dev", "mchat_channel_name": "#개발팀-일반", "mchat_team_id": "team-001", "agent_room_idx": 9, "sync_enabled": True},
-]
+# Mchat 채널 매핑
+MCHAT_CHANNEL_MAPPINGS = []
 
 # Mchat 대화 요약 로그
-MCHAT_SUMMARY_LOGS = [
-    {
-        "mchat_channel_id": "mchat-ch-quality",
-        "channel_name": "#품질관리",
-        "period_start_ms": 1708300800000,  # 2026-02-19 00:00 KST
-        "period_end_ms": 1708387200000,    # 2026-02-20 00:00 KST
-        "message_count": 45,
-        "participant_count": 4,
-        "summary_content": "품질팀 채널 대화 요약 (2/19):\n- A라인 외관검사 장비 교정 완료 보고 (이검사)\n- 이번 주 불량률 추이 공유: 1.8% (목표 2.0% 이내)\n- 박관리: 다음 주 월요일 품질검사 미팅 안건 요청\n- 김품질: 스크래치 불량 증가 원인 분석 필요",
-    },
-    {
-        "mchat_channel_id": "mchat-ch-dev",
-        "channel_name": "#개발팀-일반",
-        "period_start_ms": 1708300800000,
-        "period_end_ms": 1708387200000,
-        "message_count": 32,
-        "participant_count": 5,
-        "summary_content": "개발팀 채널 대화 요약 (2/19):\n- PPTX 슬라이드 검색 기능 구현 완료 (정백엔드)\n- 3월 릴리즈 범위 확정: 문서 RAG + PPTX + Agent 연동\n- 프론트엔드 슬라이드 이미지 표시 UI 작업 시작 (강프론트)\n- Docker 배포 환경 LibreOffice 패키지 추가 필요 확인",
-    },
-]
+MCHAT_SUMMARY_LOGS = []
 
-SHARES = [
-    {"resource_type": "project", "resource_idx": 0, "target_type": "user", "target_idx": 5, "role": "member", "created_by_idx": 2},
-    {"resource_type": "project", "resource_idx": 1, "target_type": "user", "target_idx": 2, "role": "viewer", "created_by_idx": 1},
-    {"resource_type": "chat_room", "resource_idx": 6, "target_type": "user", "target_idx": 2, "role": "viewer", "created_by_idx": 1},
-    {"resource_type": "chat_room", "resource_idx": 8, "target_type": "department", "target_idx": 1, "role": "viewer", "created_by_idx": 2},
-]
+SHARES = []
 
 
 # ==================== 시드 실행 ====================
@@ -670,33 +506,7 @@ async def seed_demo():
             print(f"  ✓ {sh['resource_type']}→{sh['target_type']} ({sh['role']})")
 
         # ---- 19. 데모 문서 생성 + 업로드 ----
-        print("\n📄 데모 문서 생성...")
-        try:
-            from src.scripts.create_demo_documents import create_all_demo_documents
-            doc_files = create_all_demo_documents()
-
-            # 문서 자동 업로드 (품질팀 공유 대화방에 PPTX, MemGate 개발 채팅에 TXT)
-            from src.document.service import DocumentService
-            doc_service = DocumentService(db)
-
-            for f in doc_files:
-                fname = f.name
-                content = f.read_bytes()
-                target_room_idx = 8 if fname.endswith(".pptx") else 6  # 품질팀 공유 / MemGate 개발 채팅
-                owner_idx = 2 if fname.endswith(".pptx") else 1  # 김품질 / hy.joo
-
-                try:
-                    doc = await doc_service.upload_document(
-                        file_content=content,
-                        filename=fname,
-                        owner_id=user_ids[owner_idx],
-                        chat_room_id=room_ids[target_room_idx],
-                    )
-                    print(f"  ✅ {fname} → {CHAT_ROOMS[target_room_idx]['name']} (chunks: {doc.get('chunk_count', '?')})")
-                except Exception as e:
-                    print(f"  ⚠️ {fname} 업로드 실패: {e}")
-        except Exception as e:
-            print(f"  ⚠️ 데모 문서 생성 실패: {e}")
+        print("\n📄 데모 문서 생성 건너뜀 (대화방이 없어 업로드 불가)")
 
         await db.commit()
 
@@ -707,21 +517,22 @@ async def seed_demo():
         print(f"  📁 부서: {len(DEPARTMENTS)}")
         print(f"  👤 사용자: {len(USERS)}")
         print(f"  📋 프로젝트: {len(PROJECTS)}")
-        print(f"  💬 대화방: {len(CHAT_ROOMS)}")
-        print(f"  🧠 메모리: {len(MEMORIES)}")
+        print(f"  💬 대화방: {len(CHAT_ROOMS)} (비워짐)")
+        print(f"  🧠 메모리: {len(MEMORIES)} (비워짐)")
         print(f"  🤖 Agent Types: {len(AGENT_TYPES)}")
         print(f"  🤖 Agent Instances: {len(AGENT_INSTANCES)}")
         print(f"  📊 Agent Data: {len(AGENT_DATA)}")
         print(f"  🔗 Mchat 사용자 매핑: {len(MCHAT_USER_MAPPINGS)}")
-        print(f"  🔗 Mchat 채널 매핑: {len(MCHAT_CHANNEL_MAPPINGS)}")
-        print(f"  📝 Mchat 대화 요약: {len(MCHAT_SUMMARY_LOGS)}")
-        print(f"  📄 데모 문서: 2개")
+        print(f"  🔗 Mchat 채널 매핑: {len(MCHAT_CHANNEL_MAPPINGS)} (비워짐)")
+        print(f"  📝 Mchat 대화 요약: {len(MCHAT_SUMMARY_LOGS)} (비워짐)")
+        print(f"  📄 데모 문서: 0개 (대화방 없어 건너뜀)")
         print("=" * 60)
         print()
         print("📌 데모 로그인 계정:")
-        print(f"  hy.joo: admin@test.com / {test_password}")
-        print(f"  김품질: kim.quality@company.com / {test_password}")
-        print(f"  최개발: choi.dev@company.com / {test_password}")
+        print(f"  hy.joo: hy.joo@samsung.com / {test_password}")
+        print(f"  김품질: hc.hyun@samsung.com / {test_password}")
+        print(f"  최개발: jegon.kim@samsung.com / {test_password}")
+        print(f"  developer: developer@samsung.com / {test_password}")
         print()
         print("📌 Agent Instance API Keys:")
         for i, ai_inst in enumerate(AGENT_INSTANCES):
@@ -731,8 +542,7 @@ async def seed_demo():
             print(f"  {ai_inst['name']}: {key}")
         print()
         print("📌 주요 대화방:")
-        for i, r in enumerate(CHAT_ROOMS):
-            print(f"  [{i}] {r['name']} ({r['room_type']})")
+        print("  (없음 - 사용자가 직접 생성)")
         print()
 
     finally:

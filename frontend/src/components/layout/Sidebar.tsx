@@ -271,43 +271,12 @@ export function Sidebar() {
 
           {/* Admin Section - admin role만 표시 */}
           {user?.role === 'admin' && (
-            <SidebarSection
-              title="관리자 메뉴"
+            <SidebarItem
+              to="/admin"
               icon={Shield}
-              expanded={expandedSections.admin}
-              onToggle={() => toggleSection('admin')}
-            >
-              <SidebarItem
-                to="/admin"
-                icon={Shield}
-                label="대시보드"
-                active={isActive('/admin')}
-              />
-              <SidebarItem
-                to="/admin/knowledge"
-                icon={Brain}
-                label="지식 관리"
-                active={isActive('/admin/knowledge')}
-              />
-              <SidebarItem
-                to="/admin/users"
-                icon={MessageSquare}
-                label="사용자 관리"
-                active={isActive('/admin/users')}
-              />
-              <SidebarItem
-                to="/admin/departments"
-                icon={Building}
-                label="부서 관리"
-                active={isActive('/admin/departments')}
-              />
-              <SidebarItem
-                to="/admin/projects"
-                icon={FolderKanban}
-                label="프로젝트 관리"
-                active={isActive('/admin/projects')}
-              />
-            </SidebarSection>
+              label="대시보드"
+              active={isActivePrefix('/admin')}
+            />
           )}
         </nav>
       </ScrollArea>
