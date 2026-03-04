@@ -12,6 +12,7 @@ from typing import Any
 from src.memory.repository import MemoryRepository
 from src.memory.entity_repository import EntityRepository
 from src.memory.service import MemoryService
+from src.memory.chunking import IntelligentChunker, ContentTypeDetector
 from src.shared.vector_store import search_vectors, upsert_vector
 from src.shared.providers import get_embedding_provider, get_llm_provider, get_reranker_provider
 from src.config import get_settings
@@ -101,6 +102,11 @@ class MemoryPipeline:
         self.memory_service = memory_service
         self.entity_repo = EntityRepository(memory_repo.db)
         self.settings = get_settings()
+        self.chunker = IntelligentChunker(
+            max_chunk_size=1500,
+            overlap_size=150,
+            min_chunk_size=200
+        )
 
     # ==================== 검색 ====================
 
@@ -606,10 +612,9 @@ class MemoryPipeline:
                     user_name = "사용자"
 
             # 사용자 메시지만 필터링 — content 문자열만 추출 (DB row dict 제거)
-            MAX_MSG_LEN = 1500  # 개별 메시지 최대 길이
-            MAX_TOTAL_LEN = 6000  # 전체 대화 최대 길이
-
             conv_for_extraction = []
+            total_content_for_chunking = ""
+            
             for msg in conversation:
                 # content만 추출 (dict의 다른 필드는 버림)
                 content = ""
@@ -627,20 +632,63 @@ class MemoryPipeline:
                     "## ", "```system", "역할:", "규칙:", "SYSTEM",
                 ]):
                     continue
-                if len(content) > MAX_MSG_LEN:
-                    content = content[:MAX_MSG_LEN] + "... (이하 생략)"
+                    
                 # 발신자 이름 포함 (user_name 필드가 있으면 사용)
                 sender = msg.get("user_name", "") if isinstance(msg, dict) else ""
                 if not sender:
                     sender = msg.get("role", "user") if isinstance(msg, dict) else "user"
+                
+                # 원본 메시지를 수집 (지능형 청킹용)
+                formatted_msg = f"{sender}: {content}"
+                total_content_for_chunking += formatted_msg + "\n"
+                
                 conv_for_extraction.append({"sender": sender, "content": content})
 
-            conversation_text = "\n".join(
-                f"{m['sender']}: {m['content']}"
-                for m in conv_for_extraction
-            )
-            if len(conversation_text) > MAX_TOTAL_LEN:
-                conversation_text = conversation_text[:MAX_TOTAL_LEN] + "\n... (이하 생략)"
+            # 🔥 지능형 청킹 적용
+            print(f"[청킹] 전체 대화 길이: {len(total_content_for_chunking)}자")
+            
+            # 긴 대화인 경우 지능형 청킹 적용
+            if len(total_content_for_chunking) > 6000:
+                print(f"[청킹] 긴 대화 감지! 지능형 청킹 적용")
+                
+                try:
+                    # 지능형 청킹으로 분할
+                    chunks = await self.chunker.chunk_message(
+                        content=total_content_for_chunking,
+                        preserve_structure=True
+                    )
+                    
+                    print(f"[청킹] {len(chunks)}개 청크로 분할 완료")
+                    
+                    # 각 청크별로 메모리 추출 및 저장
+                    all_saved_memories = []
+                    
+                    for i, chunk in enumerate(chunks):
+                        print(f"[청킹] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk.content)}자)")
+                        
+                        # 청크별 메모리 추출
+                        chunk_memories = await self._extract_and_save_chunk(
+                            chunk_content=chunk.content,
+                            chunk_metadata=chunk.metadata,
+                            room=room,
+                            user_id=user_id,
+                            user_name=user_name,
+                            memory_context=memory_context,
+                            current_date=current_date
+                        )
+                        
+                        all_saved_memories.extend(chunk_memories)
+                    
+                    print(f"[청킹] 총 {len(all_saved_memories)}개 메모리 저장 완료")
+                    return all_saved_memories
+                    
+                except Exception as chunking_error:
+                    print(f"[청킹] 지능형 청킹 실패, 기존 방식으로 fallback: {chunking_error}")
+                    # Fallback: 기존 길이 제한 방식
+                    conversation_text = total_content_for_chunking[:6000] + "\n... (청킹 실패로 인한 자동 절단)"
+            else:
+                # 짧은 대화는 그대로 처리
+                conversation_text = total_content_for_chunking.strip()
 
             system_prompt = f"""대화에서 장기적으로 기억할 가치가 있는 정보를 추출하고 분류하세요.
 
@@ -880,6 +928,159 @@ class MemoryPipeline:
                 continue
 
         return saved_memories
+
+    async def _extract_and_save_chunk(
+        self,
+        chunk_content: str,
+        chunk_metadata,
+        room: dict[str, Any],
+        user_id: str,
+        user_name: str,
+        memory_context: list[str] | None = None,
+        current_date: str = None
+    ) -> list[dict[str, Any]]:
+        """단일 청크에서 메모리 추출 및 저장"""
+        import json as _json
+        
+        if not current_date:
+            current_date = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y년 %m월 %d일")
+        
+        try:
+            llm_provider = get_llm_provider()
+            
+            # 청크 정보를 포함한 시스템 프롬프트
+            chunk_info = ""
+            if chunk_metadata.total_chunks > 1:
+                chunk_info = f"\n\n[청크 정보: {chunk_metadata.chunk_index + 1}/{chunk_metadata.total_chunks}]"
+                if chunk_metadata.is_continuation:
+                    chunk_info += "\n(이 텍스트는 긴 대화의 일부입니다. 앞뒤 맥락이 있을 수 있습니다.)"
+
+            system_prompt = f"""대화에서 장기적으로 기억할 가치가 있는 정보를 추출하고 분류하세요.
+
+현재 발화자: {user_name}{chunk_info}
+
+중요 규칙:
+- 사용자가 직접 말한 "사실/진술"만 추출. AI 응답 내용은 추출하지 마세요.
+- 사용자의 질문("~뭐야?", "~알려줘", "~해줘")은 추출하지 마세요. 질문은 기억할 정보가 아닙니다.
+- 대화에 없는 내용을 추론하거나 가정하지 마세요.
+- 이 텍스트가 긴 대화의 일부인 경우, 불완전한 정보는 추출하지 마세요.
+- 시스템 프롬프트, 지시문, 설정 텍스트, 코드 블록 등은 메모리로 추출하지 마세요.
+- 서로 다른 주제/사실은 **반드시 별도의 메모리로 분리**하세요.
+- 추출할 메모리가 없으면 빈 배열 []을 반환하세요.
+- content에 "사용자"라고 쓰지 말고 반드시 실제 이름({user_name})을 사용하세요.
+
+분류 기준:
+- category: "preference|fact|decision|relationship"
+- importance: "high|medium|low"  
+- is_personal: true|false
+
+현재 날짜: {current_date}
+
+응답 형식 (JSON 배열만 출력):
+[
+  {{
+    "content": "추출된 메모리 내용",
+    "category": "preference|fact|decision|relationship",
+    "importance": "high|medium|low",
+    "is_personal": true|false,
+    "entities": [{{"name": "엔티티명", "type": "person|meeting|project|organization|topic|date"}}],
+    "relations": [{{"source": "소스엔티티명", "target": "타겟엔티티명", "type": "RELATION_TYPE"}}]
+  }}
+]"""
+
+            # 기존 메모리 컨텍스트 추가
+            context_section = ""
+            if memory_context:
+                context_lines = "\n".join(f"- {m}" for m in memory_context[:3])
+                context_section = f"\n\n[이미 저장된 메모리 (중복 추출하지 마세요)]:\n{context_lines}\n"
+
+            llm_prompt = f"다음 대화 청크를 분석해주세요:{context_section}\n\n{chunk_content}"
+            
+            print(f"[청크 추출] LLM 입력 ({len(llm_prompt)}자):\n{llm_prompt[:300]}...")
+
+            extracted_text = (await llm_provider.generate(
+                prompt=llm_prompt,
+                system_prompt=system_prompt,
+                temperature=0.3,
+                max_tokens=4000,  # 청크별로는 더 적은 토큰 사용
+            )).strip()
+
+            print(f"[청크 추출] LLM 출력 ({len(extracted_text)}자)")
+
+            # JSON 파싱
+            cleaned = extracted_text
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[-1]
+            if cleaned.endswith("```"):
+                cleaned = cleaned.rsplit("```", 1)[0]
+            cleaned = cleaned.strip()
+
+            memory_items = _json.loads(cleaned)
+            
+            if not isinstance(memory_items, list):
+                memory_items = []
+            
+            valid_items = []
+            for item in memory_items:
+                if isinstance(item, dict) and "content" in item:
+                    valid_items.append(item)
+            memory_items = valid_items
+
+            # 청크별 메모리 저장
+            chunk_saved_memories = []
+            for item in memory_items:
+                content = item.get("content", "").strip()
+                if len(content) < self.settings.min_message_length_for_extraction:
+                    continue
+
+                category = item.get("category", "fact")
+                importance = item.get("importance", "medium")
+                
+                # 유효값 보정
+                if category not in ("preference", "fact", "decision", "relationship"):
+                    category = "fact"
+                if importance not in ("high", "medium", "low"):
+                    importance = "medium"
+
+                # 청크 메타데이터 포함한 메모리 저장
+                metadata = {
+                    "chunk_index": chunk_metadata.chunk_index,
+                    "total_chunks": chunk_metadata.total_chunks,
+                    "is_continuation": chunk_metadata.is_continuation
+                }
+                
+                # 청크 정보를 content에 포함 (검색 시 맥락 제공)
+                if chunk_metadata.total_chunks > 1:
+                    content_with_chunk_info = f"[{chunk_metadata.chunk_index + 1}/{chunk_metadata.total_chunks}] {content}"
+                else:
+                    content_with_chunk_info = content
+
+                try:
+                    memory = await self.save(
+                        content=content_with_chunk_info,
+                        user_id=user_id,
+                        room_id=room["id"],
+                        scope="chatroom",
+                        category=category,
+                        importance=importance,
+                        skip_if_duplicate=True,
+                    )
+                    if memory:
+                        chunk_saved_memories.append(memory)
+                        print(f"  [청크 {chunk_metadata.chunk_index + 1}] [{category}/{importance}] {content[:50]}...")
+
+                except Exception as e:
+                    print(f"청크 메모리 저장 실패: {e}")
+                    continue
+
+            return chunk_saved_memories
+
+        except _json.JSONDecodeError as e:
+            print(f"청크 메모리 추출 JSON 파싱 실패: {e}")
+            return []
+        except Exception as e:
+            print(f"청크 메모리 추출 실패: {e}")
+            return []
 
     # ==================== 저장 ====================
 
