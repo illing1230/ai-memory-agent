@@ -341,7 +341,11 @@ class AgentService:
         metadata: dict | None = None,
     ) -> dict[str, Any]:
         """Agent 데이터를 메모리로 변환"""
-        print(f"[DEBUG] Agent 메모리 변환 시작: agent_instance_id={agent_instance_id}")
+        # 에이전트 인스턴스의 owner_id를 메모리 소유자로 사용
+        instance = await self.repo.get_agent_instance(agent_instance_id)
+        if instance:
+            owner_id = instance["owner_id"]
+        print(f"[DEBUG] Agent 메모리 변환 시작: agent_instance_id={agent_instance_id}, owner_id={owner_id}")
         
         # 벡터 ID 생성
         import uuid

@@ -91,7 +91,7 @@ export function AgentDashboardTab() {
                       <div>
                         <h3 className="font-medium">{agent.name}</h3>
                         <p className="text-sm text-foreground-secondary">
-                          메모리: {agent.memory_count}개
+                          데이터: {agent.data_count}개 (메모리: {agent.memory_count}개)
                         </p>
                       </div>
                     </div>

@@ -22,8 +22,8 @@ import time
 from pathlib import Path
 
 
-def get_api_key_from_db() -> tuple[str, str] | None:
-    """DB에서 '품질 모니터링 봇'의 API 키와 ID를 조회"""
+def get_api_key_from_db() -> tuple[str, str, str] | None:
+    """DB에서 첫 번째 활성 Agent Instance의 API 키, ID, 이름을 조회"""
     db_path = Path("data/memory.db")
     if not db_path.exists():
         return None
@@ -31,12 +31,11 @@ def get_api_key_from_db() -> tuple[str, str] | None:
     conn = sqlite3.connect(str(db_path))
     try:
         cursor = conn.execute(
-            "SELECT id, api_key FROM agent_instances WHERE name = ? AND status = 'active' LIMIT 1",
-            ("품질 모니터링 봇",),
+            "SELECT id, api_key, name FROM agent_instances WHERE status = 'active' ORDER BY created_at DESC LIMIT 1",
         )
         row = cursor.fetchone()
         if row:
-            return row[0], row[1]
+            return row[0], row[1], row[2]
         return None
     finally:
         conn.close()
@@ -74,12 +73,15 @@ def main():
     api_key = args.api_key
     agent_id = ""
 
+    agent_name = "Agent"
+
     if not api_key:
         print("DB에서 API 키 조회 중...")
         result = get_api_key_from_db()
         if result:
-            agent_id, api_key = result
+            agent_id, api_key, agent_name = result
             print(f"  Agent ID: {agent_id}")
+            print(f"  Agent Name: {agent_name}")
             print(f"  API Key: {api_key}")
         else:
             print("DB에서 API 키를 찾을 수 없습니다.")
@@ -88,7 +90,7 @@ def main():
 
     print_section("Agent SDK 데모 시작")
     print(f"  서버: {args.base_url}")
-    print(f"  Agent ID: {agent_id}")
+    print(f"  Agent: {agent_name} ({agent_id})")
     print(f"  API Key: {api_key[:20]}...")
 
     # 클라이언트 초기화
@@ -145,15 +147,15 @@ def main():
         else:
             print("  -> 검색 결과 없음 (벡터 인덱싱 지연 가능)")
 
-        # ---- 4. 메시지 전송 ----
-        print_section("4. 메시지 전송 (send_message)")
+        # ---- 4. 메시지 전송 (메모리로) ----
+        print_section("4. 메모리 전송 (send_memory)")
 
-        message = client.send_message(
-            content="[품질 모니터링 봇] A라인 불량률 경고: 3.1% (기준 초과). 즉시 점검 바랍니다.",
+        message = client.send_memory(
+            content=f"[{agent_name}] A라인 불량률 경고: 3.1% (기준 초과). 즉시 점검 바랍니다.",
             metadata={"alert_level": "warning", "timestamp": "2026-02-23T10:10:00+09:00"},
         )
-        print_result("메시지 전송", message)
-        print("  -> 작업 로그 전송 완료")
+        print_result("메모리 전송", message)
+        print("  -> 메모리 전송 완료")
 
         # ---- 5. 로그 전송 ----
         print_section("5. 로그 전송 (send_log)")

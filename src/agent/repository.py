@@ -632,12 +632,13 @@ class AgentRepository:
         # Top agents
         cursor = await self.db.execute(
             """SELECT ai.id, ai.name,
+                      COUNT(ad.id) as data_count,
                       COUNT(CASE WHEN ad.data_type = 'memory' THEN 1 END) as memory_count,
                       MAX(ad.created_at) as last_active
                FROM agent_instances ai
                LEFT JOIN agent_data ad ON ad.agent_instance_id = ai.id
                GROUP BY ai.id
-               ORDER BY memory_count DESC
+               ORDER BY data_count DESC
                LIMIT 10"""
         )
         top_agents = [dict(row) for row in await cursor.fetchall()]

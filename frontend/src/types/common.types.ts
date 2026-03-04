@@ -338,6 +338,7 @@ export interface AgentDashboard {
   top_agents: Array<{
     id: string
     name: string
+    data_count: number
     memory_count: number
     last_active: string
   }>

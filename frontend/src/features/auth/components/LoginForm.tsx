@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Brain, Mail, Lock, User, Loader2, MessageSquare, Shield } from 'lucide-react'
+import { Brain, Mail, Lock, User, Loader2, Shield } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { useAuthStore } from '../store/authStore'
 import { login, register, ssoLogin } from '../api/authApi'
@@ -175,9 +175,6 @@ export function LoginForm() {
 
           {/* Dev Mode */}
           <div className="mt-6 pt-4 border-t border-border">
-            <p className="text-xs text-foreground-muted text-center mb-2">
-              데모용 테스트 계정
-            </p>
             <Button
               type="button"
               variant="ghost"
@@ -185,8 +182,8 @@ export function LoginForm() {
               onClick={() => {
                 setFormData({
                   name: 'hy.joo',
-                  email: 'admin@test.com',
-                  password: 'test123',
+                  email: 'hy.joo@samsung.com',
+                  password: import.meta.env.VITE_TEST_PASSWORD || 'test123',
                 })
               }}
             >
@@ -194,11 +191,8 @@ export function LoginForm() {
             </Button>
           </div>
 
-          {/* SSO / Mattermost Login */}
+          {/* SSO Login */}
           <div className="mt-6 pt-4 border-t border-border space-y-2">
-            <p className="text-xs text-foreground-muted text-center mb-2">
-              외부 인증
-            </p>
             {/* SSO (SAML) Login */}
             <Button
               type="button"
@@ -208,7 +202,7 @@ export function LoginForm() {
                 setError(null)
                 setIsLoading(true)
                 try {
-                  const email = formData.email || 'admin@test.com'
+                  const email = formData.email || 'hy.joo@samsung.com'
                   const name = formData.name || email.split('@')[0]
                   const result = await ssoLogin({
                     email,
@@ -229,37 +223,6 @@ export function LoginForm() {
             >
               <Shield className="h-4 w-4" />
               {isLoading ? '처리 중...' : 'SSO 로그인'}
-            </Button>
-            {/* Mattermost Login */}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full gap-2"
-              onClick={async () => {
-                setError(null)
-                setIsLoading(true)
-                try {
-                  const email = formData.email || 'admin@test.com'
-                  const name = formData.name || email.split('@')[0]
-                  const result = await ssoLogin({
-                    email,
-                    name,
-                    sso_provider: 'mattermost',
-                    sso_id: `mm-${email.replace('@', '-')}`,
-                  })
-                  storeLogin(result.user, result.access_token)
-                  navigate('/chat')
-                } catch (err: unknown) {
-                  const error = err as { response?: { data?: { detail?: string } } }
-                  setError(error.response?.data?.detail || 'Mattermost 로그인 실패')
-                } finally {
-                  setIsLoading(false)
-                }
-              }}
-              disabled={isLoading}
-            >
-              <MessageSquare className="h-4 w-4" />
-              {isLoading ? '처리 중...' : 'Mattermost로 로그인'}
             </Button>
           </div>
         </div>
