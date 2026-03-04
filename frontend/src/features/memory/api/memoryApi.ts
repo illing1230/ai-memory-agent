@@ -1,4 +1,4 @@
-import { get, post, del } from '@/lib/api'
+import { get, post, put, del } from '@/lib/api'
 import type { Memory, MemoryListResult, MemorySearchResult } from '@/types'
 
 export interface GetMemoriesParams {
@@ -45,6 +45,16 @@ export interface CreateMemoryParams {
 
 export async function createMemory(params: CreateMemoryParams): Promise<Memory> {
   return post<Memory>('/memories', params)
+}
+
+export interface UpdateMemoryParams {
+  content?: string
+  category?: string
+  importance?: 'high' | 'medium' | 'low'
+}
+
+export async function updateMemory(memoryId: string, params: UpdateMemoryParams): Promise<Memory> {
+  return put<Memory>(`/memories/${memoryId}`, params)
 }
 
 export async function deleteMemory(memoryId: string): Promise<void> {

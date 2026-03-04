@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getMemories,
   searchMemories,
+  updateMemory,
   deleteMemory,
   deleteMemoriesByRoom,
   type GetMemoriesParams,
   type SearchMemoriesParams,
+  type UpdateMemoryParams,
 } from '../api/memoryApi'
 
 export const memoryKeys = {
@@ -26,6 +28,17 @@ export function useMemorySearch(params: SearchMemoriesParams) {
     queryKey: memoryKeys.search(params),
     queryFn: () => searchMemories(params),
     enabled: !!params.query && params.query.length >= 2,
+  })
+}
+
+export function useUpdateMemory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoryId, params }: { memoryId: string; params: UpdateMemoryParams }) =>
+      updateMemory(memoryId, params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: memoryKeys.all })
+    },
   })
 }
 

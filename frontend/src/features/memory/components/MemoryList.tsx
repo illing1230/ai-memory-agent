@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download, User } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Brain, Trash2, Clock, Tag, RefreshCw, ChevronDown, ChevronRight, Bot, FileText, Download, User, Pencil, Check, X } from 'lucide-react'
 import { Button, ScrollArea } from '@/components/ui'
 import { Loading } from '@/components/common/Loading'
 import { EmptyState } from '@/components/common/EmptyState'
-import { useMemories, useDeleteMemory, useDeleteMemoriesByRoom } from '../hooks/useMemory'
+import { useMemories, useDeleteMemory, useDeleteMemoriesByRoom, useUpdateMemory } from '../hooks/useMemory'
 import { getDocuments, deleteDocument } from '@/features/document/api/documentApi'
 import { formatDate, cn, formatFileSize } from '@/lib/utils'
 import type { MemoryListResult, Memory, Document } from '@/types'
@@ -17,6 +17,13 @@ export function MemoryList() {
   const { data: memories, isLoading, isError, error, refetch, isRefetching } = useMemories({ limit: 100 })
   const deleteMemory = useDeleteMemory()
   const deleteRoomMemories = useDeleteMemoriesByRoom()
+  const updateMemory = useUpdateMemory()
+
+  // 인라인 편집 상태
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [editImportance, setEditImportance] = useState<'high' | 'medium' | 'low'>('medium')
   
   // 문서 관련 상태
   const [documents, setDocuments] = useState<Document[]>([])
@@ -73,6 +80,30 @@ export function MemoryList() {
       await deleteMemory.mutateAsync(memoryId)
     }
   }
+
+  const startEditing = useCallback((memory: Memory) => {
+    setEditingId(memory.id)
+    setEditContent(memory.content)
+    setEditCategory(memory.category || '')
+    setEditImportance(memory.importance as 'high' | 'medium' | 'low' || 'medium')
+  }, [])
+
+  const cancelEditing = useCallback(() => {
+    setEditingId(null)
+  }, [])
+
+  const handleSave = useCallback(async () => {
+    if (!editingId) return
+    await updateMemory.mutateAsync({
+      memoryId: editingId,
+      params: {
+        content: editContent,
+        category: editCategory || undefined,
+        importance: editImportance,
+      },
+    })
+    setEditingId(null)
+  }, [editingId, editContent, editCategory, editImportance, updateMemory])
 
   const scopeLabel: Record<string, string> = {
     chatroom: '대화방',
@@ -411,6 +442,7 @@ export function MemoryList() {
                   const memory = memoryResult.memory
                   const sourceInfo = memoryResult.source_info
                   const isExpanded = expandedIds.has(memory.id)
+                  const isEditing = editingId === memory.id
                   const preview = memory.content.length > 80
                     ? memory.content.slice(0, 80) + '...'
                     : memory.content
@@ -418,7 +450,7 @@ export function MemoryList() {
                   return (
                     <div
                       key={memory.id}
-                      className="card p-3 hover:shadow-medium transition-shadow"
+                      className={cn("card p-3 hover:shadow-medium transition-shadow", isEditing && "ring-1 ring-accent")}
                     >
                       <div className="flex items-start gap-3">
                         <button
@@ -433,61 +465,130 @@ export function MemoryList() {
                         </button>
 
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-foreground">
-                            {isExpanded ? memory.content : preview}
-                          </p>
+                          {isEditing ? (
+                            <div className="space-y-3">
+                              <textarea
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') cancelEditing()
+                                }}
+                                className="w-full bg-background-secondary text-sm text-foreground rounded-lg p-2 border border-border focus:border-accent focus:outline-none resize-y min-h-[60px]"
+                                rows={3}
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="text"
+                                  value={editCategory}
+                                  onChange={(e) => setEditCategory(e.target.value)}
+                                  placeholder="카테고리"
+                                  className="bg-background-secondary text-xs text-foreground rounded-lg px-2 py-1.5 border border-border focus:border-accent focus:outline-none w-32"
+                                />
+                                <select
+                                  value={editImportance}
+                                  onChange={(e) => setEditImportance(e.target.value as 'high' | 'medium' | 'low')}
+                                  className="bg-background-secondary text-xs text-foreground rounded-lg px-2 py-1.5 border border-border focus:border-accent focus:outline-none"
+                                >
+                                  <option value="high">높음</option>
+                                  <option value="medium">중간</option>
+                                  <option value="low">낮음</option>
+                                </select>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm text-foreground">
+                                {isExpanded ? memory.content : preview}
+                              </p>
 
-                          <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
-                            {sourceInfo?.owner_name && (
-                              <span className="px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                {sourceInfo.owner_name}
-                              </span>
-                            )}
-                            {sourceInfo?.agent_instance_name && (
-                              <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
-                                <Bot className="h-3 w-3" />
-                                {sourceInfo.agent_instance_name}
-                              </span>
-                            )}
-                            {sourceInfo?.chat_room_name && (
-                              <span className={cn(
-                                "px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1",
-                                sourceInfo.chat_room_name.startsWith('Mchat:') ? 'text-blue-400' : 'text-accent'
-                              )}>
-                                {sourceInfo.chat_room_name.startsWith('Mchat:') ? '💬 ' : '🗨️ '}
-                                {sourceInfo.chat_room_name.replace(/^Mchat:\s*@?/, '')}
-                              </span>
-                            )}
-                            {memory.category && (
-                              <span className="px-1.5 py-0.5 rounded bg-background-secondary">
-                                {memory.category}
-                              </span>
-                            )}
-                            {memory.importance && (
-                              <span className={cn(
-                                'px-1.5 py-0.5 rounded',
-                                importanceColor[memory.importance]
-                              )}>
-                                {memory.importance === 'high' ? '높음' : 
-                                 memory.importance === 'medium' ? '중간' : '낮음'}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatDate(memory.created_at)}
-                            </span>
-                          </div>
+                              <div className="flex items-center gap-3 mt-2 text-xs text-foreground-tertiary">
+                                {sourceInfo?.owner_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    {sourceInfo.owner_name}
+                                  </span>
+                                )}
+                                {sourceInfo?.agent_instance_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary text-accent flex items-center gap-1">
+                                    <Bot className="h-3 w-3" />
+                                    {sourceInfo.agent_instance_name}
+                                  </span>
+                                )}
+                                {sourceInfo?.chat_room_name && (
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded bg-background-secondary flex items-center gap-1",
+                                    sourceInfo.chat_room_name.startsWith('Mchat:') ? 'text-blue-400' : 'text-accent'
+                                  )}>
+                                    {sourceInfo.chat_room_name.startsWith('Mchat:') ? '💬 ' : '🗨️ '}
+                                    {sourceInfo.chat_room_name.replace(/^Mchat:\s*@?/, '')}
+                                  </span>
+                                )}
+                                {memory.category && (
+                                  <span className="px-1.5 py-0.5 rounded bg-background-secondary">
+                                    {memory.category}
+                                  </span>
+                                )}
+                                {memory.importance && (
+                                  <span className={cn(
+                                    'px-1.5 py-0.5 rounded',
+                                    importanceColor[memory.importance]
+                                  )}>
+                                    {memory.importance === 'high' ? '높음' :
+                                     memory.importance === 'medium' ? '중간' : '낮음'}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {formatDate(memory.created_at)}
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
 
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-foreground-muted hover:text-error shrink-0"
-                          onClick={() => handleDelete(memory.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isEditing ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-success hover:text-success"
+                                onClick={handleSave}
+                                disabled={updateMemory.isPending}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-foreground-muted hover:text-foreground"
+                                onClick={cancelEditing}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-foreground-muted hover:text-accent shrink-0"
+                                onClick={() => startEditing(memory)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-foreground-muted hover:text-error shrink-0"
+                                onClick={() => handleDelete(memory.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )
