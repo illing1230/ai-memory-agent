@@ -13,6 +13,7 @@ from src.memory.repository import MemoryRepository
 from src.memory.entity_repository import EntityRepository
 from src.memory.service import MemoryService
 from src.memory.chunking import IntelligentChunker, ContentTypeDetector
+from src.memory.hierarchical import HierarchicalMemoryPipeline, HierarchicalSearchPipeline
 from src.shared.vector_store import search_vectors, upsert_vector
 from src.shared.providers import get_embedding_provider, get_llm_provider, get_reranker_provider
 from src.config import get_settings
@@ -107,6 +108,13 @@ class MemoryPipeline:
             overlap_size=150,
             min_chunk_size=200
         )
+        # 🔥 Phase 2: 계층적 메모리 파이프라인
+        self.hierarchical_pipeline = HierarchicalMemoryPipeline(
+            memory_repo=memory_repo,
+            entity_repo=self.entity_repo,
+            chunker=self.chunker
+        )
+        self.hierarchical_search = HierarchicalSearchPipeline(memory_repo=memory_repo)
 
     # ==================== 검색 ====================
 
@@ -223,16 +231,44 @@ class MemoryPipeline:
         context_sources: dict | None = None,
         limit: int = 20,
     ) -> list[dict[str, Any]]:
-        """컨텍스트 소스 기반 메모리 검색 (벡터 검색 → 배치 메타데이터 → 리랭킹)"""
+        """🔥 Phase 2: 계층적 검색 우선 + 기존 검색 보완"""
         if context_sources is None:
             context_sources = {}
 
         memory_config = context_sources.get("memory", {})
 
-        print(f"\n========== 메모리 검색 시작 ==========")
+        print(f"\n========== Phase 2 메모리 검색 시작 ==========")
         print(f"현재 대화방 ID: {current_room_id}")
         print(f"memory_config: {memory_config}")
 
+        # 🌟 Step 0: 계층적 검색 우선 시도
+        try:
+            hierarchical_results = await self.hierarchical_search.search_with_expansion(
+                query=query,
+                user_id=user_id,
+                current_room_id=current_room_id,
+                limit=limit
+            )
+            
+            if hierarchical_results:
+                print(f"[계층적 검색] 성공: {len(hierarchical_results)}개 결과")
+                
+                # 접근 추적
+                accessed_ids = [r["memory"]["id"] for r in hierarchical_results]
+                if accessed_ids:
+                    try:
+                        await self.memory_repo.update_access(accessed_ids)
+                    except Exception as e:
+                        print(f"접근 추적 실패: {e}")
+                
+                return hierarchical_results
+            else:
+                print(f"[계층적 검색] 결과 없음, 기존 검색으로 fallback")
+        except Exception as e:
+            print(f"[계층적 검색] 실패, 기존 검색으로 fallback: {e}")
+
+        # 🔄 Fallback: 기존 검색 로직
+        print(f"[기존 검색] 시작")
         embedding_provider = get_embedding_provider()
         query_vector = await embedding_provider.embed(query)
 
@@ -436,7 +472,7 @@ class MemoryPipeline:
                 unique.append(c)
 
         result = unique[:limit]
-        print(f"========== 총 메모리 검색 결과: {len(result)}개 ==========")
+        print(f"========== [기존 검색] 총 메모리 검색 결과: {len(result)}개 ==========")
         for m in result:
             print(f"  - {m['memory']['content'][:50]}... (score: {m['score']:.3f})")
         print("")
@@ -644,27 +680,51 @@ class MemoryPipeline:
                 
                 conv_for_extraction.append({"sender": sender, "content": content})
 
-            # 🔥 지능형 청킹 적용
-            print(f"[청킹] 전체 대화 길이: {len(total_content_for_chunking)}자")
+            # 🔥 Phase 2: 계층적 처리 우선 시도
+            print(f"[메모리 처리] 전체 대화 길이: {len(total_content_for_chunking)}자")
             
-            # 긴 대화인 경우 지능형 청킹 적용
+            # 긴 대화인 경우 계층적 처리 적용
             if len(total_content_for_chunking) > 6000:
-                print(f"[청킹] 긴 대화 감지! 지능형 청킹 적용")
+                print(f"[메모리 처리] 긴 대화 감지! Phase 2 계층적 처리 적용")
                 
                 try:
+                    # 🌟 계층적 요약 + 청킹 처리
+                    summary_memory, chunk_memories = await self.hierarchical_pipeline.extract_and_save_hierarchical(
+                        content=total_content_for_chunking,
+                        room=room,
+                        user_id=user_id,
+                        user_name=user_name,
+                        memory_context=memory_context,
+                        threshold_length=6000
+                    )
+                    
+                    if summary_memory and chunk_memories:
+                        all_memories = [summary_memory] + chunk_memories
+                        print(f"[계층적 처리] 성공! 요약본 1개 + 청크 {len(chunk_memories)}개 = 총 {len(all_memories)}개")
+                        return all_memories
+                    else:
+                        print(f"[계층적 처리] 실패 또는 불필요, Phase 1 청킹으로 fallback")
+                        
+                except Exception as hierarchical_error:
+                    print(f"[계층적 처리] 오류 발생, Phase 1 청킹으로 fallback: {hierarchical_error}")
+                
+                # 🔄 Phase 1 Fallback: 기존 지능형 청킹
+                try:
+                    print(f"[Fallback] Phase 1 지능형 청킹 적용")
+                    
                     # 지능형 청킹으로 분할
                     chunks = await self.chunker.chunk_message(
                         content=total_content_for_chunking,
                         preserve_structure=True
                     )
                     
-                    print(f"[청킹] {len(chunks)}개 청크로 분할 완료")
+                    print(f"[Fallback] {len(chunks)}개 청크로 분할 완료")
                     
                     # 각 청크별로 메모리 추출 및 저장
                     all_saved_memories = []
                     
                     for i, chunk in enumerate(chunks):
-                        print(f"[청킹] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk.content)}자)")
+                        print(f"[Fallback] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk.content)}자)")
                         
                         # 청크별 메모리 추출
                         chunk_memories = await self._extract_and_save_chunk(
@@ -679,15 +739,16 @@ class MemoryPipeline:
                         
                         all_saved_memories.extend(chunk_memories)
                     
-                    print(f"[청킹] 총 {len(all_saved_memories)}개 메모리 저장 완료")
+                    print(f"[Fallback] 총 {len(all_saved_memories)}개 메모리 저장 완료")
                     return all_saved_memories
                     
                 except Exception as chunking_error:
-                    print(f"[청킹] 지능형 청킹 실패, 기존 방식으로 fallback: {chunking_error}")
-                    # Fallback: 기존 길이 제한 방식
-                    conversation_text = total_content_for_chunking[:6000] + "\n... (청킹 실패로 인한 자동 절단)"
+                    print(f"[Fallback] 지능형 청킹도 실패, 길이 제한 방식으로 처리: {chunking_error}")
+                    # Final Fallback: 기존 길이 제한 방식
+                    conversation_text = total_content_for_chunking[:6000] + "\n... (모든 청킹 실패로 인한 자동 절단)"
             else:
                 # 짧은 대화는 그대로 처리
+                print(f"[메모리 처리] 짧은 대화, 기존 방식으로 처리")
                 conversation_text = total_content_for_chunking.strip()
 
             system_prompt = f"""대화에서 장기적으로 기억할 가치가 있는 정보를 추출하고 분류하세요.
