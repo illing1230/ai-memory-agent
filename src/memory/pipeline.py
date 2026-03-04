@@ -13,6 +13,7 @@ from src.memory.repository import MemoryRepository
 from src.memory.entity_repository import EntityRepository
 from src.memory.service import MemoryService
 from src.memory.chunking import IntelligentChunker, ContentTypeDetector
+from src.memory.adaptive import AdaptiveChunker
 from src.memory.hierarchical import HierarchicalMemoryPipeline, HierarchicalSearchPipeline
 from src.shared.vector_store import search_vectors, upsert_vector
 from src.shared.providers import get_embedding_provider, get_llm_provider, get_reranker_provider
@@ -103,16 +104,24 @@ class MemoryPipeline:
         self.memory_service = memory_service
         self.entity_repo = EntityRepository(memory_repo.db)
         self.settings = get_settings()
+        # 🌟 Phase 3: 적응형 청킹 시스템
+        self.adaptive_chunker = AdaptiveChunker(
+            max_chunk_size=1500,
+            overlap_size=150,
+            min_chunk_size=200
+        )
+        # 호환성을 위한 기존 청킹
         self.chunker = IntelligentChunker(
             max_chunk_size=1500,
             overlap_size=150,
             min_chunk_size=200
         )
-        # 🔥 Phase 2: 계층적 메모리 파이프라인
+        # 🔥 Phase 2: 계층적 메모리 파이프라인 (Phase 3 적응형 청킹 사용)
         self.hierarchical_pipeline = HierarchicalMemoryPipeline(
             memory_repo=memory_repo,
             entity_repo=self.entity_repo,
-            chunker=self.chunker
+            chunker=self.adaptive_chunker,  # Phase 3 적응형 사용
+            use_adaptive=True
         )
         self.hierarchical_search = HierarchicalSearchPipeline(memory_repo=memory_repo)
 
@@ -708,12 +717,12 @@ class MemoryPipeline:
                 except Exception as hierarchical_error:
                     print(f"[계층적 처리] 오류 발생, Phase 1 청킹으로 fallback: {hierarchical_error}")
                 
-                # 🔄 Phase 1 Fallback: 기존 지능형 청킹
+                # 🔄 Phase 3 Fallback: 적응형 청킹 직접 사용
                 try:
-                    print(f"[Fallback] Phase 1 지능형 청킹 적용")
+                    print(f"[Fallback] Phase 3 적응형 청킹 직접 적용")
                     
-                    # 지능형 청킹으로 분할
-                    chunks = await self.chunker.chunk_message(
+                    # 적응형 청킹으로 분할
+                    chunks = await self.adaptive_chunker.chunk_message(
                         content=total_content_for_chunking,
                         preserve_structure=True
                     )

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Tuple
 
 from src.memory.chunking import IntelligentChunker, MessageChunk
+from src.memory.adaptive import AdaptiveChunker, BatchEmbeddingProcessor
 from src.memory.repository import MemoryRepository
 from src.memory.entity_repository import EntityRepository
 from src.shared.vector_store import search_vectors, upsert_vector
@@ -25,12 +26,24 @@ class HierarchicalMemoryPipeline:
         self, 
         memory_repo: MemoryRepository,
         entity_repo: EntityRepository,
-        chunker: IntelligentChunker | None = None
+        chunker: IntelligentChunker | None = None,
+        use_adaptive: bool = True
     ):
         self.memory_repo = memory_repo
         self.entity_repo = entity_repo
         self.settings = get_settings()
-        self.chunker = chunker or IntelligentChunker()
+        
+        # 🔥 Phase 3: 적응형 청킹 우선 사용
+        if use_adaptive:
+            self.chunker = AdaptiveChunker(
+                max_chunk_size=1500,
+                overlap_size=150,
+                min_chunk_size=200
+            )
+            self.batch_processor = BatchEmbeddingProcessor(batch_size=5)
+        else:
+            self.chunker = chunker or IntelligentChunker()
+            self.batch_processor = None
         
     async def extract_and_save_hierarchical(
         self,
