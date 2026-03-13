@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
-    ollama_embedding_model: str = "nomic-embed-text"
+    ollama_embedding_model: str = "bge-m3"
     ollama_llm_model: str = "llama3.2"
 
     # LLM Provider
