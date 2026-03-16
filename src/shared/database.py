@@ -453,6 +453,41 @@ CREATE TABLE IF NOT EXISTS mchat_summary_log (
 CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_channel ON mchat_summary_log(mchat_channel_id);
 CREATE INDEX IF NOT EXISTS idx_mchat_summary_log_created ON mchat_summary_log(created_at);
 
+-- Mchat 처리된 메시지 테이블 (백필 중복 방지)
+CREATE TABLE IF NOT EXISTS mchat_processed_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mchat_post_id TEXT NOT NULL UNIQUE,
+    mchat_channel_id TEXT NOT NULL,
+    processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_mchat_processed_channel ON mchat_processed_messages(mchat_channel_id);
+
+-- Mchat 백필 상태 테이블
+CREATE TABLE IF NOT EXISTS mchat_backfill_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mchat_channel_id TEXT NOT NULL UNIQUE,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+    total_messages INTEGER DEFAULT 0,
+    processed_messages INTEGER DEFAULT 0,
+    started_at DATETIME,
+    completed_at DATETIME,
+    error TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Mchat 이슈 테이블
+CREATE TABLE IF NOT EXISTS mchat_issues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT,
+    channel_id TEXT NOT NULL,
+    creator TEXT NOT NULL,
+    status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_mchat_issues_channel ON mchat_issues(channel_id);
+CREATE INDEX IF NOT EXISTS idx_mchat_issues_status ON mchat_issues(status);
+
 -- Agent API 호출 감사 로그
 CREATE TABLE IF NOT EXISTS agent_api_logs (
     id TEXT PRIMARY KEY,
@@ -894,6 +929,52 @@ async def init_database() -> None:
         pass
     try:
         await _db_connection.execute("ALTER TABLE users ADD COLUMN sso_id TEXT")
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # mchat_processed_messages, mchat_backfill_status 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS mchat_processed_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mchat_post_id TEXT NOT NULL UNIQUE,
+                mchat_channel_id TEXT NOT NULL,
+                processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_mchat_processed_channel ON mchat_processed_messages(mchat_channel_id);
+
+            CREATE TABLE IF NOT EXISTS mchat_backfill_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mchat_channel_id TEXT NOT NULL UNIQUE,
+                status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+                total_messages INTEGER DEFAULT 0,
+                processed_messages INTEGER DEFAULT 0,
+                started_at DATETIME,
+                completed_at DATETIME,
+                error TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        await _db_connection.commit()
+    except Exception:
+        pass
+
+    # mchat_issues 테이블 마이그레이션 (기존 DB용)
+    try:
+        await _db_connection.executescript("""
+            CREATE TABLE IF NOT EXISTS mchat_issues (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                body TEXT,
+                channel_id TEXT NOT NULL,
+                creator TEXT NOT NULL,
+                status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_mchat_issues_channel ON mchat_issues(channel_id);
+            CREATE INDEX IF NOT EXISTS idx_mchat_issues_status ON mchat_issues(status);
+        """)
         await _db_connection.commit()
     except Exception:
         pass

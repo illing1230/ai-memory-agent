@@ -6,7 +6,14 @@ import aiosqlite
 
 from src.shared.database import get_db
 from src.shared.auth import get_current_admin_user
-from src.mchat.worker import get_mchat_client, get_mchat_bot_user_id, get_mchat_stats
+from src.mchat.worker import (
+    get_mchat_client,
+    get_mchat_bot_user_id,
+    get_mchat_stats,
+    backfill_channel_history,
+    get_or_create_agent_room,
+    get_or_create_agent_user,
+)
 from src.mchat.summary import is_scheduler_running, trigger_summary_now
 
 router = APIRouter()
@@ -307,3 +314,89 @@ async def set_channel_summary_interval(
     await db.commit()
 
     return {"summary_interval_hours": request.interval_hours}
+
+
+# ==================== 백필 API ====================
+
+
+@router.post("/channels/{channel_id}/backfill")
+async def trigger_backfill(
+    channel_id: str,
+    background_tasks: BackgroundTasks,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+    max_pages: int = 10,
+):
+    """수동 백필 트리거"""
+    client = get_mchat_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="Mchat이 연결되지 않았습니다")
+
+    # 채널 매핑 확인
+    cursor = await db.execute(
+        "SELECT mchat_channel_id, agent_room_id FROM mchat_channel_mapping WHERE mchat_channel_id = ?",
+        (channel_id,),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="채널을 찾을 수 없습니다")
+
+    agent_room_id = row["agent_room_id"]
+    bot_user_id = get_mchat_bot_user_id()
+
+    # 이미 실행 중인지 확인
+    cursor = await db.execute(
+        "SELECT status FROM mchat_backfill_status WHERE mchat_channel_id = ?",
+        (channel_id,),
+    )
+    status_row = await cursor.fetchone()
+    if status_row and status_row["status"] == "running":
+        raise HTTPException(status_code=409, detail="백필이 이미 실행 중입니다")
+
+    async def run_backfill():
+        try:
+            await backfill_channel_history(
+                db=db,
+                client=client,
+                mchat_channel_id=channel_id,
+                agent_room_id=agent_room_id,
+                agent_user_id=admin_id,
+                bot_user_id=bot_user_id,
+                max_pages=max_pages,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger("mchat.worker").error(f"API backfill failed: {e}")
+
+    background_tasks.add_task(run_backfill)
+
+    return {"message": f"백필 트리거됨 (최대 {max_pages} 페이지)", "channel_id": channel_id}
+
+
+@router.get("/channels/{channel_id}/backfill/status")
+async def get_backfill_status(
+    channel_id: str,
+    admin_id: str = Depends(get_current_admin_user),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """백필 상태 조회"""
+    cursor = await db.execute(
+        """SELECT mchat_channel_id, status, total_messages, processed_messages,
+                  started_at, completed_at, error, created_at
+           FROM mchat_backfill_status WHERE mchat_channel_id = ?""",
+        (channel_id,),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return {"status": "not_started", "channel_id": channel_id}
+
+    return {
+        "channel_id": row["mchat_channel_id"],
+        "status": row["status"],
+        "total_messages": row["total_messages"],
+        "processed_messages": row["processed_messages"],
+        "started_at": row["started_at"],
+        "completed_at": row["completed_at"],
+        "error": row["error"],
+        "created_at": row["created_at"],
+    }

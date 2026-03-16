@@ -195,6 +195,18 @@ class MchatClient:
         """DM 채널 생성 (1:1 또는 그룹)"""
         return await self._request("POST", "/api/v4/channels/direct", data=user_ids)
 
+    async def get_file(self, file_id: str) -> bytes:
+        """파일 바이너리 다운로드 (Mattermost API v4)"""
+        url = f"{self.base_url}/api/v4/files/{file_id}"
+        async with httpx.AsyncClient(timeout=60.0, verify=self._http_verify) as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.content
+
+    async def get_file_info(self, file_id: str) -> dict[str, Any]:
+        """파일 메타데이터 조회"""
+        return await self._request("GET", f"/api/v4/files/{file_id}/info")
+
     async def ping(self) -> bool:
         """서버 헬스 체크"""
         try:

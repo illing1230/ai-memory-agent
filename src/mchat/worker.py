@@ -10,6 +10,7 @@ import logging
 import re
 import sqlite3
 import uuid
+from datetime import datetime, timezone
 
 import aiosqlite
 
@@ -23,6 +24,7 @@ from src.chat.service import ChatService
 from src.chat.repository import ChatRepository
 from src.user.repository import UserRepository
 from src.memory.repository import MemoryRepository
+from src.document.service import DocumentService
 from src.config import get_settings
 from src.shared.database import init_database, get_db_sync
 from src.shared.vector_store import delete_vectors_by_filter
@@ -135,6 +137,18 @@ async def get_or_create_agent_room(
 
     # 기존 채널 멤버 전체 동기화 (이미 채널에 있던 사람들 추가)
     await sync_channel_members(db, mchat_client, mchat_channel_id, room["id"], bot_user_id)
+
+    # 새 채널 매핑 시 자동 백필 트리거
+    asyncio.create_task(
+        backfill_channel_history(
+            db=db,
+            client=mchat_client,
+            mchat_channel_id=mchat_channel_id,
+            agent_room_id=room["id"],
+            agent_user_id=agent_user_id,
+            bot_user_id=bot_user_id,
+        )
+    )
 
     return room["id"]
 
@@ -459,6 +473,272 @@ async def _handle_summary_command(
     return True
 
 
+# 지원하는 파일 확장자
+_SUPPORTED_FILE_EXTENSIONS = {"pdf", "txt", "pptx"}
+# 최대 파일 크기 (50MB)
+_MAX_FILE_SIZE = 50 * 1024 * 1024
+
+
+async def _handle_file_attachments(
+    client: MchatClient,
+    db: aiosqlite.Connection,
+    file_ids: list[str],
+    channel_id: str,
+    agent_user_id: str,
+    agent_room_id: str,
+) -> None:
+    """첨부 파일을 다운로드하여 DocumentService로 처리 (비동기)"""
+    for file_id in file_ids:
+        try:
+            # 파일 메타데이터 조회
+            file_info = await client.get_file_info(file_id)
+            filename = file_info.get("name", "unknown")
+            file_size = file_info.get("size", 0)
+
+            # 확장자 확인
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            if ext not in _SUPPORTED_FILE_EXTENSIONS:
+                await client.create_post(
+                    channel_id=channel_id,
+                    message=f"⚠️ `{filename}` — 지원하지 않는 파일 형식입니다. PDF, TXT, PPTX만 지원합니다.",
+                )
+                continue
+
+            # 파일 크기 제한
+            if file_size > _MAX_FILE_SIZE:
+                await client.create_post(
+                    channel_id=channel_id,
+                    message=f"⚠️ `{filename}` — 파일이 너무 큽니다 ({file_size // (1024*1024)}MB). 최대 50MB까지 지원합니다.",
+                )
+                continue
+
+            # 파일 다운로드
+            file_content = await client.get_file(file_id)
+
+            # DocumentService로 처리
+            doc_service = DocumentService(db)
+            doc = await doc_service.upload_document(
+                file_content=file_content,
+                filename=filename,
+                owner_id=agent_user_id,
+                chat_room_id=agent_room_id,
+            )
+
+            await client.create_post(
+                channel_id=channel_id,
+                message=f"📄 `{filename}` 메모리 저장 완료! ({doc.get('chunk_count', 0)}개 청크)",
+            )
+            logger.info(f"File processed: {filename} -> doc {doc['id']} ({doc.get('chunk_count', 0)} chunks)")
+
+        except Exception as e:
+            logger.error(f"File attachment error ({file_id}): {e}", exc_info=True)
+            await client.create_post(
+                channel_id=channel_id,
+                message=f"❌ 파일 처리 중 오류 발생: {str(e)[:100]}",
+            )
+
+
+async def backfill_channel_history(
+    db: aiosqlite.Connection,
+    client: MchatClient,
+    mchat_channel_id: str,
+    agent_room_id: str,
+    agent_user_id: str,
+    bot_user_id: str,
+    max_pages: int = 10,
+) -> None:
+    """과거 메시지를 가져와서 메모리로 저장 (백필)"""
+    # 상태 초기화
+    try:
+        await db.execute(
+            """INSERT INTO mchat_backfill_status (mchat_channel_id, status, started_at)
+               VALUES (?, 'running', ?)
+               ON CONFLICT(mchat_channel_id) DO UPDATE SET
+                   status='running', started_at=?, total_messages=0, processed_messages=0, error=NULL""",
+            (mchat_channel_id, datetime.now(timezone.utc).isoformat(),
+             datetime.now(timezone.utc).isoformat()),
+        )
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Backfill status init error: {e}")
+        return
+
+    semaphore = asyncio.Semaphore(3)  # LLM 동시 호출 제한
+    total_count = 0
+    processed_count = 0
+
+    try:
+        for page in range(max_pages):
+            posts_data = await client.get_posts_for_channel(
+                mchat_channel_id, page=page, per_page=60,
+            )
+
+            order = posts_data.get("order", [])
+            posts = posts_data.get("posts", {})
+
+            if not order:
+                break  # 더 이상 메시지 없음
+
+            for post_id in order:
+                post = posts.get(post_id, {})
+                post_type = post.get("type", "")
+                user_id = post.get("user_id", "")
+                message = post.get("message", "")
+
+                # 봇 자신의 메시지, 시스템 메시지 제외
+                if user_id == bot_user_id or post_type.startswith("system_"):
+                    continue
+
+                if not message.strip():
+                    continue
+
+                total_count += 1
+
+                # 중복 확인
+                cursor = await db.execute(
+                    "SELECT 1 FROM mchat_processed_messages WHERE mchat_post_id = ?",
+                    (post_id,),
+                )
+                if await cursor.fetchone():
+                    continue
+
+                async def process_message(p_id, msg, u_id):
+                    nonlocal processed_count
+                    async with semaphore:
+                        try:
+                            # 사용자 매핑
+                            mchat_user = await client.get_user(u_id)
+                            username = mchat_user.get("username", u_id[:8])
+                            a_user_id = await get_or_create_agent_user(db, client, u_id, username)
+
+                            # ChatService로 메모리 추출 (AI 응답 없이 저장만)
+                            chat_service = ChatService(db)
+                            await chat_service.send_message(
+                                chat_room_id=agent_room_id,
+                                user_id=a_user_id,
+                                content=msg,
+                            )
+
+                            # 처리 완료 기록
+                            await db.execute(
+                                "INSERT OR IGNORE INTO mchat_processed_messages (mchat_post_id, mchat_channel_id) VALUES (?, ?)",
+                                (p_id, mchat_channel_id),
+                            )
+                            await db.commit()
+                            processed_count += 1
+
+                            # 진행 상태 업데이트
+                            await db.execute(
+                                "UPDATE mchat_backfill_status SET total_messages=?, processed_messages=? WHERE mchat_channel_id=?",
+                                (total_count, processed_count, mchat_channel_id),
+                            )
+                            await db.commit()
+                        except Exception as e:
+                            logger.error(f"Backfill message error ({p_id}): {e}")
+
+                await process_message(post_id, message, user_id)
+
+        # 완료
+        await db.execute(
+            "UPDATE mchat_backfill_status SET status='completed', completed_at=?, total_messages=?, processed_messages=? WHERE mchat_channel_id=?",
+            (datetime.now(timezone.utc).isoformat(), total_count, processed_count, mchat_channel_id),
+        )
+        await db.commit()
+
+        # 완료 메시지 전송
+        if processed_count > 0:
+            await client.create_post(
+                channel_id=mchat_channel_id,
+                message=f"📝 과거 대화 {processed_count}건 메모리 저장 완료!",
+            )
+        logger.info(f"Backfill completed: {mchat_channel_id} — {processed_count}/{total_count} messages")
+
+    except Exception as e:
+        logger.error(f"Backfill error ({mchat_channel_id}): {e}", exc_info=True)
+        try:
+            await db.execute(
+                "UPDATE mchat_backfill_status SET status='failed', error=? WHERE mchat_channel_id=?",
+                (str(e)[:500], mchat_channel_id),
+            )
+            await db.commit()
+        except Exception:
+            pass
+
+
+async def _handle_issue_command(
+    client: MchatClient,
+    db: aiosqlite.Connection,
+    message: str,
+    channel_id: str,
+    sender_name: str,
+    post_id: str,
+) -> bool:
+    """이슈 관련 커맨드 처리. 처리했으면 True, 아니면 False 반환."""
+
+    # //issues — 열린 이슈 목록
+    if message.strip() == "//issues":
+        cursor = await db.execute(
+            "SELECT id, title, creator, created_at FROM mchat_issues WHERE channel_id = ? AND status = 'open' ORDER BY id",
+            (channel_id,),
+        )
+        rows = await cursor.fetchall()
+        if not rows:
+            await client.create_post(channel_id=channel_id, message="📋 열린 이슈가 없습니다.")
+        else:
+            lines = ["📋 **열린 이슈 목록:**"]
+            for row in rows:
+                lines.append(f"- **#{row['id']}** {row['title']} (by {row['creator']})")
+            await client.create_post(channel_id=channel_id, message="\n".join(lines))
+        return True
+
+    # //issue close N — 이슈 닫기
+    close_match = re.match(r"//issue\s+close\s+(\d+)", message.strip())
+    if close_match:
+        issue_id = int(close_match.group(1))
+        cursor = await db.execute(
+            "SELECT id, title FROM mchat_issues WHERE id = ? AND channel_id = ?",
+            (issue_id, channel_id),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            await client.create_post(channel_id=channel_id, message=f"❌ 이슈 #{issue_id}을(를) 찾을 수 없습니다.")
+        else:
+            await db.execute(
+                "UPDATE mchat_issues SET status = 'closed' WHERE id = ?",
+                (issue_id,),
+            )
+            await db.commit()
+            await client.create_post(channel_id=channel_id, message=f"✅ 이슈 #{issue_id} 닫힘: {row['title']}")
+        return True
+
+    # //issue <내용> — 새 이슈 등록
+    issue_match = re.match(r"//issue\s+(.+)", message.strip(), re.DOTALL)
+    if issue_match:
+        content = issue_match.group(1).strip()
+        lines = content.split("\n", 1)
+        title = lines[0].strip()
+        body = lines[1].strip() if len(lines) > 1 else ""
+
+        await db.execute(
+            "INSERT INTO mchat_issues (title, body, channel_id, creator) VALUES (?, ?, ?, ?)",
+            (title, body, channel_id, sender_name),
+        )
+        await db.commit()
+
+        # 방금 생성된 이슈 ID 조회
+        cursor = await db.execute("SELECT last_insert_rowid()")
+        row = await cursor.fetchone()
+        issue_id = row[0] if row else "?"
+
+        await client.create_post(
+            channel_id=channel_id,
+            message=f"📋 이슈 #{issue_id} 등록됨: {title}",
+        )
+        return True
+
+    return False
+
+
 async def start_mchat_worker():
     """Mchat worker 시작 (lifespan에서 호출)"""
     global _mchat_client, _mchat_bot_user_id, _health_check_task, _worker_db
@@ -504,13 +784,31 @@ async def start_mchat_worker():
         sender_name = data.get("sender_name", "unknown")
         channel_type = data.get("channel_type", "")
 
-        # 시스템 메시지 무시 (system_add_to_channel, system_join_channel 등)
+        # 봇 자신의 메시지는 무시
         post_type = post.get("type", "")
-        if post_type.startswith("system_"):
+        if user_id == bot_user_id:
             return
 
-        # 봇 자신의 메시지는 무시
-        if user_id == bot_user_id:
+        # 공지사항 자동 감지 (채널 헤더/목적 변경)
+        if post_type in ("system_header_change", "system_purpose_change"):
+            try:
+                agent_user_id = await get_or_create_agent_user(db, client, user_id, sender_name)
+                agent_room_id = await get_or_create_agent_room(db, client, channel_id, channel_name, agent_user_id, bot_user_id)
+                change_type = "헤더" if post_type == "system_header_change" else "목적"
+                notice_content = f"[공지] 채널 {change_type} 변경: {message}" if message else f"[공지] 채널 {change_type}이(가) 변경됨"
+                chat_service = ChatService(db)
+                await chat_service.send_message(
+                    chat_room_id=agent_room_id,
+                    user_id=agent_user_id,
+                    content=notice_content,
+                )
+                logger.info(f"Notice saved: {post_type} in {channel_name}")
+            except Exception as e:
+                logger.error(f"Notice handling error: {e}")
+            return
+
+        # 시스템 메시지 무시 (system_add_to_channel, system_join_channel 등)
+        if post_type.startswith("system_"):
             return
 
         # 채널 동기화가 꺼져 있으면 무시
@@ -525,6 +823,14 @@ async def start_mchat_worker():
         logger.info(f"Message from @{sender_name} (ai={needs_ai_response}): {message[:80]}")
 
         try:
+            # 이슈 커맨드 체크 (//issue, //issues)
+            if message.strip().startswith("//issue"):
+                issue_handled = await _handle_issue_command(
+                    client, db, message, channel_id, sender_name, post.get("id", ""),
+                )
+                if issue_handled:
+                    return
+
             # "@ai 요약" 봇 커맨드 체크
             if needs_ai_response:
                 summary_handled = await _handle_summary_command(
@@ -538,6 +844,27 @@ async def start_mchat_worker():
             # Agent 사용자/대화방 매핑
             agent_user_id = await get_or_create_agent_user(db, client, user_id, sender_name)
             agent_room_id = await get_or_create_agent_room(db, client, channel_id, channel_name, agent_user_id, bot_user_id)
+
+            # 파일 첨부 처리 (비동기, 메시지 처리 블로킹하지 않음)
+            file_ids = post.get("file_ids") or []
+            if file_ids:
+                asyncio.create_task(
+                    _handle_file_attachments(
+                        client, db, file_ids, channel_id, agent_user_id, agent_room_id,
+                    )
+                )
+
+            # 핀 메시지 감지 → 메모리에 공지로 저장
+            is_pinned = post.get("is_pinned", False)
+            if is_pinned and message.strip():
+                pin_content = f"[공지] 핀 메시지: {message}"
+                chat_service = ChatService(db)
+                await chat_service.send_message(
+                    chat_room_id=agent_room_id,
+                    user_id=agent_user_id,
+                    content=pin_content,
+                )
+                logger.info(f"Pinned message saved as notice in {channel_name}")
 
             # ChatService로 메시지 저장 + 메모리 추출
             # @ai 멘션이 있으면 AI 응답도 생성, 없으면 저장+메모리추출만
