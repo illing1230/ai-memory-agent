@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Memory Agent — System Workflow</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', -apple-system, sans-serif; overflow-x: hidden; }
+  
+  h1 { text-align: center; padding: 40px 20px 10px; font-size: 28px; color: #fff; }
+  h1 span { color: #7c5cfc; }
+  .subtitle { text-align: center; color: #888; font-size: 14px; margin-bottom: 40px; }
+  
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 60px; }
+  
+  /* Section titles */
+  .section-title {
+    font-size: 18px; font-weight: 700; color: #7c5cfc;
+    margin: 50px 0 20px; padding-left: 12px;
+    border-left: 3px solid #7c5cfc;
+  }
+  
+  /* Flow diagram */
+  .flow { display: flex; flex-direction: column; gap: 0; align-items: center; }
+  
+  .flow-row {
+    display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    width: 100%; max-width: 1000px;
+  }
+  
+  .node {
+    background: #14141f; border: 1px solid #2a2a3a; border-radius: 12px;
+    padding: 16px 20px; min-width: 160px; text-align: center;
+    transition: all 0.3s; cursor: default; position: relative;
+  }
+  .node:hover { border-color: #7c5cfc; transform: translateY(-2px); box-shadow: 0 4px 20px rgba(124,92,252,0.15); }
+  
+  .node .icon { font-size: 28px; margin-bottom: 8px; }
+  .node .label { font-size: 13px; font-weight: 600; color: #fff; }
+  .node .desc { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.4; }
+  
+  .node.source { border-color: #2d6a4f; }
+  .node.source:hover { border-color: #40916c; box-shadow: 0 4px 20px rgba(64,145,108,0.15); }
+  .node.process { border-color: #7c5cfc; }
+  .node.storage { border-color: #e07c24; }
+  .node.storage:hover { border-color: #f4a236; box-shadow: 0 4px 20px rgba(244,162,54,0.15); }
+  .node.output { border-color: #e05c5c; }
+  .node.output:hover { border-color: #f47070; box-shadow: 0 4px 20px rgba(244,112,112,0.15); }
+  .node.user { border-color: #5ca0e0; }
+  .node.user:hover { border-color: #70b4f4; box-shadow: 0 4px 20px rgba(112,180,244,0.15); }
+  
+  /* Arrows */
+  .arrow { 
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 0; color: #555; font-size: 20px;
+  }
+  .arrow.down::after { content: '▼'; }
+  .arrow.right::after { content: '▶'; display: none; }
+  .arrow-label { font-size: 11px; color: #7c5cfc; margin: 0 8px; }
+  
+  /* Connector lines */
+  .connector {
+    width: 2px; height: 30px; background: linear-gradient(to bottom, #2a2a3a, #7c5cfc, #2a2a3a);
+    margin: 0 auto;
+  }
+  .connector.short { height: 16px; }
+  
+  /* Pipeline detail */
+  .pipeline {
+    background: #14141f; border: 1px solid #7c5cfc; border-radius: 16px;
+    padding: 24px; margin: 20px auto; max-width: 900px;
+    position: relative;
+  }
+  .pipeline::before {
+    content: ''; position: absolute; inset: -1px; border-radius: 16px;
+    background: linear-gradient(135deg, rgba(124,92,252,0.1), transparent);
+    z-index: 0;
+  }
+  .pipeline > * { position: relative; z-index: 1; }
+  .pipeline-title { font-size: 14px; font-weight: 700; color: #7c5cfc; margin-bottom: 16px; }
+  
+  .pipeline-steps {
+    display: flex; gap: 0; align-items: center; justify-content: center; flex-wrap: wrap;
+  }
+  .step {
+    background: #1a1a2e; border: 1px solid #2a2a3a; border-radius: 8px;
+    padding: 10px 14px; text-align: center; min-width: 120px;
+  }
+  .step .step-num { font-size: 10px; color: #7c5cfc; font-weight: 700; }
+  .step .step-label { font-size: 12px; color: #fff; margin-top: 2px; }
+  .step .step-desc { font-size: 10px; color: #666; margin-top: 2px; }
+  .step-arrow { color: #7c5cfc; font-size: 16px; padding: 0 6px; }
+  
+  /* Architecture overview */
+  .arch-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px; margin: 20px 0;
+  }
+  .arch-card {
+    background: #14141f; border: 1px solid #2a2a3a; border-radius: 10px;
+    padding: 16px; transition: all 0.3s;
+  }
+  .arch-card:hover { border-color: #7c5cfc; }
+  .arch-card .module { font-size: 12px; font-weight: 700; color: #7c5cfc; margin-bottom: 6px; }
+  .arch-card .files { font-size: 11px; color: #888; line-height: 1.6; }
+  .arch-card .files code { background: #1a1a2e; padding: 1px 5px; border-radius: 3px; color: #aaa; font-size: 10px; }
+  
+  /* Legend */
+  .legend {
+    display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
+    margin: 30px 0; padding: 16px; background: #14141f; border-radius: 10px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend-dot.source { background: #40916c; }
+  .legend-dot.process { background: #7c5cfc; }
+  .legend-dot.storage { background: #e07c24; }
+  .legend-dot.output { background: #e05c5c; }
+  .legend-dot.user { background: #5ca0e0; }
+
+  /* Animated pulse */
+  @keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .pulse { animation: pulse 2s infinite; }
+  
+  /* Flow 2: Search */
+  .flow-horizontal {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; flex-wrap: wrap; margin: 20px 0;
+  }
+  .flow-horizontal .node { min-width: 140px; }
+  .h-arrow { color: #7c5cfc; font-size: 20px; padding: 0 8px; }
+  .h-arrow::after { content: '→'; }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .flow-row { flex-direction: column; align-items: center; }
+    .pipeline-steps { flex-direction: column; }
+    .step-arrow { transform: rotate(90deg); }
+    .flow-horizontal { flex-direction: column; }
+    .h-arrow::after { content: '↓'; }
+  }
+</style>
+</head>
+<body>
+
+<h1>AI <span>Memory</span> Agent</h1>
+<p class="subtitle">System Architecture & Workflow Visualization</p>
+
+<div class="container">
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot source"></div> 데이터 소스</div>
+    <div class="legend-item"><div class="legend-dot process"></div> 처리 엔진</div>
+    <div class="legend-item"><div class="legend-dot storage"></div> 저장소</div>
+    <div class="legend-item"><div class="legend-dot output"></div> 출력</div>
+    <div class="legend-item"><div class="legend-dot user"></div> 사용자/외부</div>
+  </div>
+
+  <!-- ===== FLOW 1: 메모리 수집 ===== -->
+  <div class="section-title">1. 메모리 수집 흐름 (Ingestion)</div>
+  
+  <div class="flow">
+    <!-- Sources -->
+    <div class="flow-row">
+      <div class="node source">
+        <div class="icon">💬</div>
+        <div class="label">Mchat 대화방</div>
+        <div class="desc">WebSocket 실시간 수신<br>멤버 변경 감지</div>
+      </div>
+      <div class="node source">
+        <div class="icon">🌐</div>
+        <div class="label">웹 채팅</div>
+        <div class="desc">React 프론트엔드<br>직접 대화</div>
+      </div>
+      <div class="node source">
+        <div class="icon">🤖</div>
+        <div class="label">Agent SDK</div>
+        <div class="desc">send_memory API<br>외부 에이전트 연동</div>
+      </div>
+      <div class="node source">
+        <div class="icon">📄</div>
+        <div class="label">문서 업로드</div>
+        <div class="desc">PDF, TXT, MD<br>자동 청킹</div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Processing -->
+    <div class="pipeline">
+      <div class="pipeline-title">🧠 Memory Pipeline (핵심 엔진)</div>
+      <div class="pipeline-steps">
+        <div class="step">
+          <div class="step-num">STEP 1</div>
+          <div class="step-label">콘텐츠 분석</div>
+          <div class="step-desc">유형 자동 감지<br>코드/문서/대화/데이터</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 2</div>
+          <div class="step-label">적응형 청킹</div>
+          <div class="step-desc">Phase 3 AdaptiveChunker<br>의미 단위 분할 + 오버랩</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 3</div>
+          <div class="step-label">계층적 요약</div>
+          <div class="step-desc">요약본 + 상세 청크<br>parent_summary_id 연결</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 4</div>
+          <div class="step-label">LLM 추출</div>
+          <div class="step-desc">메모리 추출 프롬프트<br>카테고리/중요도 분류</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 5</div>
+          <div class="step-label">중복 검사</div>
+          <div class="step-desc">시맨틱 유사도 검사<br>Supersede 체인</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 6</div>
+          <div class="step-label">임베딩 + 저장</div>
+          <div class="step-desc">벡터 생성<br>Qdrant + SQLite</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <!-- Storage -->
+    <div class="flow-row">
+      <div class="node storage">
+        <div class="icon">🔷</div>
+        <div class="label">Qdrant</div>
+        <div class="desc">벡터 임베딩 저장<br>시맨틱 검색</div>
+      </div>
+      <div class="node storage">
+        <div class="icon">🗄️</div>
+        <div class="label">SQLite</div>
+        <div class="desc">메모리 메타데이터<br>사용자/권한/엔티티</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FLOW 2: 메모리 검색 ===== -->
+  <div class="section-title">2. 메모리 검색 흐름 (Retrieval)</div>
+  
+  <div class="flow">
+    <div class="flow-row">
+      <div class="node user">
+        <div class="icon">👤</div>
+        <div class="label">사용자 질문</div>
+        <div class="desc">"회의에서 결정된 거 뭐야?"</div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="pipeline">
+      <div class="pipeline-title">🔍 Search Pipeline</div>
+      <div class="pipeline-steps">
+        <div class="step">
+          <div class="step-num">STEP 1</div>
+          <div class="step-label">계층적 검색</div>
+          <div class="step-desc">요약본 우선 검색<br>연결 청크 자동 확장</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 2</div>
+          <div class="step-label">벡터 검색</div>
+          <div class="step-desc">Qdrant 시맨틱 매칭<br>코사인 유사도</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 3</div>
+          <div class="step-label">FTS5 검색</div>
+          <div class="step-desc">SQLite 풀텍스트<br>키워드 매칭</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 4</div>
+          <div class="step-label">엔티티 그래프</div>
+          <div class="step-desc">관련 엔티티 탐색<br>관계 기반 확장</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">STEP 5</div>
+          <div class="step-label">RRF + 리랭킹</div>
+          <div class="step-desc">Reciprocal Rank Fusion<br>시간 감쇠 + 접근 빈도</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="flow-row">
+      <div class="node output">
+        <div class="icon">💡</div>
+        <div class="label">컨텍스트 제공</div>
+        <div class="desc">LLM에 관련 메모리 전달<br>AI 답변 생성</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FLOW 3: Agent SDK ===== -->
+  <div class="section-title">3. Agent SDK 흐름</div>
+  
+  <div class="flow">
+    <div class="flow-row">
+      <div class="node user">
+        <div class="icon">🤖</div>
+        <div class="label">외부 에이전트</div>
+        <div class="desc">보안봇, HR봇, IT봇 등</div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="pipeline">
+      <div class="pipeline-title">📡 Agent API Gateway</div>
+      <div class="pipeline-steps">
+        <div class="step">
+          <div class="step-num">인증</div>
+          <div class="step-label">API Key 검증</div>
+          <div class="step-desc">agent_instances 조회<br>owner_id 매핑</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">수신</div>
+          <div class="step-label">데이터 수신</div>
+          <div class="step-desc">memory / message / log<br>agent_data 저장</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">변환</div>
+          <div class="step-label">메모리 변환</div>
+          <div class="step-desc">_convert_to_memory<br>벡터 임베딩 생성</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-num">검색</div>
+          <div class="step-label">크로스 검색</div>
+          <div class="step-desc">에이전트 간 지식 검색<br>scope 기반 권한</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector"></div>
+
+    <div class="flow-row">
+      <div class="node output">
+        <div class="icon">📊</div>
+        <div class="label">Agent Dashboard</div>
+        <div class="desc">등록 에이전트 관리<br>data_count / 사용량</div>
+      </div>
+      <div class="node output">
+        <div class="icon">🔑</div>
+        <div class="label">SDK Client</div>
+        <div class="desc">save() / search()<br>3줄 연동</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FLOW 4: Mchat 연동 ===== -->
+  <div class="section-title">4. Mchat(Mattermost) 실시간 연동</div>
+  
+  <div class="flow">
+    <div class="flow-horizontal" style="justify-content: center;">
+      <div class="node source">
+        <div class="icon">🔌</div>
+        <div class="label">WebSocket 연결</div>
+        <div class="desc">Mattermost API v4<br>실시간 이벤트</div>
+      </div>
+      <div class="h-arrow"></div>
+      <div class="node process">
+        <div class="icon">📨</div>
+        <div class="label">이벤트 핸들러</div>
+        <div class="desc">posted → 메모리 추출<br>member_added/removed<br>channel_deleted</div>
+      </div>
+      <div class="h-arrow"></div>
+      <div class="node process">
+        <div class="icon">🧠</div>
+        <div class="label">Memory Pipeline</div>
+        <div class="desc">자동 추출 + 저장<br>AI 응답 생성</div>
+      </div>
+      <div class="h-arrow"></div>
+      <div class="node output">
+        <div class="icon">💬</div>
+        <div class="label">대화방 답변</div>
+        <div class="desc">크로스 채널 검색<br>컨텍스트 기반 답변</div>
+      </div>
+    </div>
+    
+    <div style="margin: 20px auto; max-width: 800px;">
+      <div class="pipeline" style="border-color: #40916c;">
+        <div class="pipeline-title" style="color: #40916c;">🔄 멤버 동기화</div>
+        <div class="pipeline-steps">
+          <div class="step">
+            <div class="step-label">멤버 입장</div>
+            <div class="step-desc">chat_room_members<br>자동 추가</div>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="step">
+            <div class="step-label">멤버 퇴장</div>
+            <div class="step-desc">해당 유저 메모리<br>접근 권한 해제</div>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="step">
+            <div class="step-label">채널 삭제</div>
+            <div class="step-desc">관련 메모리<br>일괄 정리</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Module Architecture ===== -->
+  <div class="section-title">5. 모듈 아키텍처</div>
+  
+  <div class="arch-grid">
+    <div class="arch-card">
+      <div class="module">🧠 memory/</div>
+      <div class="files">
+        <code>pipeline.py</code> 핵심 엔진 (1170줄)<br>
+        <code>repository.py</code> SQLite CRUD<br>
+        <code>service.py</code> 비즈니스 로직<br>
+        <code>entity_repository.py</code> 엔티티 그래프<br>
+        <code>chunking.py</code> 지능형 청킹<br>
+        <code>adaptive.py</code> 적응형 청킹<br>
+        <code>hierarchical.py</code> 계층적 메모리
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">💬 chat/</div>
+      <div class="files">
+        <code>service.py</code> 대화방 관리<br>
+        <code>repository.py</code> 메시지 저장<br>
+        <code>router.py</code> REST API<br>
+        명령어: /remember, /forget,<br>/search, /members
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">🔌 mchat/</div>
+      <div class="files">
+        <code>worker.py</code> WebSocket 워커<br>
+        <code>client.py</code> MM API 클라이언트<br>
+        <code>polling_worker.py</code> 폴링 모드<br>
+        <code>summary.py</code> 대화 요약<br>
+        실시간 멤버 동기화
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">🤖 agent/</div>
+      <div class="files">
+        <code>service.py</code> SDK 비즈니스<br>
+        <code>repository.py</code> 에이전트 DB<br>
+        <code>router.py</code> REST API<br>
+        API Key 인증<br>
+        메모리 소유권 관리
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">🔐 auth/</div>
+      <div class="files">
+        <code>service.py</code> JWT 인증<br>
+        로그인 / 회원가입<br>
+        SSO 지원<br>
+        세션 관리
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">👥 permission/</div>
+      <div class="files">
+        <code>service.py</code> 권한 관리<br>
+        대화방별 접근 제어<br>
+        유저별 메모리 스코핑<br>
+        owner_id 기반
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">📄 document/</div>
+      <div class="files">
+        <code>service.py</code> 문서 처리<br>
+        PDF/TXT/MD 파싱<br>
+        자동 청킹 + 벡터화<br>
+        문서 기반 QnA
+      </div>
+    </div>
+    <div class="arch-card">
+      <div class="module">🖥️ frontend/</div>
+      <div class="files">
+        React + TypeScript<br>
+        대화 UI / 지식 대시보드<br>
+        메모리 인라인 편집<br>
+        Agent 관리 탭<br>
+        다크/라이트 테마
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Data Flow Summary ===== -->
+  <div class="section-title">6. 전체 데이터 흐름 요약</div>
+  
+  <div class="flow">
+    <div class="flow-row">
+      <div class="node user" style="flex: 1; max-width: 280px;">
+        <div class="icon">🌍</div>
+        <div class="label">입력 소스</div>
+        <div class="desc">Mchat 대화 · 웹 채팅 · Agent SDK · 문서 업로드</div>
+      </div>
+    </div>
+    <div class="connector"></div>
+    <div class="flow-row">
+      <div class="node process" style="flex: 1; max-width: 280px;">
+        <div class="icon">⚙️</div>
+        <div class="label">처리 엔진</div>
+        <div class="desc">적응형 청킹 → 계층적 요약 → LLM 추출 → 중복 검사 → 임베딩</div>
+      </div>
+    </div>
+    <div class="connector"></div>
+    <div class="flow-row">
+      <div class="node storage" style="flex: 1; max-width: 280px;">
+        <div class="icon">💾</div>
+        <div class="label">저장소</div>
+        <div class="desc">Qdrant (벡터) + SQLite (메타/관계/권한)</div>
+      </div>
+    </div>
+    <div class="connector"></div>
+    <div class="flow-row">
+      <div class="node process" style="flex: 1; max-width: 280px;">
+        <div class="icon">🔍</div>
+        <div class="label">검색 엔진</div>
+        <div class="desc">계층적 검색 → 벡터 + FTS5 → 엔티티 확장 → RRF 리랭킹</div>
+      </div>
+    </div>
+    <div class="connector"></div>
+    <div class="flow-row">
+      <div class="node output" style="flex: 1; max-width: 280px;">
+        <div class="icon">✨</div>
+        <div class="label">출력</div>
+        <div class="desc">AI 답변 · 지식 대시보드 · SDK 검색 결과 · 크로스 채널 응답</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="text-align: center; padding: 40px; color: #444; font-size: 12px;">
+  AI Memory Agent — Built by hy.joo · 2amlab.dev
+</div>
+
+</body>
+</html>

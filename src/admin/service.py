@@ -95,7 +95,23 @@ class AdminService:
         return [dict(row) for row in rows]
 
     async def delete_chat_room(self, room_id: str) -> None:
-        """대화방 삭제"""
+        """대화방 삭제 - FK 제약이 없는 자식 테이블 먼저 삭제"""
+        # memories: ON DELETE CASCADE 없음
+        await self.db.execute("DELETE FROM memories WHERE chat_room_id = ?", (room_id,))
+        # agent_instances 자식 테이블 먼저 삭제 (ON DELETE CASCADE 없음)
+        cursor = await self.db.execute(
+            "SELECT id FROM agent_instances WHERE agent_room_id = ?", (room_id,)
+        )
+        agent_ids = [row[0] for row in await cursor.fetchall()]
+        for agent_id in agent_ids:
+            await self.db.execute("DELETE FROM agent_data WHERE agent_instance_id = ?", (agent_id,))
+            await self.db.execute(
+                "DELETE FROM external_user_mappings WHERE agent_instance_id = ?", (agent_id,)
+            )
+            await self.db.execute(
+                "DELETE FROM agent_instance_shares WHERE agent_instance_id = ?", (agent_id,)
+            )
+        await self.db.execute("DELETE FROM agent_instances WHERE agent_room_id = ?", (room_id,))
         await self.db.execute("DELETE FROM chat_rooms WHERE id = ?", (room_id,))
         await self.db.commit()
 
